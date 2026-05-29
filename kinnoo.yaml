@@ -1,0 +1,15 @@
+name: mcp-server-mac-os
+version: 0.1.0
+description: "MCP server for Mac OS commands"
+author: "Jerry Chen"
+entrypoint: src/main.go
+runtime:
+  language: go
+  version: ">=1.22"
+  type: mcp-server
+dependencies: []
+inputs:
+  type: text
+outputs:
+  type: text
+framework: mcp-server
