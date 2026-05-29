@@ -24,3 +24,29 @@ Subdirectory rule files enforce specialized runtime constraints based on the act
 - Go Programming Conventions & SDK Types: `.claude/rules/go-conventions.md`
 - Secure Darwin Subprocess Management: `.claude/rules/darwin-execution.md`
 - State Staging & Defensive Operations: `.claude/rules/transactional-state.md`
+
+### 6. Compile as a Universal 2 Binary
+
+The first Mac laptops to ship with the Apple Silicon M1 chip (announced and released in November 2020) shipped with macOS 11.0 Big Sur
+
+Under the hood, the corresponding Darwin kernel version that introduced native ARM64 support for Apple Silicon is **Darwin 20.1.0**.
+
+To ensure your Go-based MCP server runs natively on both modern Apple Silicon chips (M1, M2, M3, M4) and older Intel-based Macs that are still running legacy macOS versions, you should compile your Go server into a **Universal 2 Binary**.
+
+Go handles this through cross-compilation environment variables. You can add a dedicated release script or modify your `.claude/skills/verify-pipeline.md` automation file to compile both targets and stitch them together using macOS’s native `lipo` tool:
+
+```bash
+# 1. Compile the Apple Silicon (ARM64) slice
+GOOS=darwin GOARCH=arm64 go build -o bin/mcp-server-arm64 main.go
+
+# 2. Compile the Intel (AMD64) slice
+GOOS=darwin GOARCH=amd64 go build -o bin/mcp-server-intel main.go
+
+# 3. Stitch them together into a single Universal Binary
+lipo -create -output bin/macos-darwin-mcp bin/mcp-server-arm64 bin/mcp-server-intel
+
+# Clean up individual slices
+rm bin/mcp-server-arm64 bin/mcp-server-intel
+
+```
+
