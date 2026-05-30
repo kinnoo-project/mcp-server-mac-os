@@ -274,6 +274,18 @@ func TestFindHandler_RejectsUnknownType(t *testing.T) {
 	}
 }
 
+func TestFindHandler_RejectsDashLeadingPath(t *testing.T) {
+	res, _, _ := findHandler(context.Background(), nil, FindArgs{
+		Path: "-exec",
+	})
+	if !res.IsError {
+		t.Fatal("expected IsError for dash-leading find path")
+	}
+	if !strings.Contains(textOf(res), "begins with '-'") {
+		t.Fatalf("unexpected error message: %s", textOf(res))
+	}
+}
+
 func TestStatHandler(t *testing.T) {
 	root := makeTempTree(t)
 	res, _, err := statHandler(context.Background(), nil, StatArgs{

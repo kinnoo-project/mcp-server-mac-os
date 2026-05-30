@@ -253,6 +253,12 @@ func findHandler(ctx context.Context, _ *mcp.CallToolRequest, in FindArgs) (*mcp
 	if err != nil {
 		return errorResult("could not expand path %q: %v", in.Path, err)
 	}
+	// Guard against expression injection: in `find`, a leading "-..." first token
+	// is parsed as part of the expression. Require callers to prefix relative
+	// paths with "./" when the basename starts with '-'.
+	if len(root) > 0 && root[0] == '-' {
+		return errorResult("find: path %q begins with '-' and is not allowed; prefix with ./", in.Path)
+	}
 	args := []string{root}
 	// -maxdepth/-mindepth are global options and must come before tests in BSD find.
 	if in.MaxDepth > 0 {
