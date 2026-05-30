@@ -98,6 +98,19 @@ func TestCompactOutput(t *testing.T) {
 	}
 }
 
+func TestTextResult_UsesUnstructuredOutput(t *testing.T) {
+	res, out, err := textResult("hello")
+	if err != nil {
+		t.Fatalf("textResult returned error: %v", err)
+	}
+	if out != nil {
+		t.Fatalf("textResult output should be nil to avoid empty structured `{}` payloads; got %#v", out)
+	}
+	if got := textOf(res); got != "hello" {
+		t.Fatalf("textResult content = %q, want %q", got, "hello")
+	}
+}
+
 func TestLsHandler(t *testing.T) {
 	root := makeTempTree(t)
 	ctx := context.Background()

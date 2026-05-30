@@ -4,38 +4,32 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// EmptyOutput is the structured-result placeholder for tools that return only
-// free-form text. The MCP SDK requires a concrete output type for AddTool's
-// generic instantiation.
-type EmptyOutput struct{}
-
 // textResult wraps a plain string into the dual-return shape expected by the
 // MCP Go SDK tool handler contract.
-func textResult(s string) (*mcp.CallToolResult, EmptyOutput, error) {
+func textResult(s string) (*mcp.CallToolResult, any, error) {
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: s}},
-	}, EmptyOutput{}, nil
+	}, nil, nil
 }
 
 // errorResult marks a CallToolResult as an error from the tool's perspective
 // while still returning useful diagnostic text to the model.
-func errorResult(format string, args ...any) (*mcp.CallToolResult, EmptyOutput, error) {
+func errorResult(format string, args ...any) (*mcp.CallToolResult, any, error) {
 	return &mcp.CallToolResult{
 		IsError: true,
 		Content: []mcp.Content{&mcp.TextContent{Text: fmt.Sprintf(format, args...)}},
-	}, EmptyOutput{}, nil
+	}, nil, nil
 }
 
 // runTool is the shared execution path for every read-only tool: it resolves a
 // trusted absolute binary path, invokes it with the caller-provided
 // pre-tokenized argument vector, and renders the result.
-func runTool(ctx context.Context, binaryName string, args []string) (*mcp.CallToolResult, EmptyOutput, error) {
+func runTool(ctx context.Context, binaryName string, args []string) (*mcp.CallToolResult, any, error) {
 	bin, err := resolveBinary(binaryName)
 	if err != nil {
 		return errorResult("could not resolve %s: %v", binaryName, err)
@@ -61,7 +55,7 @@ type LsArgs struct {
 	SortByTime bool   `json:"sort_by_time,omitempty" jsonschema:"Sort by modification time, newest first (passes -t)."`
 }
 
-func lsHandler(ctx context.Context, _ *mcp.CallToolRequest, in LsArgs) (*mcp.CallToolResult, EmptyOutput, error) {
+func lsHandler(ctx context.Context, _ *mcp.CallToolRequest, in LsArgs) (*mcp.CallToolResult, any, error) {
 	flags := []string{}
 	if in.All {
 		flags = append(flags, "-A")
@@ -100,7 +94,7 @@ func lsHandler(ctx context.Context, _ *mcp.CallToolRequest, in LsArgs) (*mcp.Cal
 
 type PwdArgs struct{}
 
-func pwdHandler(_ context.Context, _ *mcp.CallToolRequest, _ PwdArgs) (*mcp.CallToolResult, EmptyOutput, error) {
+func pwdHandler(_ context.Context, _ *mcp.CallToolRequest, _ PwdArgs) (*mcp.CallToolResult, any, error) {
 	wd, err := os.Getwd()
 	if err != nil {
 		return errorResult("could not determine working directory: %v", err)
@@ -116,7 +110,7 @@ type FileArgs struct {
 	Paths []string `json:"paths" jsonschema:"One or more file paths to identify. Supports leading ~ for the user's home."`
 }
 
-func fileHandler(ctx context.Context, _ *mcp.CallToolRequest, in FileArgs) (*mcp.CallToolResult, EmptyOutput, error) {
+func fileHandler(ctx context.Context, _ *mcp.CallToolRequest, in FileArgs) (*mcp.CallToolResult, any, error) {
 	if len(in.Paths) == 0 {
 		return errorResult("file: at least one path is required")
 	}
@@ -149,7 +143,7 @@ type GrepArgs struct {
 	Context        int      `json:"context,omitempty" jsonschema:"Print N lines of leading and trailing context around each match (passes -C N)."`
 }
 
-func grepHandler(ctx context.Context, _ *mcp.CallToolRequest, in GrepArgs) (*mcp.CallToolResult, EmptyOutput, error) {
+func grepHandler(ctx context.Context, _ *mcp.CallToolRequest, in GrepArgs) (*mcp.CallToolResult, any, error) {
 	if in.Pattern == "" {
 		return errorResult("grep: pattern must not be empty")
 	}
@@ -206,7 +200,7 @@ type DuArgs struct {
 	Total    bool     `json:"total,omitempty" jsonschema:"Produce a grand total across all arguments (passes -c)."`
 }
 
-func duHandler(ctx context.Context, _ *mcp.CallToolRequest, in DuArgs) (*mcp.CallToolResult, EmptyOutput, error) {
+func duHandler(ctx context.Context, _ *mcp.CallToolRequest, in DuArgs) (*mcp.CallToolResult, any, error) {
 	if len(in.Paths) == 0 {
 		return errorResult("du: at least one path is required")
 	}
@@ -251,7 +245,7 @@ type FindArgs struct {
 // and other dangerous primaries are not exposed.
 var allowedFindTypes = map[string]bool{"f": true, "d": true, "l": true}
 
-func findHandler(ctx context.Context, _ *mcp.CallToolRequest, in FindArgs) (*mcp.CallToolResult, EmptyOutput, error) {
+func findHandler(ctx context.Context, _ *mcp.CallToolRequest, in FindArgs) (*mcp.CallToolResult, any, error) {
 	if in.Path == "" {
 		return errorResult("find: path is required")
 	}
@@ -331,7 +325,7 @@ type StatArgs struct {
 	Paths []string `json:"paths" jsonschema:"One or more file or directory paths to stat. Supports leading ~ for the user's home."`
 }
 
-func statHandler(ctx context.Context, _ *mcp.CallToolRequest, in StatArgs) (*mcp.CallToolResult, EmptyOutput, error) {
+func statHandler(ctx context.Context, _ *mcp.CallToolRequest, in StatArgs) (*mcp.CallToolResult, any, error) {
 	if len(in.Paths) == 0 {
 		return errorResult("stat: at least one path is required")
 	}
@@ -358,7 +352,7 @@ type WcArgs struct {
 	Chars bool     `json:"chars,omitempty" jsonschema:"Count characters (passes -m)."`
 }
 
-func wcHandler(ctx context.Context, _ *mcp.CallToolRequest, in WcArgs) (*mcp.CallToolResult, EmptyOutput, error) {
+func wcHandler(ctx context.Context, _ *mcp.CallToolRequest, in WcArgs) (*mcp.CallToolResult, any, error) {
 	if len(in.Paths) == 0 {
 		return errorResult("wc: at least one path is required")
 	}
@@ -436,7 +430,3 @@ func registerTools(server *mcp.Server) {
 		Description: "Count lines, words, characters, or bytes in one or more files.",
 	}, wcHandler)
 }
-
-// ensure filepath is referenced even when none of the optional code paths use
-// it directly (keeps imports stable across editing).
-var _ = filepath.Separator
