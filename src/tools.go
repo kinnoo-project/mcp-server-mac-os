@@ -280,8 +280,8 @@ func findHandler(ctx context.Context, _ *mcp.CallToolRequest, in FindArgs) (*mcp
 	}
 	for _, ext := range in.Extensions {
 		// Validate: extensions must not contain glob/path metacharacters
-		// beyond ordinary filename letters/digits/_-. This keeps the OR
-		// expression tightly bounded.
+		// beyond ordinary filename letters/digits/_- (see isSafeExtension).
+		// This keeps the OR expression tightly bounded.
 		if !isSafeExtension(ext) {
 			return errorResult("find: extension %q contains disallowed characters", ext)
 		}
