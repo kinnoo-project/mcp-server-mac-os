@@ -41,7 +41,7 @@ inspect them.
 
 ## Build
 
-The project targets Go 1.22+ and the official MCP Go SDK.
+The project targets Go 1.26+ (matching `go.mod`) and the official MCP Go SDK.
 
 ```bash
 go mod tidy
