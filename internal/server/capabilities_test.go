@@ -1,8 +1,8 @@
 // capabilities_test.go is the behavioral suite for every read-only capability
-// reachable through query. Each test drives the real query path end to end
-// against a hermetic fixture tree and asserts on observable output, not on the
-// internal command line. This is the Slice C acceptance check for all 8
-// capabilities.
+// reachable through the filesystem domain tool. Each test drives the real
+// operation path end to end against a hermetic fixture tree and asserts on
+// observable output, not on the internal command line. This is the acceptance
+// check for all 8 capabilities.
 package server
 
 import (
@@ -36,16 +36,17 @@ func makeTempTree(t *testing.T) string {
 	return root
 }
 
-// run is a helper that executes a capability through query and returns the
-// result text, failing the test on a transport error.
+// run is a helper that executes a capability through the filesystem domain tool
+// and returns the result text, failing the test on a transport error. Every
+// read-only capability lives in the filesystem domain in this phase.
 func run(t *testing.T, capability string, params map[string]any) (text string, isErr bool) {
 	t.Helper()
-	res, _, err := newTestServer(t).Query(context.Background(), nil, QueryArgs{
-		Capability: capability,
-		Params:     params,
+	res, _, err := newTestServer(t).runDomainOperation(context.Background(), "filesystem", DomainArgs{
+		Operation: capability,
+		Params:    params,
 	})
 	if err != nil {
-		t.Fatalf("query %s transport error: %v", capability, err)
+		t.Fatalf("filesystem %s transport error: %v", capability, err)
 	}
 	return textOf(res), res.IsError
 }

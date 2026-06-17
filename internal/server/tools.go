@@ -1,24 +1,33 @@
-// Package server is the MCP adapter layer: it exposes the engine's capabilities
-// through the small, fixed set of engine tools the LLM actually sees (Pattern A).
+// Package server is the MCP adapter layer: it projects the capability registry
+// onto the set of tools the model actually sees.
 //
 // # Architecture role
 //
-// The model never sees one tool per capability. Instead it sees a handful of
-// generic tools — this phase ships `query` for read-only capabilities — and
-// names the capability it wants as a parameter. Capabilities themselves are
-// discovered as DATA (via list_capabilities/describe_capability, added in a
-// later slice). This keeps the tool surface fixed and stable no matter how many
-// capabilities the registry grows to hold.
+// The model does not see one tool per operation, nor a single generic dispatch
+// tool. Instead each capability *category* is exposed as one "domain" tool — for
+// example a `filesystem` tool — that accepts the name of an operation within that
+// domain plus that operation's parameters. This keeps the tool surface small and
+// semantically meaningful (the model picks a domain it understands, then an
+// operation within it) while the capabilities themselves remain pure registry
+// DATA: adding an operation is a manifest entry, not a new Go tool, and it does
+// not grow the tool surface — only a brand-new category does.
 //
-// The server wires together the two layers it depends on — the registry (what
-// can be done) and the engine (how it is done) — and owns request-shaped
-// concerns: looking a capability up, enforcing the read-only contract of the
-// query path, and translating engine output/errors into MCP results.
+// Each domain tool's description embeds the full menu of its operations and their
+// parameters, so the model can form a correct call in one shot without a separate
+// discovery round-trip.
+//
+// The server wires together the two layers it depends on — the registry (what can
+// be done) and the engine (how it is done) — and owns request-shaped concerns:
+// resolving the named operation within its domain, enforcing the read-only
+// contract of this phase, and translating engine output/errors into MCP results.
+// Mutating operations will route through a staged execute/undo path in a later
+// phase; for now only read-only operations are reachable.
 package server
 
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -45,85 +54,91 @@ func New(reg *registry.Registry, eng *engine.Engine) (*Server, error) {
 	return &Server{reg: reg, eng: eng}, nil
 }
 
-// Register wires this server's tools onto an MCP server. The read-only phase
-// exposes a fixed surface of three tools — two for discovery and one to execute
-// — regardless of how many capabilities the registry holds. Mutation tools
-// (plan/commit/undo) are added in a later phase.
+// Register exposes one domain tool per capability category. The surface grows
+// only when a new *category* is introduced — adding an operation to an existing
+// category is a manifest edit that simply lengthens that domain tool's embedded
+// menu, leaving the number of tools unchanged.
 func (s *Server) Register(srv *mcp.Server) {
-	menu := capabilityMenu(s.reg)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name: "list_capabilities",
-		Description: "List the macOS operations this server can perform, optionally filtered " +
-			"by category, as JSON. Available capabilities:\n" + menu,
-	}, s.ListCapabilities)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name: "describe_capability",
-		Description: "Return one capability's metadata and a JSON Schema for its parameters. " +
-			"Call this when you need the exact parameters a capability accepts.",
-	}, s.DescribeCapability)
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "query",
-		Description: s.queryDescription(menu),
-	}, s.Query)
+	for _, category := range s.Domains() {
+		caps := s.reg.List(category)
+		mcp.AddTool(srv, &mcp.Tool{
+			Name:        category,
+			Description: domainToolDescription(category, caps),
+		}, s.domainHandler(category))
+	}
 }
 
-// QueryArgs is the input schema for the query tool. Per Pattern A the schema is
-// intentionally generic: Capability names the operation and Params is an open
-// object validated at call time against that capability's ParamSpec, rather than
-// enumerating every capability's parameters here.
-type QueryArgs struct {
-	Capability string         `json:"capability" jsonschema:"Name of the read-only capability to run; must be one returned by list_capabilities."`
-	Params     map[string]any `json:"params,omitempty" jsonschema:"Capability-specific parameters; validated against the capability schema at call time."`
+// Domains returns the sorted, unique set of capability categories — one MCP
+// domain tool is exposed per entry. Sorting keeps the registered tool set
+// deterministic across boots.
+func (s *Server) Domains() []string {
+	seen := make(map[string]bool)
+	var cats []string
+	for _, c := range s.reg.All() {
+		if !seen[c.Category] {
+			seen[c.Category] = true
+			cats = append(cats, c.Category)
+		}
+	}
+	sort.Strings(cats)
+	return cats
 }
 
-// Query executes a single read-only capability and returns its output.
+// DomainArgs is the input shape shared by every domain tool. It is intentionally
+// generic: Operation names the capability within the domain and Params is an open
+// object validated at call time against that capability's ParamSpec. The valid
+// operations and their parameters are spelled out in each domain tool's
+// description rather than as a static schema enum, because they differ per domain
+// and a single Go struct cannot carry per-tool constraints.
+type DomainArgs struct {
+	Operation string         `json:"operation" jsonschema:"The operation to run within this domain; must be one of the operations listed in this tool's description."`
+	Params    map[string]any `json:"params,omitempty" jsonschema:"Parameters for the chosen operation, matching the parameters listed for that operation in this tool's description."`
+}
+
+// domainHandler returns the MCP handler for one domain tool, closing over the
+// category it serves so the handler can confirm the requested operation actually
+// belongs to this domain (and not, say, smuggle in a capability from another).
+func (s *Server) domainHandler(category string) func(context.Context, *mcp.CallToolRequest, DomainArgs) (*mcp.CallToolResult, any, error) {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, in DomainArgs) (*mcp.CallToolResult, any, error) {
+		return s.runDomainOperation(ctx, category, in)
+	}
+}
+
+// runDomainOperation resolves and runs one operation within a domain.
 //
-// It enforces the query path's contract in order: the capability must exist
-// (otherwise a structured not_found is returned) and must be read-only (mutating
-// capabilities will route through the future plan/commit path, never query).
-func (s *Server) Query(ctx context.Context, _ *mcp.CallToolRequest, in QueryArgs) (*mcp.CallToolResult, any, error) {
-	if in.Capability == "" {
-		return errorResult("query: 'capability' is required")
+// The contract is enforced in order: an operation must be named, must exist
+// within THIS domain (a capability from another category is rejected, not
+// silently run), and — in this read-only phase — must be read-only. A mutating
+// operation is recognized but refused with a clear message until the staged
+// execute/undo path lands, so the model is told why rather than getting a vague
+// failure.
+func (s *Server) runDomainOperation(ctx context.Context, category string, in DomainArgs) (*mcp.CallToolResult, any, error) {
+	if in.Operation == "" {
+		return errorResult("%s: 'operation' is required; choose one of: %v", category, s.operationNames(category))
 	}
-	cap, ok := s.reg.Lookup(in.Capability)
-	if !ok {
-		return s.notFound(in.Capability)
+	c, ok := s.reg.Lookup(in.Operation)
+	if !ok || c.Category != category {
+		return errorResult("%s: unknown operation %q in this domain. Available operations: %v", category, in.Operation, s.operationNames(category))
 	}
-	if cap.Reversibility != registry.ReadOnly {
-		return errorResult("query: capability %q is not read-only; mutating capabilities use the plan/commit path, not query", in.Capability)
+	if c.Reversibility != registry.ReadOnly {
+		return errorResult("%s: operation %q changes system state; the staged execute/undo path for mutations is not available yet", category, in.Operation)
 	}
-	out, err := s.eng.Run(ctx, cap, in.Params)
+	out, err := s.eng.Run(ctx, c, in.Params)
 	if err != nil {
-		return errorResult("query %q: %v", in.Capability, err)
+		return errorResult("%s.%s: %v", category, in.Operation, err)
 	}
 	return textResult(out)
 }
 
-// notFound returns a structured "unsupported capability" result that names the
-// available read-only capabilities, steering the model toward a valid choice (or
-// toward telling the user it is unsupported) rather than guessing or silently
-// falling back to a raw shell command.
-func (s *Server) notFound(name string) (*mcp.CallToolResult, any, error) {
-	available := make([]string, 0, s.reg.Len())
-	for _, c := range s.reg.List("") {
-		if c.Reversibility == registry.ReadOnly {
-			available = append(available, c.Name)
-		}
+// operationNames lists the operation names available in a domain, in manifest
+// order, for use in usage and not-found diagnostics.
+func (s *Server) operationNames(category string) []string {
+	caps := s.reg.List(category)
+	names := make([]string, 0, len(caps))
+	for _, c := range caps {
+		names = append(names, c.Name)
 	}
-	return errorResult("query: unknown capability %q. Available read-only capabilities: %v. Call list_capabilities to discover them.", name, available)
-}
-
-// queryDescription is the tool description shown to the model. It embeds the
-// capability menu so the model can pick a capability without first calling
-// list_capabilities (the common case costs zero discovery round-trips); full
-// parameter schemas still come from describe_capability on demand.
-func (s *Server) queryDescription(menu string) string {
-	return "Run a read-only macOS inspection capability by name. Supply 'capability' and " +
-		"'params' matching that capability's schema (see describe_capability for details). " +
-		"Available capabilities:\n" + menu
+	return names
 }
 
 // ---------------------------------------------------------------------------

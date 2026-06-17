@@ -8,7 +8,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
@@ -52,65 +51,45 @@ func connectClient(t *testing.T) *mcp.ClientSession {
 	return cs
 }
 
-// TestIntegration_ToolSurface confirms the protocol exposes exactly the three
-// fixed engine tools (Pattern A), regardless of capability count.
+// TestIntegration_ToolSurface confirms the protocol exposes exactly one domain
+// tool per category — currently the single `filesystem` tool — and that its
+// description embeds the full operation menu so the model needs no separate
+// discovery call.
 func TestIntegration_ToolSurface(t *testing.T) {
 	cs := connectClient(t)
 	lt, err := cs.ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("ListTools: %v", err)
 	}
-	got := make(map[string]bool)
-	for _, tool := range lt.Tools {
-		got[tool.Name] = true
+	if len(lt.Tools) != 1 || lt.Tools[0].Name != "filesystem" {
+		t.Fatalf("expected exactly one tool 'filesystem', got %v", toolNames(lt))
 	}
-	want := []string{"query", "list_capabilities", "describe_capability"}
-	if len(lt.Tools) != len(want) {
-		t.Errorf("exposed %d tools, want %d (%v)", len(lt.Tools), len(want), toolNames(lt))
-	}
-	for _, name := range want {
-		if !got[name] {
-			t.Errorf("missing expected tool %q; have %v", name, toolNames(lt))
+	// Every read-only operation should appear in the embedded menu.
+	desc := lt.Tools[0].Description
+	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep"} {
+		if !strings.Contains(desc, op) {
+			t.Errorf("filesystem tool description missing operation %q", op)
 		}
 	}
 }
 
-// TestIntegration_QueryPwd calls the pwd capability over the protocol and
-// confirms a real working-directory string comes back.
-func TestIntegration_QueryPwd(t *testing.T) {
+// TestIntegration_FilesystemPwd calls the pwd operation through the filesystem
+// domain tool over the protocol and confirms a real working-directory string
+// comes back.
+func TestIntegration_FilesystemPwd(t *testing.T) {
 	cs := connectClient(t)
 	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
-		Name:      "query",
-		Arguments: map[string]any{"capability": "pwd"},
+		Name:      "filesystem",
+		Arguments: map[string]any{"operation": "pwd"},
 	})
 	if err != nil {
-		t.Fatalf("CallTool query pwd: %v", err)
+		t.Fatalf("CallTool filesystem pwd: %v", err)
 	}
 	if res.IsError {
-		t.Fatalf("query pwd returned error: %s", textOf(res))
+		t.Fatalf("filesystem pwd returned error: %s", textOf(res))
 	}
 	if !strings.HasPrefix(textOf(res), "/") {
 		t.Errorf("pwd should return an absolute path, got %q", textOf(res))
-	}
-}
-
-// TestIntegration_ListCapabilities calls list_capabilities over the protocol and
-// confirms every registered capability is reported.
-func TestIntegration_ListCapabilities(t *testing.T) {
-	cs := connectClient(t)
-	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
-		Name:      "list_capabilities",
-		Arguments: map[string]any{},
-	})
-	if err != nil {
-		t.Fatalf("CallTool list_capabilities: %v", err)
-	}
-	var caps []capabilitySummary
-	if err := json.Unmarshal([]byte(textOf(res)), &caps); err != nil {
-		t.Fatalf("list_capabilities output is not valid JSON: %v", err)
-	}
-	if len(caps) != 8 {
-		t.Errorf("listed %d capabilities, want 8", len(caps))
 	}
 }
 
