@@ -53,5 +53,257 @@
         "arg": { "kind": "flag", "flag": "-t" }
       }
     ]
+  },
+  {
+    "name": "pwd",
+    "summary": "Show the server's current working directory.",
+    "category": "filesystem",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "pwd",
+    "params": []
+  },
+  {
+    "name": "file",
+    "summary": "Identify the type of one or more files (e.g. \"PNG image data\", \"ASCII text\").",
+    "category": "filesystem",
+    "binary": "file",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "params": [
+      {
+        "name": "paths",
+        "type": "path_list",
+        "required": true,
+        "description": "One or more files to identify; supports a leading ~.",
+        "arg": { "kind": "positional" }
+      }
+    ]
+  },
+  {
+    "name": "stat",
+    "summary": "Show detailed metadata (size, mtime, permissions, owner) for one or more paths.",
+    "category": "filesystem",
+    "binary": "stat",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "params": [
+      {
+        "name": "paths",
+        "type": "path_list",
+        "required": true,
+        "description": "One or more paths to stat; supports a leading ~.",
+        "arg": { "kind": "positional" }
+      }
+    ]
+  },
+  {
+    "name": "wc",
+    "summary": "Count lines, words, characters, or bytes in one or more files.",
+    "category": "filesystem",
+    "binary": "wc",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "params": [
+      {
+        "name": "lines",
+        "type": "bool",
+        "description": "Count lines (passes -l).",
+        "arg": { "kind": "flag", "flag": "-l" }
+      },
+      {
+        "name": "words",
+        "type": "bool",
+        "description": "Count words (passes -w).",
+        "arg": { "kind": "flag", "flag": "-w" }
+      },
+      {
+        "name": "bytes",
+        "type": "bool",
+        "description": "Count bytes (passes -c).",
+        "arg": { "kind": "flag", "flag": "-c" }
+      },
+      {
+        "name": "chars",
+        "type": "bool",
+        "description": "Count characters (passes -m).",
+        "arg": { "kind": "flag", "flag": "-m" }
+      },
+      {
+        "name": "paths",
+        "type": "path_list",
+        "required": true,
+        "description": "Files to count; supports a leading ~.",
+        "arg": { "kind": "positional" }
+      }
+    ]
+  },
+  {
+    "name": "du",
+    "summary": "Report disk usage for one or more paths. Set max_depth to 0 for just a per-argument total.",
+    "category": "filesystem",
+    "binary": "du",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "params": [
+      {
+        "name": "human_readable",
+        "type": "bool",
+        "description": "Human-readable sizes like 1.2K, 47M, 3G (passes -h).",
+        "arg": { "kind": "flag", "flag": "-h" }
+      },
+      {
+        "name": "total",
+        "type": "bool",
+        "description": "Produce a grand total across all arguments (passes -c).",
+        "arg": { "kind": "flag", "flag": "-c" }
+      },
+      {
+        "name": "max_depth",
+        "type": "int",
+        "description": "Report entries at most N directory levels deep (passes -d N). Use 0 to get only the total of each argument (the summary view).",
+        "arg": { "kind": "valued_flag", "flag": "-d" }
+      },
+      {
+        "name": "paths",
+        "type": "path_list",
+        "required": true,
+        "description": "Directories or files to measure; supports a leading ~.",
+        "arg": { "kind": "positional" }
+      }
+    ]
+  },
+  {
+    "name": "find",
+    "summary": "Locate files by name, extension, type, or depth under a directory.",
+    "category": "filesystem",
+    "binary": "find",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "find",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "Root directory to search under; supports a leading ~.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "name_pattern",
+        "type": "string",
+        "description": "Glob to match the base file name, e.g. *.png (passes -name).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "iname_pattern",
+        "type": "string",
+        "description": "Case-insensitive variant of name_pattern (passes -iname).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "type",
+        "type": "enum",
+        "enum": ["f", "d", "l"],
+        "description": "Restrict to f (regular file), d (directory), or l (symlink).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "max_depth",
+        "type": "int",
+        "description": "Maximum directory depth to descend (passes -maxdepth).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "min_depth",
+        "type": "int",
+        "description": "Minimum directory depth before matching begins (passes -mindepth).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "extensions",
+        "type": "string_list",
+        "description": "File extensions without the leading dot, e.g. [\"png\",\"jpg\"]. OR-combined and matched case-insensitively.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "grep",
+    "summary": "Search files or directories for a regular expression. Binary files are skipped.",
+    "category": "filesystem",
+    "binary": "grep",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "grep",
+    "params": [
+      {
+        "name": "pattern",
+        "type": "string",
+        "required": true,
+        "description": "Regular expression to search for.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "paths",
+        "type": "path_list",
+        "required": true,
+        "description": "Files or directories to search; supports a leading ~.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "recursive",
+        "type": "bool",
+        "description": "Recurse into directories (passes -r).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "ignore_case",
+        "type": "bool",
+        "description": "Case-insensitive match (passes -i).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "line_numbers",
+        "type": "bool",
+        "description": "Prefix matches with line numbers (passes -n). On by default unless a summary mode (files_with_matches or count) is selected.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "files_with_matches",
+        "type": "bool",
+        "description": "List only the names of files containing matches (passes -l).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "count",
+        "type": "bool",
+        "description": "Print only a count of matching lines per file (passes -c).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "max_count",
+        "type": "int",
+        "description": "Stop after this many matches per file (passes -m).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "context",
+        "type": "int",
+        "description": "Print N lines of leading and trailing context around each match (passes -C N).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "include",
+        "type": "string",
+        "description": "Restrict a recursive search to files matching this glob (passes --include=).",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]
