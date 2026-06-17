@@ -43,6 +43,16 @@ func textOf(res *mcp.CallToolResult) string {
 	return ""
 }
 
+// TestRegister exercises mcp.AddTool for every engine tool. AddTool generates
+// each tool's JSON Schema from its argument struct and PANICS on an invalid
+// jsonschema tag, so this is the regression guard for schema/tag mistakes that
+// handler-level tests (which bypass AddTool) cannot catch.
+func TestRegister(t *testing.T) {
+	s := newTestServer(t)
+	m := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
+	s.Register(m) // panics if any tool's argument schema is invalid
+}
+
 // TestQuery_LS is the Slice B acceptance check: query(ls) returns a correct
 // listing of a temp directory.
 func TestQuery_LS(t *testing.T) {

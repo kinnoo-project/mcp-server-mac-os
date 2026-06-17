@@ -5,14 +5,14 @@ This project provides a highly scalable, enterprise-grade Model Context Protocol
 
 ## 2. Technical Stack Context
 - **Language Layer**: Go 1.26+ (Idiomatic, strictly typed concurrency structures)
-- **Official SDK**: `github.com/modelcontextprotocol/go-sdk/mcp` @ v1.6.0
+- **Official SDK**: `github.com/modelcontextprotocol/go-sdk/mcp` @ v1.4.1 (the version pinned in `go.mod`)
 - **Transport Subsystem**: Standard Input/Output (`stdio`) exclusively for parent process streaming.
 
 ## 3. Automation, Quality Assurance & Build Commands
 - Run Formatting & Lint Compliance: `go fmt ./...`
 - Synchronize & Lock Dependencies: `go mod tidy`
 - Run the Test Automation Pipeline: `go test -v ./...`
-- Local Binary Target Compilation: `go build -o bin/macos-darwin-mcp main.go`
+- Local Binary Target Compilation: `go build -o bin/macos-darwin-mcp ./cmd/macos-darwin-mcp`
 
 ## 4. Fundamental Engineering Axioms (Non-Negotiable)
 1. **Zero Stream Corruption (`os.Stdout`)**: The `os.Stdout` channel belongs strictly to the JSON-RPC messaging loop. All internal log engines (`log.Printf`), fmt print statements, process initialization output, and inner panicked stack traces MUST be routed explicitly to `os.Stderr`. Any loose string leakage to stdout will break protocol framing and crash the client interface.
@@ -31,6 +31,15 @@ Subdirectory rule files enforce specialized runtime constraints based on the act
 - Secure Darwin Subprocess Management: `.claude/rules/darwin-execution.md`
 - State Staging & Defensive Operations: `.claude/rules/transactional-state.md`
 
+### Code Layout (capability-engine architecture)
+The server is built around a **capability registry + a fixed engine** (the design is recorded in `docs/ideas/macos-mcp-capability-engine.md` and specified in `docs/specs/capability-engine-readonly-spine.md`). Operations are described as **data** (JSON manifests), not hand-written per-operation tools, so a new operation is a manifest entry rather than new Go code.
+
+- `cmd/macos-darwin-mcp/` — the entry point; wiring only (load registry → build engine/server → serve over stdio).
+- `internal/registry/` — the capability catalog: types, the embedded JSON manifests under `manifests/`, and fail-fast structural validation. Pure data; no `os/exec`, no MCP.
+- `internal/engine/` — execution: parameter validation/normalization, argv assembly (a declarative generic builder plus named builders for irregular grammars, and in-process "builtin" builders), and the subprocess runner.
+- `internal/policy/` — the trust boundary deciding which binaries may run.
+- `internal/server/` — the MCP adapter. The model sees a small, **fixed** set of engine tools (**Pattern A**); capabilities are discovered as data via `list_capabilities`/`describe_capability` and executed by name through `query`. Dependency direction: `server → engine → policy`, with both depending on `registry` types and never the reverse.
+
 ### 6. Compile as a Universal 2 Binary
 
 The first Mac laptops to ship with the Apple Silicon M1 chip (announced and released in November 2020) shipped with macOS 11.0 Big Sur
@@ -43,10 +52,10 @@ Go handles this through cross-compilation environment variables. You can add a d
 
 ```bash
 # 1. Compile the Apple Silicon (ARM64) slice
-GOOS=darwin GOARCH=arm64 go build -o bin/mcp-server-arm64 main.go
+GOOS=darwin GOARCH=arm64 go build -o bin/mcp-server-arm64 ./cmd/macos-darwin-mcp
 
 # 2. Compile the Intel (AMD64) slice
-GOOS=darwin GOARCH=amd64 go build -o bin/mcp-server-intel main.go
+GOOS=darwin GOARCH=amd64 go build -o bin/mcp-server-intel ./cmd/macos-darwin-mcp
 
 # 3. Stitch them together into a single Universal Binary
 lipo -create -output bin/macos-darwin-mcp bin/mcp-server-arm64 bin/mcp-server-intel

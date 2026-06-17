@@ -45,12 +45,28 @@ func New(reg *registry.Registry, eng *engine.Engine) (*Server, error) {
 	return &Server{reg: reg, eng: eng}, nil
 }
 
-// Register wires this server's tools onto an MCP server. This phase exposes only
-// `query`; the discovery and mutation tools are added in later slices.
+// Register wires this server's tools onto an MCP server. The read-only phase
+// exposes a fixed surface of three tools — two for discovery and one to execute
+// — regardless of how many capabilities the registry holds. Mutation tools
+// (plan/commit/undo) are added in a later phase.
 func (s *Server) Register(srv *mcp.Server) {
+	menu := capabilityMenu(s.reg)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name: "list_capabilities",
+		Description: "List the macOS operations this server can perform, optionally filtered " +
+			"by category, as JSON. Available capabilities:\n" + menu,
+	}, s.ListCapabilities)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name: "describe_capability",
+		Description: "Return one capability's metadata and a JSON Schema for its parameters. " +
+			"Call this when you need the exact parameters a capability accepts.",
+	}, s.DescribeCapability)
+
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "query",
-		Description: s.queryDescription(),
+		Description: s.queryDescription(menu),
 	}, s.Query)
 }
 
@@ -59,8 +75,8 @@ func (s *Server) Register(srv *mcp.Server) {
 // object validated at call time against that capability's ParamSpec, rather than
 // enumerating every capability's parameters here.
 type QueryArgs struct {
-	Capability string         `json:"capability" jsonschema:"required,description=Name of the read-only capability to run; must be one returned by list_capabilities."`
-	Params     map[string]any `json:"params,omitempty" jsonschema:"description=Capability-specific parameters; validated against the capability schema at call time."`
+	Capability string         `json:"capability" jsonschema:"Name of the read-only capability to run; must be one returned by list_capabilities."`
+	Params     map[string]any `json:"params,omitempty" jsonschema:"Capability-specific parameters; validated against the capability schema at call time."`
 }
 
 // Query executes a single read-only capability and returns its output.
@@ -100,16 +116,14 @@ func (s *Server) notFound(name string) (*mcp.CallToolResult, any, error) {
 	return errorResult("query: unknown capability %q. Available read-only capabilities: %v. Call list_capabilities to discover them.", name, available)
 }
 
-// queryDescription is the static tool description shown to the model. A later
-// slice augments this with an embedded capability menu so the model can choose a
-// capability without a discovery round-trip.
-func (s *Server) queryDescription() string {
-	return fmt.Sprintf(
-		"Run a read-only macOS inspection capability by name. Supply 'capability' "+
-			"(one of %d registered operations; call list_capabilities to enumerate them) "+
-			"and 'params' matching that capability's schema (see describe_capability).",
-		s.reg.Len(),
-	)
+// queryDescription is the tool description shown to the model. It embeds the
+// capability menu so the model can pick a capability without first calling
+// list_capabilities (the common case costs zero discovery round-trips); full
+// parameter schemas still come from describe_capability on demand.
+func (s *Server) queryDescription(menu string) string {
+	return "Run a read-only macOS inspection capability by name. Supply 'capability' and " +
+		"'params' matching that capability's schema (see describe_capability for details). " +
+		"Available capabilities:\n" + menu
 }
 
 // ---------------------------------------------------------------------------
