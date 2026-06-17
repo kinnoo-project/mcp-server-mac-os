@@ -28,17 +28,28 @@ type Engine struct{}
 func New() *Engine { return &Engine{} }
 
 // ValidateBuilders checks, at startup, that every capability names a builder the
-// engine actually knows how to run. This is the fail-fast counterpart to the
+// engine actually knows how to run — either an argv builder (subprocess) or a
+// builtin (answered in-process). This is the fail-fast counterpart to the
 // registry's structural validation: because builders live in this package, the
 // "is this builder real?" check belongs here, keeping the registry free of any
 // dependency on the engine. Returns the first offending capability.
 func (e *Engine) ValidateBuilders(caps []registry.Capability) error {
 	for _, c := range caps {
-		if _, ok := lookupBuilder(c.Builder); !ok {
+		if !builderExists(c.Builder) {
 			return fmt.Errorf("engine: capability %q references unknown builder %q", c.Name, c.Builder)
 		}
 	}
 	return nil
+}
+
+// builderExists reports whether a builder name resolves to either an argv
+// builder or a builtin.
+func builderExists(name string) bool {
+	if _, ok := builders[name]; ok {
+		return true
+	}
+	_, ok := builtins[name]
+	return ok
 }
 
 // Run executes a single capability with the given raw (client-supplied)
@@ -56,6 +67,12 @@ func (e *Engine) Run(ctx context.Context, c registry.Capability, raw map[string]
 	normalized, err := normalizeParams(c, raw)
 	if err != nil {
 		return "", err
+	}
+
+	// Builtin capabilities are answered in-process and never touch the policy
+	// trust check or a subprocess (see builtins.go).
+	if builtin, ok := lookupBuiltin(c.Builder); ok {
+		return builtin(ctx, c, normalized)
 	}
 
 	build, ok := lookupBuilder(c.Builder)

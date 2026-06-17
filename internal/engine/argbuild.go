@@ -25,11 +25,14 @@ import (
 type ArgBuilder func(c registry.Capability, in map[string]any) ([]string, error)
 
 // builders is the registry of named argv builders. The empty string aliases the
-// generic builder so a manifest may omit "builder" entirely. Named builders for
-// irregular utilities (find, grep, pwd) are added alongside their capabilities.
+// generic builder so a manifest may omit "builder" entirely. Irregular utilities
+// whose grammar the generic builder cannot express register their own builder
+// here (see builders_filesystem.go for find/grep).
 var builders = map[string]ArgBuilder{
 	"":        buildGeneric,
 	"generic": buildGeneric,
+	"find":    buildFind,
+	"grep":    buildGrep,
 }
 
 // lookupBuilder returns the ArgBuilder for a capability, or false if its Builder
@@ -118,4 +121,51 @@ func stringifyOperands(val any) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("expected a string, integer, or string list, got %T", val)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Typed accessors for named builders
+//
+// Named builders read already-normalized parameters out of the parameter map.
+// Normalization guarantees each value's Go type, so these helpers can assert it
+// directly; an absent optional parameter simply reports "not present" via the
+// boolean return (or false, for the bool accessor).
+// ---------------------------------------------------------------------------
+
+// getBool returns the bool parameter, or false when it is absent. (The
+// normalizer materializes every declared bool, defaulting omitted ones to false,
+// so absence and false are equivalent here.)
+func getBool(in map[string]any, name string) bool {
+	b, _ := in[name].(bool)
+	return b
+}
+
+// getInt returns the int parameter and whether it was present.
+func getInt(in map[string]any, name string) (int, bool) {
+	v, ok := in[name]
+	if !ok {
+		return 0, false
+	}
+	i, ok := v.(int)
+	return i, ok
+}
+
+// getString returns the string parameter and whether it was present.
+func getString(in map[string]any, name string) (string, bool) {
+	v, ok := in[name]
+	if !ok {
+		return "", false
+	}
+	s, ok := v.(string)
+	return s, ok
+}
+
+// getStringList returns the string-list parameter and whether it was present.
+func getStringList(in map[string]any, name string) ([]string, bool) {
+	v, ok := in[name]
+	if !ok {
+		return nil, false
+	}
+	s, ok := v.([]string)
+	return s, ok
 }
