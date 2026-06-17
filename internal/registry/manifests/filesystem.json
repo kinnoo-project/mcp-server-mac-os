@@ -1,0 +1,57 @@
+[
+  {
+    "name": "ls",
+    "summary": "List a directory or describe a single file.",
+    "category": "filesystem",
+    "binary": "ls",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": false,
+        "default": ".",
+        "description": "Directory or file to list. Defaults to the working directory; supports a leading ~.",
+        "arg": { "kind": "positional" }
+      },
+      {
+        "name": "all",
+        "type": "bool",
+        "description": "Include entries starting with a dot (passes -A).",
+        "arg": { "kind": "flag", "flag": "-A" }
+      },
+      {
+        "name": "long",
+        "type": "bool",
+        "description": "Long format with permissions, owner, size, and mtime (passes -l).",
+        "arg": { "kind": "flag", "flag": "-l" }
+      },
+      {
+        "name": "human_readable",
+        "type": "bool",
+        "description": "Human-readable sizes when combined with long (passes -h).",
+        "arg": { "kind": "flag", "flag": "-h" }
+      },
+      {
+        "name": "recursive",
+        "type": "bool",
+        "description": "Recursively list subdirectories (passes -R). Use sparingly on deep trees.",
+        "arg": { "kind": "flag", "flag": "-R" }
+      },
+      {
+        "name": "sort_by_size",
+        "type": "bool",
+        "description": "Sort by file size, largest first (passes -S).",
+        "arg": { "kind": "flag", "flag": "-S" }
+      },
+      {
+        "name": "sort_by_time",
+        "type": "bool",
+        "description": "Sort by modification time, newest first (passes -t).",
+        "arg": { "kind": "flag", "flag": "-t" }
+      }
+    ]
+  }
+]
