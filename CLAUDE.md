@@ -56,3 +56,13 @@ rm bin/mcp-server-arm64 bin/mcp-server-intel
 
 ```
 
+## 7. Plain-Language Reporting to the User
+
+When explaining your reasoning, your design decisions, or what you just implemented, write in plain technical language that a senior engineer can understand WITHOUT reading the code you wrote. This governs chat/status explanations (it is distinct from Axiom 5, which governs in-code comments).
+
+- Lead with what a component *does* and *why it matters*, not the names of its functions or fields. A reader should grasp the behavior before ever seeing an identifier.
+- Avoid dense jargon stacks and compressed noun-chains (e.g. "ParamSpec-driven normalization with JSON-type coercion"). If a term is unavoidable, define it in one short clause the first time it appears.
+- Prefer concrete examples ("turns `{all: true}` into the argument `-A`") over abstract descriptions.
+- Identifiers and file paths are fine as *supporting* detail, but the explanation must stand on its own without them.
+- Optimize for a busy human skimming for understanding, not for maximal information density.
+
