@@ -1,0 +1,5 @@
+**issue**
+`find` does not fit the generic argument builder. The generic builder places positional operands after a `--` terminator, but `find` requires the search root to come **first** (before any test/expression), and its name filters (`-name`/`-iname` plus per-extension globs) must be combined into a single parenthesized OR group. Neither can be expressed with the declarative "flags, then `--`, then positionals" layout. Encountered during Slice C.
+
+**fixed**
+Gave `find` a dedicated named builder (`buildFind`) that assembles `<root> [-maxdepth N] [-mindepth N] [-type X] ( <name tests> )` and preserves the MVP's two security guardrails: it refuses a search root beginning with `-` (which `find` would otherwise parse as part of the expression) and rejects file extensions containing anything beyond ordinary filename characters. `grep` got a named builder for analogous reasons (pattern passed via `-e`, line-numbering on by default unless a summary mode is selected). This is the intended "data-driven where it pays, custom code where the command grammar demands it" split; the other six capabilities remain fully declarative.
