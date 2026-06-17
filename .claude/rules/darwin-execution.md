@@ -32,9 +32,9 @@ When invoking native utilities, look up their exact target execution footprint u
 
 ```
 
-## 4. Mandatory Input Guardrails in `src/` Command Parsers
+## 4. Mandatory Input Guardrails in Command Parsers
 
-When implementing any function in `src/` that parses or transforms CLI-style user input into command arguments, always add explicit injection guardrails before argv assembly.
+When implementing any function in `internal/engine/` (validation, the generic builder, or a named builder) that parses or transforms CLI-style user input into command arguments, always add explicit injection guardrails before argv assembly.
 
 Minimum required controls:
 - Block or neutralize dash-leading positional operands (`-...`) when the target utility may parse them as flags/expressions (for example, `find` roots).
