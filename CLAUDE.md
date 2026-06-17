@@ -19,6 +19,11 @@ This project provides a highly scalable, enterprise-grade Model Context Protocol
 2. **Defensive Parameter Slicing**: Bypassing tokenization via shell string mapping is banned. All native utilities must be invoked via `exec.CommandContext` using explicit positional string arrays (`[]string`). Shell wrappers (`sh`, `bash`, `zsh`, `eval`) are entirely forbidden.
 3. **Transactional Execution Loop for Mutating State**: Tools that delete, overwrite, or mutate system configurations must map to a discrete two-phase architecture: `Stage` (validates intent, calculates risk indices, signs with an ephemeral Request ID) and `Commit` (executes the staged data structure upon explicit external confirmation payload).
 4. **Code Quality**: Write modular, maintainable code by strictly following SOLID principles (Single responsibility, Open/closed, Liskov substitution, Interface segregation, Dependency inversion).
+5. **Self-Documenting Code (Always)**: All code MUST be written so that a human or a review agent can understand it without reading the surrounding implementation. This is non-negotiable for every file and every change:
+   - **File header section**: every source file opens with a package/file-level doc comment explaining what the file is responsible for and how it fits into the wider architecture.
+   - **Function & type docstrings**: every exported (and every non-trivial unexported) function, method, type, and field carries a Go doc comment stating its purpose, contract, and any invariants or failure modes — not a restatement of the signature.
+   - **Explanatory inline comments**: comment the *why* behind non-obvious logic, security guardrails, and design trade-offs; let clear naming carry the *what*.
+   - The goal is a codebase that documents itself. Prefer clarity over cleverness; if a reader would need to ask "why is this here?", answer it in a comment.
 
 ## 5. Directory Structure & Context Delegation
 Subdirectory rule files enforce specialized runtime constraints based on the active domain layout:
