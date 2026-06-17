@@ -1,12 +1,12 @@
-// menu.go builds the compact "capability menu" that is embedded directly into
-// the discovery/query tool descriptions.
+// menu.go renders a domain tool's description: the model-readable menu of the
+// operations in that domain and the parameters each one accepts.
 //
-// Why embed a menu at all: under Pattern A the model sees only the fixed engine
-// tools, not one tool per capability. Listing the capability names and one-line
-// summaries inside the tool description lets the model choose a capability in
-// the common case WITHOUT a separate list_capabilities round-trip — collapsing
-// what would otherwise be an extra request into zero. Full parameter detail
-// still comes on demand from describe_capability.
+// Why embed the full menu in the tool description: the model sees only the domain
+// tools, not one tool per operation. Spelling out every operation and its
+// parameters inside the description lets the model form a correct call in one
+// shot, with no separate discovery round-trip. The capability ParamSpec list
+// remains the single source of truth; this rendering is derived from it and so
+// can never drift from what the engine actually validates.
 package server
 
 import (
@@ -16,36 +16,55 @@ import (
 	"mcp-server-mac-os/internal/registry"
 )
 
-// capabilityMenu renders the registry's capabilities as a stable, newline-
-// separated list of "name — summary (risk: X)" lines, grouped by category. The
-// output is deterministic (categories and names sorted) so the tool description
-// does not churn between boots.
-func capabilityMenu(reg *registry.Registry) string {
-	caps := reg.All()
-
-	// Group capability lines by category.
-	byCategory := make(map[string][]string)
-	for _, c := range caps {
-		line := "  - " + c.Name + " — " + c.Summary + " (risk: " + string(c.Risk) + ")"
-		byCategory[c.Category] = append(byCategory[c.Category], line)
-	}
-
-	categories := make([]string, 0, len(byCategory))
-	for cat := range byCategory {
-		categories = append(categories, cat)
-	}
-	sort.Strings(categories)
+// domainToolDescription builds the description for the domain tool that exposes
+// the given category. Operations are listed in sorted order (deterministic across
+// boots) with their summary, risk, and parameter details, so the description is
+// stable and does not churn between restarts.
+func domainToolDescription(category string, caps []registry.Capability) string {
+	sorted := append([]registry.Capability(nil), caps...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
 
 	var b strings.Builder
-	for i, cat := range categories {
-		if i > 0 {
-			b.WriteString("\n")
+	b.WriteString("Perform a macOS ")
+	b.WriteString(category)
+	b.WriteString(" operation. Set 'operation' to one of the operations below and ")
+	b.WriteString("'params' to that operation's parameters.\n\nOperations:")
+
+	for _, c := range sorted {
+		b.WriteString("\n  - ")
+		b.WriteString(c.Name)
+		b.WriteString(" — ")
+		b.WriteString(c.Summary)
+		b.WriteString(" (risk: ")
+		b.WriteString(string(c.Risk))
+		b.WriteString(")")
+		b.WriteString(renderParams(c.Params))
+	}
+	return b.String()
+}
+
+// renderParams renders a capability's parameters as indented lines beneath its
+// operation, or notes that it takes none. Each line states the parameter name,
+// its type, whether it is required, and its description — everything the model
+// needs to populate 'params' correctly without a separate schema lookup.
+func renderParams(params []registry.ParamSpec) string {
+	if len(params) == 0 {
+		return "\n      (no parameters)"
+	}
+	var b strings.Builder
+	for _, p := range params {
+		b.WriteString("\n      ")
+		b.WriteString(p.Name)
+		b.WriteString(" (")
+		b.WriteString(string(p.Type))
+		if p.Required {
+			b.WriteString(", required")
 		}
-		b.WriteString(cat)
-		b.WriteString(":\n")
-		lines := byCategory[cat]
-		sort.Strings(lines)
-		b.WriteString(strings.Join(lines, "\n"))
+		b.WriteString(")")
+		if p.Description != "" {
+			b.WriteString(": ")
+			b.WriteString(p.Description)
+		}
 	}
 	return b.String()
 }

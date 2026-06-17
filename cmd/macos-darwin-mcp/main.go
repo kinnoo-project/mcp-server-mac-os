@@ -7,8 +7,8 @@
 //  2. Load and validate the capability registry (fails fast on a bad manifest).
 //  3. Build the engine and server, which cross-checks that every capability's
 //     builder actually exists (fails fast on a misconfigured capability).
-//  4. Register the fixed engine tools and serve over stdio until the client
-//     disconnects.
+//  4. Register one domain tool per capability category and serve over stdio
+//     until the client disconnects.
 package main
 
 import (
@@ -38,12 +38,12 @@ func main() {
 
 	impl := &mcp.Implementation{
 		Name:    "mac-os-mcp-server",
-		Version: "0.3.0",
+		Version: "0.4.0",
 	}
 	mcpServer := mcp.NewServer(impl, nil)
 	srv.Register(mcpServer)
 
-	log.Printf("Starting mac-os-mcp-server (%d read-only capabilities) over stdio...", reg.Len())
+	log.Printf("Starting mac-os-mcp-server (%d read-only capabilities across %d domain(s)) over stdio...", reg.Len(), len(srv.Domains()))
 	if err := mcpServer.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatalf("server exited with error: %v", err)
 	}
