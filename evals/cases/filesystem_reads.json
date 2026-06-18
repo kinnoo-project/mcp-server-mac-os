@@ -1,0 +1,50 @@
+[
+  {
+    "id": "ls_downloads",
+    "description": "Listing a folder should select ls, not find or another op.",
+    "prompt": "What's in my Downloads folder?",
+    "expect": { "tool": "filesystem", "operation": "ls" }
+  },
+  {
+    "id": "pwd_working_directory",
+    "description": "Asking where the server is running should select pwd.",
+    "prompt": "What is your current working directory?",
+    "expect": { "tool": "filesystem", "operation": "pwd" }
+  },
+  {
+    "id": "file_identify_type",
+    "description": "Asking what kind of file something is should select file, not stat. Uses /bin/ls rather than a scripting-language binary: Apple has removed bundled interpreters (e.g. python3) from /usr/bin in some macOS versions, so referencing one here would make this case depend on the specific machine/OS version it runs on.",
+    "prompt": "What kind of file is /bin/ls?",
+    "expect": { "tool": "filesystem", "operation": "file" }
+  },
+  {
+    "id": "wc_count_lines",
+    "description": "Asking for a line count should select wc, not find/grep.",
+    "prompt": "How many lines are in /etc/hosts?",
+    "expect": { "tool": "filesystem", "operation": "wc" }
+  },
+  {
+    "id": "du_folder_size",
+    "description": "Asking how big a folder is should select du.",
+    "prompt": "How much disk space does my home directory use in total?",
+    "expect": { "tool": "filesystem", "operation": "du" }
+  },
+  {
+    "id": "find_files_by_extension",
+    "description": "A 'find files matching X' request should select find, not largest_files.",
+    "prompt": "Find all .json files under /etc",
+    "expect": { "tool": "filesystem", "operation": "find" }
+  },
+  {
+    "id": "grep_search_contents",
+    "description": "Searching file contents for a word should select grep.",
+    "prompt": "Does /etc/hosts contain the word 'localhost'?",
+    "expect": { "tool": "filesystem", "operation": "grep" }
+  },
+  {
+    "id": "largest_files_not_naive_loop",
+    "description": "The original incident this harness exists to catch: 'biggest files' must select the largest_files builtin in one call, not loop du/find across subdirectories.",
+    "prompt": "What are the 10 biggest files under /etc?",
+    "expect": { "tool": "filesystem", "operation": "largest_files" }
+  }
+]

@@ -28,11 +28,12 @@ type Engine struct{}
 func New() *Engine { return &Engine{} }
 
 // ValidateBuilders checks, at startup, that every capability names a builder the
-// engine actually knows how to run — either an argv builder (subprocess) or a
-// builtin (answered in-process). This is the fail-fast counterpart to the
-// registry's structural validation: because builders live in this package, the
-// "is this builder real?" check belongs here, keeping the registry free of any
-// dependency on the engine. Returns the first offending capability.
+// engine actually knows how to run — an argv builder (subprocess), a builtin
+// (answered in-process), or a mutator (staged for a two-phase mutation). This is
+// the fail-fast counterpart to the registry's structural validation: because
+// builders live in this package, the "is this builder real?" check belongs here,
+// keeping the registry free of any dependency on the engine. Returns the first
+// offending capability.
 func (e *Engine) ValidateBuilders(caps []registry.Capability) error {
 	for _, c := range caps {
 		if !builderExists(c.Builder) {
@@ -42,13 +43,16 @@ func (e *Engine) ValidateBuilders(caps []registry.Capability) error {
 	return nil
 }
 
-// builderExists reports whether a builder name resolves to either an argv
-// builder or a builtin.
+// builderExists reports whether a builder name resolves to an argv builder, a
+// builtin, or a mutator.
 func builderExists(name string) bool {
 	if _, ok := builders[name]; ok {
 		return true
 	}
-	_, ok := builtins[name]
+	if _, ok := builtins[name]; ok {
+		return true
+	}
+	_, ok := mutators[name]
 	return ok
 }
 

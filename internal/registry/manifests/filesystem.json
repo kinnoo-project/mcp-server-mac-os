@@ -332,5 +332,23 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "mkdir",
+    "summary": "Create a new directory. Reversible: undo removes the created directory (only if still empty).",
+    "category": "filesystem",
+    "binary": "mkdir",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "mkdir",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "Directory to create; supports a leading ~. The parent must already exist and the target must not already exist.",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]
