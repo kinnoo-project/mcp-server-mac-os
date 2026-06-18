@@ -71,6 +71,14 @@ func NewStore[T any](prefix string, ttl time.Duration) *Store[T] {
 // token. The only error path is a failure of the system's secure random source,
 // which is treated as fatal to the operation rather than papered over with a
 // weak token.
+//
+// Put also opportunistically purges any already-expired entries before
+// inserting the new one. Take only ever removes the ONE entry it was asked
+// for, so a workload that stages many tokens and never consumes them (e.g.
+// abandoned plans nobody ever executes or undoes) would otherwise accumulate
+// unusable-but-unfreed entries forever. Piggybacking the sweep on Put keeps
+// the store self-bounding without a background goroutine: every write is also
+// a chance to shed dead weight.
 func (s *Store[T]) Put(payload T) (string, error) {
 	token, err := s.mintToken()
 	if err != nil {
@@ -78,8 +86,20 @@ func (s *Store[T]) Put(payload T) (string, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.purgeExpiredLocked()
 	s.entries[token] = entry[T]{payload: payload, created: time.Now()}
 	return token, nil
+}
+
+// purgeExpiredLocked deletes every entry older than the store's TTL. Callers
+// must hold s.mu.
+func (s *Store[T]) purgeExpiredLocked() {
+	now := time.Now()
+	for token, e := range s.entries {
+		if now.Sub(e.created) > s.ttl {
+			delete(s.entries, token)
+		}
+	}
 }
 
 // Take looks up the payload for a token and, on a hit, removes it before

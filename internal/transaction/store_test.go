@@ -34,8 +34,14 @@ func TestStore_RoundTrip(t *testing.T) {
 // never be mistaken for another.
 func TestStore_UniqueTokens(t *testing.T) {
 	s := NewStore[int]("req_", time.Minute)
-	a, _ := s.Put(1)
-	b, _ := s.Put(2)
+	a, err := s.Put(1)
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	b, err := s.Put(2)
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 	if a == b {
 		t.Fatalf("expected distinct tokens, both were %q", a)
 	}
@@ -46,7 +52,10 @@ func TestStore_UniqueTokens(t *testing.T) {
 // committed twice.
 func TestStore_OneShotConsume(t *testing.T) {
 	s := NewStore[string]("req_", time.Minute)
-	token, _ := s.Put("payload")
+	token, err := s.Put("payload")
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 	if _, ok := s.Take(token); !ok {
 		t.Fatal("first Take should succeed")
 	}
@@ -58,7 +67,10 @@ func TestStore_OneShotConsume(t *testing.T) {
 // TestStore_Expiry confirms an entry older than the TTL is no longer retrievable.
 func TestStore_Expiry(t *testing.T) {
 	s := NewStore[string]("req_", time.Millisecond)
-	token, _ := s.Put("stale")
+	token, err := s.Put("stale")
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
 	time.Sleep(5 * time.Millisecond)
 	if _, ok := s.Take(token); ok {
 		t.Fatal("Take of an expired token must fail")
@@ -71,6 +83,35 @@ func TestStore_UnknownToken(t *testing.T) {
 	s := NewStore[string]("req_", time.Minute)
 	if _, ok := s.Take("req_does-not-exist"); ok {
 		t.Fatal("Take of an unknown token must fail")
+	}
+}
+
+// TestStore_PutPurgesExpiredEntries confirms that staging a new token also
+// sweeps away already-expired ones, so a workload that stages many tokens and
+// never consumes them (abandoned plans nobody executes or undoes) doesn't
+// grow the store's memory without bound.
+func TestStore_PutPurgesExpiredEntries(t *testing.T) {
+	s := NewStore[string]("req_", time.Millisecond)
+	for i := 0; i < 5; i++ {
+		if _, err := s.Put("stale"); err != nil {
+			t.Fatalf("Put: %v", err)
+		}
+	}
+	time.Sleep(5 * time.Millisecond)
+
+	fresh, err := s.Put("fresh")
+	if err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+
+	s.mu.Lock()
+	n := len(s.entries)
+	s.mu.Unlock()
+	if n != 1 {
+		t.Fatalf("expected the 5 stale entries to be purged by the next Put, leaving 1, got %d", n)
+	}
+	if _, ok := s.Take(fresh); !ok {
+		t.Fatal("the fresh entry inserted by the purging Put should still be retrievable")
 	}
 }
 
