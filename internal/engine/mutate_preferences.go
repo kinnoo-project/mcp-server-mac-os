@@ -141,6 +141,13 @@ func stageWriteSetting(ctx context.Context, _ registry.Capability, in map[string
 // reports the raw value, or unset=true if the key does not exist. This is the
 // state-capture step a static inverse like mkdir's never needed: undo cannot
 // know what to restore without first asking what was there.
+//
+// A non-zero exit is only treated as "unset" when defaults' own stderr says
+// the domain/key pair does not exist. Any other failure (a malformed domain,
+// a permissions problem, or anything else defaults might reject) is returned
+// as an error instead — staging must fail loudly there, not silently
+// misclassify a real problem as "nothing to restore" and stage an inverse
+// that would be wrong.
 func probeDefaultsValue(ctx context.Context, domain, key string) (value string, unset bool, err error) {
 	bin, err := policy.ResolveBinary("defaults")
 	if err != nil {
@@ -151,7 +158,10 @@ func probeDefaultsValue(ctx context.Context, domain, key string) (value string, 
 		return "", false, err
 	}
 	if res.ExitCode != 0 {
-		return "", true, nil
+		if strings.Contains(res.Stderr, "does not exist") {
+			return "", true, nil
+		}
+		return "", false, fmt.Errorf("defaults read %s %s: exit %d: %s", domain, key, res.ExitCode, strings.TrimSpace(res.Stderr))
 	}
 	return strings.TrimSpace(res.Stdout), false, nil
 }
