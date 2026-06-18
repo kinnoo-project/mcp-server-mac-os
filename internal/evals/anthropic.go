@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 const (
@@ -25,6 +26,11 @@ const (
 	// expected responses are short (tool calls and brief confirmations), so this
 	// is generous headroom without inviting runaway-length replies.
 	defaultMaxTokens = 1024
+	// requestTimeout bounds a single Messages API call. cmd/runevals drives the
+	// whole run from context.Background() (no deadline of its own), so this is
+	// what actually stops a stalled connection from hanging the harness forever.
+	// Generous enough for a normal tool-use response; well short of "looks hung."
+	requestTimeout = 60 * time.Second
 )
 
 // anthropicTool is a tool definition in the shape the Messages API expects.
@@ -96,7 +102,15 @@ type anthropicClient struct {
 }
 
 // sendMessage issues one Messages API call and returns the parsed response.
+//
+// ctx is wrapped with a per-request deadline: cmd/runevals drives the whole
+// run from context.Background(), which has no deadline of its own, so without
+// this a single stalled connection would hang the entire harness indefinitely
+// rather than failing that one case.
 func (c *anthropicClient) sendMessage(ctx context.Context, req messagesRequest) (*messagesResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
 	if req.MaxTokens == 0 {
 		req.MaxTokens = defaultMaxTokens
 	}
