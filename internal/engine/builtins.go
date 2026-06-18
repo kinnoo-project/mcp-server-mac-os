@@ -27,7 +27,8 @@ type BuiltinFunc func(ctx context.Context, c registry.Capability, in map[string]
 // name present here is served in-process; a name present in the argv `builders`
 // map is run as a subprocess. The two sets are disjoint.
 var builtins = map[string]BuiltinFunc{
-	"pwd": runPwd,
+	"pwd":           runPwd,
+	"largest_files": runLargestFiles,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.

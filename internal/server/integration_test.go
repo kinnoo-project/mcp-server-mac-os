@@ -66,7 +66,7 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	}
 	// Every read-only operation should appear in the embedded menu.
 	desc := lt.Tools[0].Description
-	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep"} {
+	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files"} {
 		if !strings.Contains(desc, op) {
 			t.Errorf("filesystem tool description missing operation %q", op)
 		}

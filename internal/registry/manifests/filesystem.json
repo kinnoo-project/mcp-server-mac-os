@@ -65,6 +65,33 @@
     "params": []
   },
   {
+    "name": "largest_files",
+    "summary": "List the largest files under a directory, ranked by size. Returns only the top N (default 10), so use this instead of find for 'biggest files' questions.",
+    "category": "filesystem",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "largest_files",
+    "params": [
+      {
+        "name": "dir",
+        "type": "path",
+        "required": false,
+        "default": ".",
+        "description": "Directory to scan recursively. Defaults to the working directory; supports a leading ~.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "count",
+        "type": "int",
+        "required": false,
+        "default": 10,
+        "description": "How many of the largest files to return (default 10, maximum 100).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
     "name": "file",
     "summary": "Identify the type of one or more files (e.g. \"PNG image data\", \"ASCII text\").",
     "category": "filesystem",
