@@ -20,37 +20,16 @@ import (
 	"mcp-server-mac-os/internal/registry"
 )
 
-// connectClient wires our registered server to a client over in-memory
-// transports and returns the connected client session.
+// connectClient wires a real Server to a client over in-memory transports
+// (Connect, in inprocess.go — also shared by the eval harness) and returns the
+// connected client session, registering its cleanup with the test.
 func connectClient(t *testing.T) *mcp.ClientSession {
 	t.Helper()
-	reg, err := registry.Load()
+	cs, cleanup, err := Connect(context.Background())
 	if err != nil {
-		t.Fatalf("registry.Load(): %v", err)
+		t.Fatalf("Connect: %v", err)
 	}
-	s, err := New(reg, engine.New())
-	if err != nil {
-		t.Fatalf("server.New(): %v", err)
-	}
-
-	mcpServer := mcp.NewServer(&mcp.Implementation{Name: "mac-os-mcp-server", Version: "test"}, nil)
-	s.Register(mcpServer)
-
-	clientT, serverT := mcp.NewInMemoryTransports()
-	ctx := context.Background()
-
-	ss, err := mcpServer.Connect(ctx, serverT, nil)
-	if err != nil {
-		t.Fatalf("server.Connect: %v", err)
-	}
-	t.Cleanup(func() { _ = ss.Close() })
-
-	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0"}, nil)
-	cs, err := client.Connect(ctx, clientT, nil)
-	if err != nil {
-		t.Fatalf("client.Connect: %v", err)
-	}
-	t.Cleanup(func() { _ = cs.Close() })
+	t.Cleanup(cleanup)
 	return cs
 }
 

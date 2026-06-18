@@ -54,4 +54,25 @@ attached, not asserting against Go code.
   judge). Reserve an LLM-judge step only for things that are genuinely hard to
   assert mechanically, like "was the preview shown to the user actually clear."
 
-**status: open — recommendation only, no harness built yet**
+## Resolution (2026-06-17)
+
+Built as `internal/evals` + `cmd/runevals` + `evals/cases/*.json`. Differs from
+the original recommendation in two deliberate ways:
+- **JSON, not YAML** — matches the project's existing zero-new-dependency
+  manifest convention (no stdlib YAML support).
+- **Tool-call assertions only for v1, not final-state assertions** — checking
+  "did the right tool/operation get called, and was `execute` correctly
+  withheld/called" turned out to cover the motivating failure modes
+  (wrong-tool selection, auto-confirm) without needing a second assertion
+  layer; final-observable-state checks (e.g. "directory exists") can be added
+  per-case later if a gap shows up that tool-call assertions miss.
+
+Everything else landed close to the recommendation: real model + real server
+via the same in-process harness as the integration tests
+(`server.Connect`, factored out for this reuse), `forbid_tools` as the
+auto-confirm guard, capped-round-trip loop detection mirroring the original
+`largest_files` incident, and a `-dry-run` mode for free iteration. See
+README.md's [Evals](../../README.md#evals) section for usage and
+`docs/TESTS.md` for how this fits alongside the regular test suite.
+
+**status: resolved — harness built, 14 initial cases, claude-sonnet-4-6 only**
