@@ -34,8 +34,8 @@ type PipelineArgs struct {
 // pipeline use, computed live from the registry via the same
 // engine.SupportsPipeline check Pipeline itself enforces — so the description
 // can never drift from what a call will actually accept — and steers the
-// model toward a single named operation first (see README.md's "Nudging the
-// model toward named capabilities first").
+// model toward a single named operation first (see README.md's "`pipeline`:
+// composing capabilities" section, "Nudged toward named operations first").
 func (s *Server) pipelineToolDescription() string {
 	var eligible []string
 	for _, c := range s.reg.All() {
