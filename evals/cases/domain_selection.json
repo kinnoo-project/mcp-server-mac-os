@@ -1,0 +1,20 @@
+[
+  {
+    "id": "stat_file_metadata",
+    "description": "Asking for file metadata should select stat, not file/ls.",
+    "prompt": "When was /etc/hosts last modified, and what are its permissions?",
+    "expect": { "tool": "filesystem", "operation": "stat" }
+  },
+  {
+    "id": "dock_autohide_selection",
+    "description": "Cross-domain selection: a Dock preference request should reach the preferences tool's write_setting, not the filesystem tool. Single turn only (no confirmation sent), so no real change is ever applied by this case.",
+    "prompt": "Please make the Dock auto-hide.",
+    "expect": { "tool": "preferences", "operation": "write_setting", "forbid_tools": ["execute"] }
+  },
+  {
+    "id": "discovery_no_tool_needed",
+    "description": "There is no discovery tool any more (Pattern A was replaced by domain tools whose descriptions embed the full menu) -- the model should be able to answer 'what can you do' from the tool descriptions it already has, without calling anything.",
+    "prompt": "Without doing anything yet, what kinds of things can you help me with on this Mac?",
+    "expect": { "tool": "" }
+  }
+]

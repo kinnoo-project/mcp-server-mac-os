@@ -74,3 +74,34 @@ When explaining your reasoning, your design decisions, or what you just implemen
 - Prefer concrete examples ("turns `{all: true}` into the argument `-A`") over abstract descriptions.
 - Identifiers and file paths are fine as *supporting* detail, but the explanation must stand on its own without them.
 - Optimize for a busy human skimming for understanding, not for maximal information density.
+
+## 8. Documentation Upkeep (Non-Negotiable)
+
+1. Always update `README.md`, as necessary, after any new feature implementation.
+2. Always update `docs/TESTS.md`, as necessary, whenever new test sets are written.
+3. Save design choices or notes from an implementation as a new markdown file in `docs/issues/`, using:
+
+   ```
+   **note**
+   <description>
+   ```
+
+4. Save issues (deferred scope, known limitations, flagged-for-awareness items — not defects) as a new markdown file in `docs/issues/`, using:
+
+   ```
+   **issue**
+   <description>
+
+   **fixed**
+   <how, or leave blank/absent until resolved>
+   ```
+
+5. Save bugs (actual defects) as a new markdown file in `docs/issues/`, using:
+
+   ```
+   **bug**
+   <description>
+
+   **fixed**
+   <how, or leave blank/absent until resolved>
+   ```

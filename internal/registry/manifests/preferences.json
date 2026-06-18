@@ -1,0 +1,44 @@
+[
+  {
+    "name": "write_setting",
+    "summary": "Toggle a curated, known-safe macOS preference (e.g. show hidden files in Finder, auto-hide the Dock). Reversible: undo restores the prior value, or removes the key if it was unset.",
+    "category": "preferences",
+    "binary": "defaults",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "write_setting",
+    "params": [
+      {
+        "name": "setting",
+        "type": "enum",
+        "required": true,
+        "enum": [
+          "finder_show_hidden_files",
+          "finder_show_all_extensions",
+          "finder_show_path_bar",
+          "finder_show_status_bar",
+          "finder_warn_on_extension_change",
+          "dock_autohide",
+          "dock_show_recents",
+          "dock_minimize_to_app_icon",
+          "dock_show_process_indicators",
+          "screenshot_disable_shadow",
+          "global_press_and_hold_accents",
+          "global_autocorrect",
+          "global_smart_quotes",
+          "global_smart_dashes",
+          "global_period_substitution"
+        ],
+        "description": "Which curated setting to change. Each is a well-known, reversible, non-security-relevant boolean toggle.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "value",
+        "type": "bool",
+        "required": true,
+        "description": "The new value: true to enable, false to disable.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]
