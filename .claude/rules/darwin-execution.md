@@ -31,3 +31,13 @@ Verbose native system utilities can return massive data outputs that saturate an
 When invoking native utilities, look up their exact target execution footprint using `exec.LookPath` or enforce the absolute root path layout mapping directly to Darwin system boundaries (e.g., `/usr/bin/`, `/usr/sbin/`, `/sbin/`). This blocks rogue binary substitutions in local workspaces.
 
 ```
+
+## 4. Mandatory Input Guardrails in Command Parsers
+
+When implementing any function in `internal/engine/` (validation, the generic builder, or a named builder) that parses or transforms CLI-style user input into command arguments, always add explicit injection guardrails before argv assembly.
+
+Minimum required controls:
+- Block or neutralize dash-leading positional operands (`-...`) when the target utility may parse them as flags/expressions (for example, `find` roots).
+- Use strict allowlists for supported flags and enum-like argument values.
+- Reject untrusted metacharacters in convenience filters and argument builders instead of passing them through.
+- Prefer typed fields and deterministic argument ordering over free-form argument passthrough.
