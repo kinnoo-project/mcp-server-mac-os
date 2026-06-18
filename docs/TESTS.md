@@ -33,5 +33,26 @@ known, accepted limitation (`docs/issues/issue-stdio-smoke-test-unreliable.md`).
 
 What this suite does **not** cover: whether a model picks the right tool call for
 a given natural-language prompt. That is a model-selection concern, not an
-engine-correctness one, and needs a separate eval harness — see
-`docs/issues/issue-need-eval-harness-for-tool-selection.md`.
+engine-correctness one — see the separate eval harness below.
+
+## Eval harness (`internal/evals`, NOT part of `go test ./...`)
+
+Built per `docs/issues/issue-need-eval-harness-for-tool-selection.md` (now
+resolved). Unlike everything above, this calls a real Anthropic model and is
+therefore **not free, not deterministic, and not run automatically** — it's a
+separate command (`go run ./cmd/runevals`, or `-dry-run` for the zero-cost
+validation-only path) documented in full in README.md's
+[Evals](../README.md#evals) section.
+
+What IS unit-tested without any network call or API key (so it does run under
+plain `go test ./...`):
+
+| File | What's being checked |
+|---|---|
+| `internal/evals/case_test.go` | JSON case loading: single-turn (`prompt`) vs. multi-turn (`turns`) resolve correctly; both-set and neither-set are rejected; duplicate IDs across files are caught; load order is sorted/deterministic; non-`.json` files in the cases directory are ignored. |
+| `internal/evals/runner_test.go` | `CheckExpectation`'s pure assertion logic against hand-built `TurnOutcome` values: tool/operation matching, the `forbid_tools` auto-confirm guard (the harness's core safety check), and `text_contains` substring checks — all independent of the live agent loop in `runner.go`, which can only be exercised against a real model. |
+
+The live agent loop itself (`runner.go`'s `RunAll`/`runCase`/`runTurn`) is
+exercised only by actually running `go run ./cmd/runevals` against the 14
+cases in `evals/cases/*.json` — there is no mock-model unit test for it, since
+the entire point is measuring real model behavior.

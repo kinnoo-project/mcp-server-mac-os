@@ -333,6 +333,8 @@ what an arbitrary key actually does.
 cmd/
   macos-darwin-mcp/
     main.go                    # entry point — wiring only: load registry → build server → serve over stdio
+  runevals/
+    main.go                    # eval harness entry point — flags → internal/evals.Run (see "Evals")
 
 internal/
   registry/                    # the capability catalog (pure data; no exec, no MCP)
@@ -359,6 +361,17 @@ internal/
   server/                      # the MCP adapter (depends on engine + registry + transaction)
     tools.go                   #   domain tools + execute/undo; the request handlers
     menu.go                    #   render each domain tool's embedded operation/param menu
+    inprocess.go               #   Connect(): wires a real Server to an in-memory MCP client,
+                                #   shared by the integration test and the eval harness
+  evals/                       # the eval harness's logic (see "Evals"); not part of the shipped binary
+    case.go                    #   Case/Turn/Expectation types + LoadCases (JSON, not YAML — zero new deps)
+    anthropic.go               #   minimal net/http Messages API client
+    runner.go                  #   the agent loop: real model ↔ real server, capped at 6 rounds/turn
+    expectation.go             #   pure CheckExpectation logic (unit tested with no network)
+
+evals/
+  cases/                       # the actual eval fixtures (dev-only data, never embedded in the binary)
+    *.json
 ```
 
 The architectural ground rules behind these choices live in `CLAUDE.md` and
@@ -468,6 +481,55 @@ settings.
 
 ---
 
+## Evals
+
+`go test ./...` proves the engine/protocol are correct *given* a specific tool
+call. It cannot catch a different failure mode: a real model picking the
+*wrong* tool for a prompt, or — the safety-critical case — calling `execute`
+in the same turn it staged a change, without a human ever seeing the preview.
+That needs an actual model in the loop, which `internal/evals` provides.
+
+```bash
+# Free, no API key needed: validates case files and resolves tool schemas only.
+go run ./cmd/runevals -dry-run
+
+# Live: makes real, billed Anthropic API calls (a few cents for the full set).
+export ANTHROPIC_API_KEY=sk-ant-...
+go run ./cmd/runevals
+go run ./cmd/runevals -only mkdir_stages_then_confirms_then_undoes   # one case
+```
+
+How it works: for each case in `evals/cases/*.json`, the harness sends the
+prompt to `claude-sonnet-4-6` with the *real* domain tool schemas attached
+(read straight off the live in-process server via `server.Connect` — the same
+helper the integration tests use, no hand-duplicated schemas). Any tool the
+model calls is executed for real against the real engine; the result is fed
+back, and the exchange repeats (capped at 6 rounds — exceeding that is itself
+a reported failure, mirroring the original `largest_files` loop incident) until
+the model yields back to the user. The case's `expect` block is then checked:
+which tool/operation was called, which tools must NOT have been called
+(`forbid_tools`, the auto-confirm guard), and any required substrings in the
+response text.
+
+**Scope caveat:** the real, enforceable confirmation gate on `execute` is the
+MCP *client's* own "Allow this tool call?" prompt — something a raw Messages
+API call has no concept of. This harness measures a narrower, softer signal:
+does the model, given only the tool descriptions and conversation, naturally
+avoid chaining stage→execute in one turn. That's worth catching but is not a
+substitute for the client-side gate.
+
+**Mutation cases have real side effects, by design** — `mkdir_*` cases really
+create a directory under `/tmp` (a fresh `{{unique}}`-templated name each run,
+so reruns never collide) and `write_setting_*` cases really flip a real Finder
+preference. Both are written as 3-turn stage→confirm→undo scripts so a fully
+passing live run is self-cleaning; see `evals/cases/mutation_confirmation.json`.
+
+See `docs/issues/issue-need-eval-harness-for-tool-selection.md` for the
+original design rationale, and `docs/TESTS.md` for how this fits alongside the
+regular test suite.
+
+---
+
 ## Roadmap
 
 The read-only foundation, the domain-tool surface, and the
@@ -475,10 +537,9 @@ stage → execute → undo mutation gate are all in place, proved on two mutator
 with different undo shapes: `mkdir` (a fixed inverse) and `write_setting` (an
 inverse that depends on prior state captured at stage time). What's next:
 
-- **Eval harness**: the existing test suite proves the engine/protocol are
-  correct given a tool call, not that a model picks the *right* tool call for a
-  natural-language prompt — a different, so-far-untested failure mode. See
-  `docs/issues/issue-need-eval-harness-for-tool-selection.md`.
+- **Eval breadth**: the harness (`internal/evals`, see [Evals](#evals)) exists
+  with 14 cases against `claude-sonnet-4-6`; widening model coverage and adding
+  cases as new domains/capabilities ship is ongoing, not one-and-done.
 - **Breadth**: more curated `preferences` settings and mutating capabilities in
   other domains (e.g. `network`, `application`).
 - **Irreversible operations**: a heavier confirmation gate plus a Trash/staging
