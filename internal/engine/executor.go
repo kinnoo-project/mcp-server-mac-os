@@ -33,18 +33,31 @@ type runResult struct {
 	ExitCode int
 }
 
-// runCommand executes binary with the given pre-tokenized arguments. The
-// command is bound to ctx so client cancellation terminates the child. The
-// caller MUST have already validated binary through the policy layer.
-//
-// stdin is intentionally not wired up: every read-only capability is an
-// argument-driven inspector with no piped input. The environment is inherited
-// so locale and timezone behave like the user's shell.
+// runCommand executes binary with the given pre-tokenized arguments and no
+// stdin. The caller MUST have already validated binary through the policy
+// layer. Every standalone read-only capability is an argument-driven
+// inspector with no piped input, so this is the path Run uses.
 //
 // A non-zero exit status is returned as data (in runResult.ExitCode), not as a
 // Go error — for example grep exits 1 on "no match", which is a legitimate
 // result the model should see rather than a transport failure.
 func runCommand(ctx context.Context, binary string, args ...string) (*runResult, error) {
+	return execCommand(ctx, binary, nil, args...)
+}
+
+// runCommandWithStdin is runCommand's pipeline counterpart: it wires stdin
+// (a prior pipeline stage's captured output) into the child's standard input
+// when non-nil. Used only by RunPipeline (pipeline.go) — every other caller
+// goes through runCommand, which never supplies stdin.
+func runCommandWithStdin(ctx context.Context, binary string, stdin []byte, args ...string) (*runResult, error) {
+	return execCommand(ctx, binary, stdin, args...)
+}
+
+// execCommand is the shared implementation behind runCommand and
+// runCommandWithStdin. The command is bound to ctx so client cancellation
+// terminates the child. The environment is inherited so locale and timezone
+// behave like the user's shell.
+func execCommand(ctx context.Context, binary string, stdin []byte, args ...string) (*runResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -52,6 +65,9 @@ func runCommand(ctx context.Context, binary string, args ...string) (*runResult,
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 
 	err := cmd.Run()
 	res := &runResult{Stdout: stdout.String(), Stderr: stderr.String()}

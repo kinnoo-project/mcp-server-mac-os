@@ -34,10 +34,10 @@ func connectClient(t *testing.T) *mcp.ClientSession {
 }
 
 // TestIntegration_ToolSurface confirms the protocol exposes one domain tool per
-// category — `filesystem` and `preferences` — alongside the two fixed
-// mutation-lifecycle tools (`execute`, `undo`), and that each domain tool's
-// description embeds its full operation menu so the model needs no separate
-// discovery call.
+// category — `filesystem` and `preferences` — alongside the three fixed
+// cross-cutting tools (`execute`, `undo`, `pipeline`), and that each domain
+// tool's description embeds its full operation menu so the model needs no
+// separate discovery call.
 func TestIntegration_ToolSurface(t *testing.T) {
 	cs := connectClient(t)
 	lt, err := cs.ListTools(context.Background(), nil)
@@ -49,22 +49,129 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "execute", "undo"} {
+	for _, want := range []string{"filesystem", "preferences", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 4 {
-		t.Errorf("expected exactly 4 tools (filesystem, preferences, execute, undo), got %v", toolNames(lt))
+	if len(lt.Tools) != 5 {
+		t.Errorf("expected exactly 5 tools (filesystem, preferences, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
-	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir"} {
+	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
 		if !strings.Contains(descs["filesystem"], op) {
 			t.Errorf("filesystem tool description missing operation %q", op)
 		}
 	}
 	if !strings.Contains(descs["preferences"], "write_setting") {
 		t.Errorf("preferences tool description missing operation %q", "write_setting")
+	}
+	for _, name := range []string{"find", "wc", "grep", "sort", "head"} {
+		if !strings.Contains(descs["pipeline"], name) {
+			t.Errorf("pipeline tool description missing eligible capability %q", name)
+		}
+	}
+	eligible := eligibleCapabilitiesFromDescription(t, descs["pipeline"])
+	for _, name := range []string{"pwd", "largest_files", "mkdir", "write_setting"} {
+		if eligible[name] {
+			t.Errorf("pipeline tool description lists ineligible capability %q as eligible", name)
+		}
+	}
+}
+
+// eligibleCapabilitiesFromDescription parses the pipeline tool's "Eligible
+// capabilities (...): a, b, c." line out of its description into a set, so
+// tests can check exact membership rather than substring-matching the whole
+// description (which would be fooled by, e.g., "find" appearing inside
+// "findings").
+func eligibleCapabilitiesFromDescription(t *testing.T, desc string) map[string]bool {
+	t.Helper()
+	const marker = "may appear as a stage): "
+	idx := strings.Index(desc, marker)
+	if idx < 0 {
+		t.Fatalf("pipeline description missing the eligible-capabilities line: %s", desc)
+	}
+	list := desc[idx+len(marker):]
+	if end := strings.Index(list, ".\n"); end >= 0 {
+		list = list[:end]
+	}
+	set := make(map[string]bool)
+	for _, name := range strings.Split(list, ", ") {
+		set[strings.TrimSuffix(name, ".")] = true
+	}
+	return set
+}
+
+// TestIntegration_PipelineFindThenWc drives a real two-stage pipeline over the
+// actual protocol: find lists matching files, wc -l counts them.
+func TestIntegration_PipelineFindThenWc(t *testing.T) {
+	cs := connectClient(t)
+	dir := t.TempDir()
+	for _, name := range []string{"a.log", "b.log"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatalf("write fixture %s: %v", name, err)
+		}
+	}
+
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "pipeline",
+		Arguments: map[string]any{
+			"stages": []any{
+				map[string]any{"capability": "find", "params": map[string]any{"path": dir, "extensions": []any{"log"}}},
+				map[string]any{"capability": "wc", "params": map[string]any{"lines": true}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool pipeline: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("pipeline find|wc returned error: %s", textOf(res))
+	}
+	if !strings.Contains(textOf(res), "2") {
+		t.Errorf("expected wc -l to report 2 files, got %q", textOf(res))
+	}
+}
+
+// TestIntegration_PipelineRejectsMutatorStage confirms the pipeline tool
+// reports a clear, structured error (not a panic, not a silent no-op) when
+// asked to chain a mutator.
+func TestIntegration_PipelineRejectsMutatorStage(t *testing.T) {
+	cs := connectClient(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "pipeline",
+		Arguments: map[string]any{
+			"stages": []any{
+				map[string]any{"capability": "mkdir", "params": map[string]any{"path": filepath.Join(t.TempDir(), "x")}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool pipeline: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("expected an error: mkdir is a mutator and cannot be a pipeline stage")
+	}
+	if !strings.Contains(textOf(res), "mkdir") {
+		t.Errorf("error should name the rejected capability, got: %s", textOf(res))
+	}
+}
+
+// TestIntegration_PipelineRejectsUnknownCapability confirms a typo'd or
+// nonexistent capability name is reported clearly rather than dispatched.
+func TestIntegration_PipelineRejectsUnknownCapability(t *testing.T) {
+	cs := connectClient(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "pipeline",
+		Arguments: map[string]any{
+			"stages": []any{map[string]any{"capability": "does-not-exist"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool pipeline: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("expected an error for an unknown capability name")
 	}
 }
 

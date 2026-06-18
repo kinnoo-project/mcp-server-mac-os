@@ -32,12 +32,23 @@ func New() *Engine { return &Engine{} }
 // (answered in-process), or a mutator (staged for a two-phase mutation). This is
 // the fail-fast counterpart to the registry's structural validation: because
 // builders live in this package, the "is this builder real?" check belongs here,
-// keeping the registry free of any dependency on the engine. Returns the first
-// offending capability.
+// keeping the registry free of any dependency on the engine. It also checks
+// AcceptsStdin's precondition (see registry.Capability's doc): only a
+// read-only, argv-builder-backed capability may set it, since a builtin has no
+// subprocess to wire stdin to and a mutator doesn't run in one step at all.
+// Returns the first offending capability.
 func (e *Engine) ValidateBuilders(caps []registry.Capability) error {
 	for _, c := range caps {
 		if !builderExists(c.Builder) {
 			return fmt.Errorf("engine: capability %q references unknown builder %q", c.Name, c.Builder)
+		}
+		if c.AcceptsStdin {
+			if c.Reversibility != registry.ReadOnly {
+				return fmt.Errorf("engine: capability %q sets accepts_stdin but is not read-only", c.Name)
+			}
+			if _, ok := lookupBuilder(c.Builder); !ok {
+				return fmt.Errorf("engine: capability %q sets accepts_stdin but its builder %q is not an argv builder (builtins/mutators have no stdin to wire)", c.Name, c.Builder)
+			}
 		}
 	}
 	return nil
@@ -71,6 +82,17 @@ func (e *Engine) Run(ctx context.Context, c registry.Capability, raw map[string]
 	normalized, err := normalizeParams(c, raw)
 	if err != nil {
 		return "", err
+	}
+
+	// An AcceptsStdin capability (wc, grep, sort, head, ...) reads its input
+	// from a positional file argument OR from stdin — but a standalone Run
+	// call never wires up stdin (only RunPipeline does, from a prior stage's
+	// output). Without this guard, omitting the file argument here would
+	// launch a subprocess that blocks forever waiting for input that will
+	// never arrive, until the request's context eventually cancels it. Refuse
+	// up front instead, with a message pointing at the actual fix.
+	if c.AcceptsStdin && missingPositionalInput(c, normalized) {
+		return "", fmt.Errorf("%s: requires its input parameter when called directly (there is no piped input to read from outside a pipeline)", c.Name)
 	}
 
 	// Builtin capabilities are answered in-process and never touch the policy
