@@ -512,8 +512,11 @@ startup and does not hot-reload — always restart after rebuilding.
 
 ## Try it in natural language
 
-Once registered, prompts like these are answered by Claude calling the
-`filesystem` tool with the right operation:
+Once registered, prompts like these get answered by Claude calling the right
+tool — `filesystem` or `preferences` for a single operation, `pipeline` to
+combine a few, and `execute`/`undo` for the mutation confirmation flow.
+
+### Read-only (run immediately, no confirmation)
 
 - *"What are the 10 biggest files under my home directory?"* →
   `largest_files` (one call, ten ranked lines — not a flood of paths).
@@ -523,6 +526,35 @@ Once registered, prompts like these are answered by Claude calling the
 - *"How big is my Downloads folder?"* → `du` with `max_depth=0`.
 - *"What kind of file is `~/Downloads/mystery.bin`?"* → `file`.
 - *"How many lines are in `/var/log/system.log`?"* → `wc` with `lines=true`.
+
+### Mutating — stages first, only changes anything after you confirm
+
+These go through [stage → execute →
+undo](#mutating-operations-stage--execute--undo): Claude shows you what will
+happen, your client prompts to approve the actual `execute` call, and nothing
+on disk or in your preferences changes before that.
+
+- *"Create a folder called `drafts` inside my Documents."* → `filesystem`
+  stages `mkdir` and shows a preview ("Create directory `~/Documents/drafts`.
+  Undo will remove it."). Confirm, and Claude calls `execute` to actually
+  create it.
+- *"Turn on showing hidden files in Finder."* → `preferences` stages
+  `write_setting` (`setting=finder_show_hidden_files, value=true`) the same
+  way — preview first, `execute` only after you say go ahead.
+- *"Actually, undo that."* (right after either of the above) → Claude calls
+  `undo` with the token from the `execute` result; the folder is removed, or
+  the Finder setting is restored to whatever it was before.
+
+### Combining capabilities — `pipeline`, for the long tail no named op covers
+
+- *"How many `.log` files are under `/var/log`?"* → `pipeline` chaining
+  `find` (list the matches) into `wc` (count the lines) — one call instead of
+  Claude counting a file listing by hand.
+- *"Rank my home directory's top-level folders by disk usage, biggest
+  first."* → `pipeline` chaining `du` (per-folder totals, `max_depth=1`) into
+  `sort` (`human_numeric=true, reverse=true`) — `largest_files` doesn't cover
+  this since it ranks *files*, not directories, so this is exactly the case
+  `pipeline` exists for.
 
 The first time Claude reaches into a protected location (Desktop, Documents,
 Downloads, iCloud Drive, external volumes, …), macOS prompts for permission for
