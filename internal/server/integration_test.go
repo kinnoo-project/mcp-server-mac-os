@@ -10,6 +10,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -54,9 +55,9 @@ func connectClient(t *testing.T) *mcp.ClientSession {
 }
 
 // TestIntegration_ToolSurface confirms the protocol exposes one domain tool per
-// category — currently the single `filesystem` tool — alongside the two fixed
-// mutation-lifecycle tools (`execute`, `undo`), and that the domain tool's
-// description embeds the full operation menu so the model needs no separate
+// category — `filesystem` and `preferences` — alongside the two fixed
+// mutation-lifecycle tools (`execute`, `undo`), and that each domain tool's
+// description embeds its full operation menu so the model needs no separate
 // discovery call.
 func TestIntegration_ToolSurface(t *testing.T) {
 	cs := connectClient(t)
@@ -65,29 +66,95 @@ func TestIntegration_ToolSurface(t *testing.T) {
 		t.Fatalf("ListTools: %v", err)
 	}
 
-	got := map[string]bool{}
+	descs := map[string]string{}
 	for _, tool := range lt.Tools {
-		got[tool.Name] = true
+		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "execute", "undo"} {
-		if !got[want] {
+	for _, want := range []string{"filesystem", "preferences", "execute", "undo"} {
+		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 3 {
-		t.Errorf("expected exactly 3 tools (filesystem, execute, undo), got %v", toolNames(lt))
+	if len(lt.Tools) != 4 {
+		t.Errorf("expected exactly 4 tools (filesystem, preferences, execute, undo), got %v", toolNames(lt))
 	}
 
-	// Every operation — read-only and mutating — should appear in the menu.
-	var desc string
-	for _, tool := range lt.Tools {
-		if tool.Name == "filesystem" {
-			desc = tool.Description
+	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir"} {
+		if !strings.Contains(descs["filesystem"], op) {
+			t.Errorf("filesystem tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir"} {
-		if !strings.Contains(desc, op) {
-			t.Errorf("filesystem tool description missing operation %q", op)
+	if !strings.Contains(descs["preferences"], "write_setting") {
+		t.Errorf("preferences tool description missing operation %q", "write_setting")
+	}
+}
+
+// TestIntegration_WriteSettingStageOnly calls the real `preferences` domain
+// tool with a real curated setting and confirms staging returns a token +
+// preview without modifying anything.
+//
+// SAFETY: this deliberately stops at staging and never calls `execute`. Stage
+// only performs a read-only `defaults read` probe of the developer's/CI
+// machine's actual current value — it must NEVER write to it. Exercising a
+// real forward/inverse write against a disposable domain is covered instead by
+// the engine-level tests in internal/engine/mutate_preferences_test.go, which
+// use a synthetic allowlist entry pointed at a temp file precisely so the real
+// system settings are never touched by the test suite.
+func TestIntegration_WriteSettingStageOnly(t *testing.T) {
+	cs := connectClient(t)
+	staged, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "preferences",
+		Arguments: map[string]any{
+			"operation": "write_setting",
+			"params":    map[string]any{"setting": "finder_show_hidden_files", "value": true},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool stage write_setting: %v", err)
+	}
+	if staged.IsError {
+		t.Fatalf("stage write_setting returned error: %s", textOf(staged))
+	}
+	text := textOf(staged)
+	if !strings.Contains(text, "STAGED") {
+		t.Errorf("expected a STAGED preview, got: %s", text)
+	}
+	_ = extractToken(t, text, "req_") // fails the test if no token is present
+}
+
+// TestDefaultsAllowlist_MatchesManifestEnum guards against the write_setting
+// allowlist being declared twice (once as the manifest's "setting" enum, once
+// as the engine's defaultsAllowlist map) and the two drifting apart — which
+// would either silently hide a curated setting from the model or let the enum
+// admit a name the engine doesn't actually recognize.
+func TestDefaultsAllowlist_MatchesManifestEnum(t *testing.T) {
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatalf("registry.Load(): %v", err)
+	}
+	capability, ok := reg.Lookup("write_setting")
+	if !ok {
+		t.Fatal("write_setting capability not found in registry")
+	}
+	var manifestEnum []string
+	for _, p := range capability.Params {
+		if p.Name == "setting" {
+			manifestEnum = p.Enum
+		}
+	}
+	if manifestEnum == nil {
+		t.Fatal("write_setting manifest entry has no 'setting' param with an enum")
+	}
+	sort.Strings(manifestEnum)
+	engineKeys := engine.DefaultsAllowlistKeys() // already sorted
+
+	if len(manifestEnum) != len(engineKeys) {
+		t.Fatalf("manifest enum has %d settings, engine allowlist has %d: manifest=%v engine=%v",
+			len(manifestEnum), len(engineKeys), manifestEnum, engineKeys)
+	}
+	for i := range manifestEnum {
+		if manifestEnum[i] != engineKeys[i] {
+			t.Fatalf("manifest enum and engine allowlist diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
 		}
 	}
 }
