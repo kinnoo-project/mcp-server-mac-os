@@ -2,7 +2,7 @@
 // reachable through the filesystem domain tool. Each test drives the real
 // operation path end to end against a hermetic fixture tree and asserts on
 // observable output, not on the internal command line. This is the acceptance
-// check for all 8 capabilities.
+// check for all 9 capabilities.
 package server
 
 import (

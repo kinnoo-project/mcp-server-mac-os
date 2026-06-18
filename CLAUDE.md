@@ -38,7 +38,7 @@ The server is built around a **capability registry + a fixed engine** (the desig
 - `internal/registry/` — the capability catalog: types, the embedded JSON manifests under `manifests/`, and fail-fast structural validation. Pure data; no `os/exec`, no MCP.
 - `internal/engine/` — execution: parameter validation/normalization, argv assembly (a declarative generic builder plus named builders for irregular grammars, and in-process "builtin" builders), and the subprocess runner.
 - `internal/policy/` — the trust boundary deciding which binaries may run.
-- `internal/server/` — the MCP adapter. The model sees a small, **fixed** set of engine tools (**Pattern A**); capabilities are discovered as data via `list_capabilities`/`describe_capability` and executed by name through `query`. Dependency direction: `server → engine → policy`, with both depending on `registry` types and never the reverse.
+- `internal/server/` — the MCP adapter. The model sees a small, **fixed** set of domain tools (currently `filesystem`), then executes manifest-backed operations by calling that tool with `operation` + `params`. Dependency direction: `server → engine → policy`, with both depending on `registry` types and never the reverse.
 
 ### 6. Compile as a Universal 2 Binary
 
@@ -74,4 +74,3 @@ When explaining your reasoning, your design decisions, or what you just implemen
 - Prefer concrete examples ("turns `{all: true}` into the argument `-A`") over abstract descriptions.
 - Identifiers and file paths are fine as *supporting* detail, but the explanation must stand on its own without them.
 - Optimize for a busy human skimming for understanding, not for maximal information density.
-
