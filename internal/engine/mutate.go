@@ -24,13 +24,15 @@
 // argbuild.go: declarative manifest data drives validation/risk/reversibility,
 // while the inherently stateful logic (probing prior state, choosing the right
 // inverse) lives in a small named Go function selected by Capability.Builder.
+// Per-domain mutators live in their own files (mutate_filesystem.go,
+// mutate_preferences.go, ...), mirroring how builders_filesystem.go separates
+// the named argv builders from the generic machinery in argbuild.go. This file
+// holds only the machinery shared by every mutator.
 package engine
 
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 
 	"mcp-server-mac-os/internal/policy"
 	"mcp-server-mac-os/internal/registry"
@@ -74,7 +76,8 @@ type Mutator func(ctx context.Context, c registry.Capability, in map[string]any)
 // disjoint from the read-only `builders` and `builtins` maps: a capability is
 // read-only (run via Run) or mutating (staged via Stage), never both.
 var mutators = map[string]Mutator{
-	"mkdir": stageMkdir,
+	"mkdir":         stageMkdir,
+	"write_setting": stageWriteSetting,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.
@@ -111,7 +114,10 @@ func (e *Engine) Stage(ctx context.Context, c registry.Capability, raw map[strin
 //
 // Because the Command was assembled at stage time from validated input, this
 // path performs no further parsing — it only enforces the same policy trust
-// check and context binding that every subprocess in the engine obeys.
+// check and context binding that every subprocess in the engine obeys. Mutators
+// themselves are plain functions (not Engine methods) and use the package-level
+// runCommand/policy.ResolveBinary directly for any read-only probing they need
+// before a plan is assembled (see mutate_preferences.go).
 func (e *Engine) RunCommand(ctx context.Context, cmd Command) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -125,41 +131,4 @@ func (e *Engine) RunCommand(ctx context.Context, cmd Command) (string, error) {
 		return "", err
 	}
 	return formatRunResult(res), nil
-}
-
-// stageMkdir stages a reversible directory creation.
-//
-// Forward is `mkdir -- <path>` and Inverse is `rmdir -- <path>`. The inverse is
-// deliberately rmdir rather than a recursive remove: rmdir refuses a non-empty
-// directory, so undo can only ever remove the empty directory this operation
-// created — it can never destroy files the user added afterwards.
-//
-// Two guardrails run before a plan is produced:
-//   - a leading "-" in the path is rejected (mkdir/rmdir would parse it as a
-//     flag despite the "--" terminator's protection of later operands), steering
-//     the caller to disambiguate with "./", mirroring the find builder;
-//   - the target must not already exist, which keeps the create meaningful and
-//     guarantees the rmdir inverse is safe (we never adopt — and then delete — a
-//     directory we did not create).
-func stageMkdir(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
-	path, _ := getString(in, "path")
-	if path == "" {
-		return nil, fmt.Errorf("mkdir: 'path' is required")
-	}
-	if strings.HasPrefix(path, "-") {
-		return nil, fmt.Errorf("mkdir: path %q begins with '-' and is not allowed; prefix it with ./", path)
-	}
-	if _, err := os.Stat(path); err == nil {
-		return nil, fmt.Errorf("mkdir: %q already exists; refusing to create (undo would otherwise delete a directory this action did not create)", path)
-	} else if !os.IsNotExist(err) {
-		// A stat error other than "not found" (e.g. a permission problem on the
-		// parent) means we cannot safely reason about the target; surface it.
-		return nil, fmt.Errorf("mkdir: cannot inspect %q: %w", path, err)
-	}
-
-	return &StagedPlan{
-		Preview: fmt.Sprintf("Create directory %s. Undo will remove it (only if it is still empty).", path),
-		Forward: Command{Binary: "mkdir", Args: []string{"--", path}},
-		Inverse: &Command{Binary: "rmdir", Args: []string{"--", path}},
-	}, nil
 }

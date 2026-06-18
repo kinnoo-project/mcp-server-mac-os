@@ -7,9 +7,22 @@ the architecture:
 |---|---|
 | **`internal/registry`** | Manifests parse and load; structural validation rejects malformed capabilities (duplicate names, unknown enum/type values, a flag-kind param missing its flag token); the new `TestRiskClassificationInvariant` checks every mutating capability carries non-`none` risk. |
 | **`internal/policy`** | Binary resolution only ever returns a path under `/bin`, `/sbin`, `/usr/bin`, `/usr/sbin`; path-separator injection and rogue-substitution attempts are rejected. |
-| **`internal/engine`** | Per-type parameter coercion (tilde expansion, enum/required checks, unknown-key rejection); the generic builder's flag → `--` → positional ordering; `find`/`grep`'s irregular named-builder grammars; `largest_files`' ranking; and for mutation — `stageMkdir`'s forward/inverse/preview values, its existing-path and dash-leading-path guardrails, and a real stage → run-forward → run-inverse round trip against a temp directory. |
+| **`internal/engine`** | Per-type parameter coercion (tilde expansion, enum/required checks, unknown-key rejection); the generic builder's flag → `--` → positional ordering; `find`/`grep`'s irregular named-builder grammars; `largest_files`' ranking. For mutation: `stageMkdir`'s forward/inverse/preview values, its existing-path and dash-leading-path guardrails, and a real stage → run-forward → run-inverse round trip against a temp directory; and `stageWriteSetting`'s forward/inverse/preview values for both the unset-key case and the prior-value-capture case, its refusal to stage when the existing value isn't a plain boolean, its refusal of a setting name absent from the allowlist, a data sanity check that every curated entry has non-empty domain/key/label, and a real stage → run-forward → run-inverse round trip via the real `defaults` binary against a **synthetic allowlist entry pointing at a disposable temp file** (never a real curated domain — see Safety note below). |
 | **`internal/transaction`** | The token store's contract: round-trip, prefix/uniqueness, one-shot consumption, TTL expiry, and (under `-race`) safety under concurrent `Put`/`Take`. |
-| **`internal/server`** | Behavioral tests drive every capability through the real domain-tool handler against a hermetic fixture tree; the in-process integration test drives the *actual* MCP protocol (tool listing, the full `mkdir` stage→execute→undo round trip, structured errors for bad operations/tokens). |
+| **`internal/server`** | Behavioral tests drive every capability through the real domain-tool handler against a hermetic fixture tree; the in-process integration test drives the *actual* MCP protocol: tool listing across both domain tools (`filesystem`, `preferences`) plus `execute`/`undo`, the full `mkdir` stage→execute→undo round trip, a **stage-only** `write_setting` call against a real curated setting (asserting a token+preview come back, deliberately never calling `execute` — see Safety note below), structured errors for bad operations/tokens, and a drift check (`TestDefaultsAllowlist_MatchesManifestEnum`) that the manifest's `setting` enum and the engine's `defaultsAllowlist` map name exactly the same settings. |
+
+### Safety note: `write_setting` tests never touch real preferences
+
+`write_setting`'s curated settings point at real domains (`com.apple.finder`,
+`com.apple.dock`, `NSGlobalDomain`, `com.apple.screencapture`). Any test that
+actually *writes* through `write_setting` therefore uses a synthetic
+`defaultsAllowlist` entry pointing at an absolute path under `t.TempDir()` —
+confirmed that `defaults` treats an arbitrary file path as a one-off domain —
+inserted for the duration of one test and removed via `t.Cleanup`. The only test
+that touches a real curated setting (`finder_show_hidden_files`) stops at
+**staging**, which only performs a read-only `defaults read` probe; it never
+calls `execute`, so the developer's or CI machine's actual Finder setting is
+never written.
 
 This is a fairly classic test pyramid for this kind of system: pure-data/pure-function
 layers get exhaustive unit coverage, and the top layer gets a smaller number of

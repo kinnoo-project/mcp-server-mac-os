@@ -29,11 +29,12 @@ been rebuilt around two ideas:
 
 2. **The model sees domain tools, not the engine's plumbing.** Instead of one
    tool per operation (which doesn't scale) or a single opaque `query` tool (poor
-   ergonomics), the server exposes **one tool per capability category** — today a
-   single `filesystem` tool. You call it with an `operation` (a capability name)
-   plus that operation's `params`. Each domain tool's description embeds the full
-   menu of its operations and their parameters, so the model can form a correct
-   call in one shot with no separate discovery step.
+   ergonomics), the server exposes **one tool per capability category** —
+   `filesystem` and `preferences` today. You call a domain tool with an
+   `operation` (a capability name) plus that operation's `params`. Each domain
+   tool's description embeds the full menu of its operations and their
+   parameters, so the model can form a correct call in one shot with no separate
+   discovery step.
 
 The net effect: the registry is the single source of truth, the engine enforces
 every safety rule in one place, and the tool surface stays small and stable no
@@ -56,7 +57,7 @@ flowchart TD
         Txn["internal/transaction<br/><b>staging substrate</b><br/>req_ store · undo_ store<br/>(TTL, one-shot tokens)"]
     end
 
-    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · mkdir · rmdir"]
+    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · mkdir · rmdir · defaults"]
     Builtin["in-process builtins<br/>pwd · largest_files"]
 
     Client -- "JSON-RPC over stdio" --> ServerPkg
@@ -148,10 +149,12 @@ sequenceDiagram
 
 ## Capabilities
 
-All capabilities live in the `filesystem` category and are reachable through the
-`filesystem` domain tool as `filesystem(operation: <name>, params: {…})`. Most are
-read-only and run immediately; `mkdir` mutates and goes through the
+Capabilities are grouped into categories, each reachable through its own domain
+tool as `<domain>(operation: <name>, params: {…})`. Most operations are
+read-only and run immediately; mutating ones go through the
 [stage → execute → undo](#mutating-operations-stage--execute--undo) gate instead.
+
+### `filesystem`
 
 | Operation       | Runs            | Reversibility | Use it for                                        |
 | --------------- | --------------- | -------------- | -------------------------------------------------- |
@@ -165,6 +168,18 @@ read-only and run immediately; `mkdir` mutates and goes through the
 | `grep`          | `/usr/bin/grep` | read-only       | "Which files mention `TODO`?"                       |
 | `largest_files` | *(builtin)*     | read-only       | "What are the 10 biggest files under `~`?"          |
 | `mkdir`         | `/bin/mkdir`    | **reversible**  | "Create a folder `~/scratch/demo`."                 |
+
+### `preferences`
+
+| Operation       | Runs              | Reversibility | Use it for                                        |
+| --------------- | ----------------- | -------------- | -------------------------------------------------- |
+| `write_setting` | `/usr/bin/defaults` | **reversible** | "Show hidden files in Finder." / "Auto-hide the Dock." |
+
+`write_setting` does **not** take an arbitrary preference domain/key — it takes
+a closed `setting` enum naming one of 15 curated, well-known, non-security-relevant
+boolean toggles (see [Why `write_setting` is curated, not
+generic](#why-write_setting-is-curated-not-generic) below for the full list and
+the reasoning).
 
 ### Three ways a read-only capability is fulfilled
 
@@ -223,10 +238,60 @@ change cannot be acted on far outside the period the preview/result was shown.
 token. This is also why the architecture can add many more mutating capabilities
 later without growing the tool surface: only the per-domain operation menu grows.
 
-Today's only mutator is `mkdir`: forward is `mkdir -- <path>`, inverse is
-`rmdir -- <path>` (which refuses a non-empty directory, so undo can never destroy
-files added after the create). Staging refuses a path that already exists or
-begins with `-`.
+Two mutators exist today:
+- **`mkdir`** — forward is `mkdir -- <path>`, inverse is `rmdir -- <path>` (which
+  refuses a non-empty directory, so undo can never destroy files added after the
+  create). Staging refuses a path that already exists or begins with `-`.
+- **`write_setting`** — unlike `mkdir`'s fixed inverse, undo here needs to know
+  what to restore. Staging reads the setting's *current* value (a harmless
+  `defaults read`) and bakes that exact prior value into the inverse: forward is
+  `defaults write <domain> <key> -bool <new>`, inverse is either `defaults write
+  <domain> <key> -bool <prior>` or, if the key was unset, `defaults delete
+  <domain> <key>`. Staging refuses to proceed if the existing value isn't a plain
+  boolean — it never guesses how to round-trip a value shape it doesn't
+  understand.
+
+### Why `write_setting` is curated, not generic
+
+`defaults write` is, on its own, unrestricted within the calling user's account —
+some settings it can reach are genuinely dangerous (e.g. disabling the password
+prompt after sleep/screensaver). Exposing raw `domain`/`key` parameters would let
+the model target *any* preference, most of which neither it nor a human glancing
+at a confirmation prompt can assess the consequences of. So `write_setting` takes
+a closed `setting` enum instead; the real domain/key pair behind each name lives
+in Go (`internal/engine/mutate_preferences.go`'s `defaultsAllowlist`), never in
+model-controlled input — the same posture `policy.allowedBinDirs` takes for
+trusted binaries. A test (`TestDefaultsAllowlist_MatchesManifestEnum`) keeps the
+manifest's enum and this Go map from drifting apart.
+
+| `setting`                          | Domain                    | Key                                    |
+| ----------------------------------- | ------------------------- | --------------------------------------- |
+| `finder_show_hidden_files`          | `com.apple.finder`        | `AppleShowAllFiles`                     |
+| `finder_show_all_extensions`        | `NSGlobalDomain`          | `AppleShowAllExtensions`                |
+| `finder_show_path_bar`              | `com.apple.finder`        | `ShowPathbar`                           |
+| `finder_show_status_bar`            | `com.apple.finder`        | `ShowStatusBar`                         |
+| `finder_warn_on_extension_change`   | `com.apple.finder`        | `FXEnableExtensionChangeWarning`        |
+| `dock_autohide`                     | `com.apple.dock`          | `autohide`                              |
+| `dock_show_recents`                 | `com.apple.dock`          | `show-recents`                          |
+| `dock_minimize_to_app_icon`         | `com.apple.dock`          | `minimize-to-application`               |
+| `dock_show_process_indicators`      | `com.apple.dock`          | `show-process-indicators`               |
+| `screenshot_disable_shadow`         | `com.apple.screencapture` | `disable-shadow`                        |
+| `global_press_and_hold_accents`     | `NSGlobalDomain`          | `ApplePressAndHoldEnabled`               |
+| `global_autocorrect`                | `NSGlobalDomain`          | `NSAutomaticSpellingCorrectionEnabled`  |
+| `global_smart_quotes`               | `NSGlobalDomain`          | `NSAutomaticQuoteSubstitutionEnabled`   |
+| `global_smart_dashes`               | `NSGlobalDomain`          | `NSAutomaticDashSubstitutionEnabled`    |
+| `global_period_substitution`        | `NSGlobalDomain`          | `NSAutomaticPeriodSubstitutionEnabled`  |
+
+Every entry is a well-documented, reversible, purely cosmetic/UX toggle with no
+security, login, or networking implications — settings of that kind (password
+prompts, login window behavior, firewall, Gatekeeper, sharing, FileVault, TCC,
+SIP, etc.) are deliberately excluded and are not planned to be added. Adding a
+new curated setting means a reviewed Go code change (the allowlist) plus a
+manifest edit (the enum) — not just a data edit — which is intentional friction
+for something security-adjacent. An open "any domain/key" mode has been
+considered and rejected: the curation *is* the safety value, not a speed bump in
+front of one, and a confirmation prompt doesn't help if nobody reviewing it knows
+what an arbitrary key actually does.
 
 ---
 
@@ -274,7 +339,8 @@ internal/
     types.go                   #   Capability / ParamSpec / ArgRule + closed enums
     registry.go                #   embed + load + fail-fast structural validation
     manifests/
-      filesystem.json          #   the 9 filesystem capabilities as JSON data
+      filesystem.json          #   10 filesystem capabilities (9 read-only + mkdir) as JSON data
+      preferences.json         #   write_setting (the curated "setting" enum) as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
@@ -283,7 +349,9 @@ internal/
     builtins.go                #   builtin registry (pwd)
     builtins_filesystem.go     #   largest_files in-process tree walk + ranking
     executor.go                #   subprocess runner, ~ expansion, 8 KB output compaction
-    mutate.go                  #   Stage/RunCommand pipeline (mutate): mutators registry + mkdir
+    mutate.go                  #   generic mutation machinery: Mutator/Command/StagedPlan, Stage/RunCommand
+    mutate_filesystem.go       #   mkdir mutator
+    mutate_preferences.go      #   write_setting mutator + the defaultsAllowlist curated settings map
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where
   transaction/                 # the stage↔execute/undo bridge (no deps on engine/registry/MCP)
@@ -351,7 +419,8 @@ startup and does not hot-reload — always restart after rebuilding.
 
 > **Old vs new server, quick tell:** if you see the model calling a tool named
 > `query` (or `list_capabilities` / `describe_capability`), you're on an older
-> build. The current server exposes a single tool named `filesystem`.
+> build. The current server exposes one domain tool per category
+> (`filesystem`, `preferences`) plus the shared `execute`/`undo` pair.
 
 ---
 
@@ -384,30 +453,34 @@ go test ./...
 go test -race ./internal/transaction/...   # the concurrent token store
 ```
 
-The suite is organized per architectural layer, bottom to top:
+See `docs/TESTS.md` for a per-package breakdown of what the suite actually
+verifies (and what it deliberately doesn't — see the eval-harness note there).
+The in-process MCP integration test (`internal/server/integration_test.go`) is
+the canonical end-to-end check; piping JSON into the binary by hand is
+unreliable because the server exits on stdin EOF before flushing replies (see
+`docs/issues/issue-stdio-smoke-test-unreliable.md`).
 
-| Package | Tests verify |
-| --- | --- |
-| `internal/registry` | manifests load and parse; structural validation rejects malformed capabilities (duplicate names, unknown enum values, missing flag tokens); `TestRiskClassificationInvariant` enforces that every mutating capability carries a non-`none` risk. |
-| `internal/policy` | binary resolution only ever returns paths under the trusted system directories; path-separator and rogue-substitution attempts are rejected. |
-| `internal/engine` | parameter normalization/coercion per type (incl. tilde expansion, enum/required checks, unknown-key rejection); the generic argv builder's flag/positional/`--` ordering; the named `find`/`grep` builders' irregular grammars; `largest_files`' ranking; and — for mutation — `stageMkdir`'s forward/inverse/preview correctness, its existing-path and dash-leading-path guardrails, and a real stage→`RunCommand`(forward)→`RunCommand`(inverse) round-trip against a temp directory. |
-| `internal/transaction` | the token store's core contract: round-trip, prefix/uniqueness, one-shot consumption, TTL expiry, and (under `-race`) safety across concurrent `Put`/`Take`. |
-| `internal/server` | behavioral tests drive every capability through the real `filesystem` domain-tool handler against a hermetic fixture tree; an in-process MCP client/server over the SDK's in-memory transport (`integration_test.go`) exercises the actual protocol — tool listing, the full `mkdir` stage→`execute`→`undo` round-trip (asserting the directory does *not* exist after staging and *does* after `execute`), and structured error handling for bad operations/tokens. |
-
-The in-process integration test is the canonical end-to-end check; piping JSON
-into the binary by hand is unreliable because the server exits on stdin EOF
-before flushing replies (see `docs/issues/issue-stdio-smoke-test-unreliable.md`).
+Tests that exercise `write_setting` never run `defaults write`/`delete` against
+the real curated domains (`com.apple.finder`, `com.apple.dock`,
+`NSGlobalDomain`) — they use a synthetic allowlist entry pointed at a disposable
+temp file instead, so running the suite never touches your actual Finder/Dock
+settings.
 
 ---
 
 ## Roadmap
 
 The read-only foundation, the domain-tool surface, and the
-stage → execute → undo mutation gate are all in place, proved end-to-end on one
-reversible capability (`mkdir`). What's next:
+stage → execute → undo mutation gate are all in place, proved on two mutators
+with different undo shapes: `mkdir` (a fixed inverse) and `write_setting` (an
+inverse that depends on prior state captured at stage time). What's next:
 
-- **Breadth**: more mutating capabilities and, as they arrive, more domain
-  categories beyond `filesystem` (e.g. `network`, `application`).
+- **Eval harness**: the existing test suite proves the engine/protocol are
+  correct given a tool call, not that a model picks the *right* tool call for a
+  natural-language prompt — a different, so-far-untested failure mode. See
+  `docs/issues/issue-need-eval-harness-for-tool-selection.md`.
+- **Breadth**: more curated `preferences` settings and mutating capabilities in
+  other domains (e.g. `network`, `application`).
 - **Irreversible operations**: a heavier confirmation gate plus a Trash/staging
   (`~/.Trash`, `/tmp/mcp-fallback/`) fallback for operations with no true
   inverse, instead of a false promise of undo.
