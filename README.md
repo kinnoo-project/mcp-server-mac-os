@@ -50,14 +50,14 @@ flowchart TD
 
     subgraph proc["Server process (stdio)"]
         Main["cmd/macos-darwin-mcp<br/><i>wiring: load → build → serve</i>"]
-        ServerPkg["internal/server<br/><b>MCP adapter</b><br/>filesystem(operation, params)<br/>execute(token) · undo(undo_token)"]
+        ServerPkg["internal/server<br/><b>MCP adapter</b><br/>filesystem/preferences(operation, params)<br/>execute(token) · undo(undo_token) · pipeline(stages)"]
         Engine["internal/engine<br/><b>execution</b><br/>Run (read) · Stage / RunCommand (mutate)"]
         Policy["internal/policy<br/><b>trust boundary</b><br/>binaries under /bin /sbin /usr/bin /usr/sbin"]
         Registry["internal/registry<br/><b>capability catalog</b><br/>embedded JSON manifests<br/>+ fail-fast validation"]
         Txn["internal/transaction<br/><b>staging substrate</b><br/>req_ store · undo_ store<br/>(TTL, one-shot tokens)"]
     end
 
-    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · mkdir · rmdir · defaults"]
+    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · sort · head · mkdir · rmdir · defaults"]
     Builtin["in-process builtins<br/>pwd · largest_files"]
 
     Client -- "JSON-RPC over stdio" --> ServerPkg
@@ -167,6 +167,8 @@ read-only and run immediately; mutating ones go through the
 | `find`          | `/usr/bin/find` | read-only       | "List all PNG and JPG files under `~/Pictures`."    |
 | `grep`          | `/usr/bin/grep` | read-only       | "Which files mention `TODO`?"                       |
 | `largest_files` | *(builtin)*     | read-only       | "What are the 10 biggest files under `~`?"          |
+| `sort`          | `/usr/bin/sort` | read-only       | Rarely standalone — a [`pipeline`](#pipeline-composing-capabilities) stage that ranks another stage's output. |
+| `head`          | `/usr/bin/head` | read-only       | Rarely standalone — a [`pipeline`](#pipeline-composing-capabilities) stage that trims a ranked/filtered result to a top-N answer. |
 | `mkdir`         | `/bin/mkdir`    | **reversible**  | "Create a folder `~/scratch/demo`."                 |
 
 ### `preferences`
@@ -193,13 +195,77 @@ chosen by the manifest's `builder` field:
   generic mapping can't express (e.g. `find` needs its search root *first* and its
   name filters combined into one parenthesized OR group).
 - **Builtin** (`pwd`, `largest_files`) — answered in Go with no subprocess at all,
-  for questions a single command can't answer. `largest_files` is the clearest
-  example: "biggest files" is a `du -a | sort -rn | head` *pipeline*, which the
-  no-shell rule forbids — so the builtin walks the tree once, keeps only the top N
-  in a bounded heap, and returns just those ranked lines. Output is small by
-  construction and never floods the model's context.
+  for questions a single command can't answer in one call. `largest_files` is
+  the clearest example: "biggest files" is a `du -a | sort -rn | head` *pipeline*
+  idiom — a literal shell pipe is still forbidden, and even the server-side
+  `pipeline` tool below would need the model to assemble three stages for
+  something this common — so the builtin walks the tree once, keeps only the
+  top N in a bounded heap, and returns just those ranked lines in a single call.
+  Output is small by construction and never floods the model's context.
 
-A mutating capability is fulfilled differently — see the next section.
+A mutating capability is fulfilled differently — see [Mutating
+operations](#mutating-operations-stage--execute--undo) below. Composing
+*multiple* read-only capabilities together (when no single one or named
+builtin already answers the question) is the `pipeline` tool's job — see the
+next section.
+
+---
+
+## `pipeline`: composing capabilities
+
+Some questions need more than one capability chained together — "how many
+`.conf` files are under `/etc`?" needs `find` to list matches and `wc` to count
+them — but don't justify a bespoke builtin the way `largest_files` did for
+"biggest files." The `pipeline` tool is the general escape hatch: an ordered
+list of stages where each stage's raw output feeds the next stage's input,
+the server-side equivalent of a unix `a | b | c` pipe with no shell involved
+(every stage is still launched via `exec.CommandContext` with its own
+validated, explicit argv — see [Why this server is safe to
+expose](#why-this-server-is-safe-to-expose)).
+
+```
+pipeline(stages: [
+  { capability: "find", params: { path: "/etc", extensions: ["conf"] } },
+  { capability: "wc",   params: { lines: true } }
+])
+```
+
+Notice the second stage omits `paths` — that's how a stage consumes the
+*previous* stage's output instead of a named file, the same way `wc` reads
+stdin in a real shell pipe when given no file argument.
+
+**Scope, deliberately narrow:**
+- **Read-only, binary-backed capabilities only.** Builtins (`pwd`,
+  `largest_files`) have no subprocess to pipe; mutators (`mkdir`,
+  `write_setting`) don't run in one step at all. This also means a pipeline
+  never mutates anything — there is nothing to roll back, ever, so composition
+  stays orthogonal to the mutation phase's transactional machinery.
+- **`wc`, `grep`, `sort`, and `head`** can appear as a *non-first* stage,
+  reading the prior stage's output from stdin instead of a file (the classic
+  unix filter idiom). A capability that accepts this is marked
+  `accepts_stdin` in its manifest entry; calling one of these four directly
+  (outside a pipeline) without a file argument is refused immediately with a
+  clear error rather than hanging forever waiting for input that will never
+  arrive.
+- **Limits**: at most 5 stages; each intermediate stage's raw output is capped
+  at 1 MiB (generous on purpose — that data never reaches the model, it only
+  has to fit in the server's own memory; the *final* stage's output still goes
+  through the normal 8 KB model-facing compaction). A failing stage (non-zero
+  exit, or exceeding that cap) aborts the whole pipeline immediately, naming
+  which stage and why.
+- **Sequential, not concurrently streamed.** Each stage runs to completion and
+  its captured output becomes the next stage's input, rather than every stage
+  running concurrently with a live OS-level pipe between them. Simpler and
+  exactly as correct at this project's scale (a handful of capped stages); see
+  `docs/issues/note-pipeline-design-decisions.md` for the reasoning.
+
+**Nudged toward named operations first.** The tool's own description tells
+the model to check the relevant domain tool's operation menu and prefer a
+single named operation whenever one exists — composing a pipeline is meant for
+the long tail no named capability covers yet. This is checked mechanically,
+not just hoped for: several eval cases assert `forbid_tools: ["pipeline"]`
+for prompts a single named operation already answers (see
+[Evals](#evals)).
 
 ---
 
@@ -301,8 +367,10 @@ what an arbitrary key actually does.
   pre-tokenized `[]string`. There is no `sh -c`, no string concatenation, no glob
   expansion performed by us.
 - **Trusted binaries only.** Each binary is resolved and verified to live under
-  `/bin`, `/sbin`, `/usr/bin`, or `/usr/sbin` before it can run — for both
-  read-only commands and a mutation's forward/inverse commands.
+  `/bin`, `/sbin`, `/usr/bin`, or `/usr/sbin` before it can run — for read-only
+  commands, a mutation's forward/inverse commands, and every stage of a
+  `pipeline` call alike; there is no separate, looser execution path for
+  composed stages.
 - **Mutations never run on the first call.** `find` is still exposed without
   `-exec`, `-delete`, or `-prune`. Any capability that changes state instead goes
   through [stage → execute → undo](#mutating-operations-stage--execute--undo):
@@ -317,7 +385,10 @@ what an arbitrary key actually does.
   they can't be reinterpreted as flags.
 - **Output budget.** Subprocess output larger than 8 KB is compacted to a
   head + tail window with a notice, so a verbose utility can't saturate the
-  model's context.
+  model's context. A `pipeline` call's intermediate stages are capped more
+  generously (1 MiB — that data never reaches the model, only the server's own
+  memory), but the *final* stage a pipeline returns still goes through the
+  same 8 KB model-facing compaction as any other result.
 - **Stdout discipline.** All logs go to `os.Stderr`; `os.Stdout` is reserved
   exclusively for JSON-RPC framing.
 - **macOS permission model.** The server runs as the user that started it and
@@ -341,7 +412,7 @@ internal/
     types.go                   #   Capability / ParamSpec / ArgRule + closed enums
     registry.go                #   embed + load + fail-fast structural validation
     manifests/
-      filesystem.json          #   10 filesystem capabilities (9 read-only + mkdir) as JSON data
+      filesystem.json          #   12 filesystem capabilities (10 read-only incl. sort/head + mkdir) as JSON data
       preferences.json         #   write_setting (the curated "setting" enum) as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
@@ -350,10 +421,11 @@ internal/
     builders_filesystem.go     #   named builders for irregular grammars (find, grep)
     builtins.go                #   builtin registry (pwd)
     builtins_filesystem.go     #   largest_files in-process tree walk + ranking
-    executor.go                #   subprocess runner, ~ expansion, 8 KB output compaction
+    executor.go                #   subprocess runner, ~ expansion, 8 KB output compaction; runCommandWithStdin
     mutate.go                  #   generic mutation machinery: Mutator/Command/StagedPlan, Stage/RunCommand
     mutate_filesystem.go       #   mkdir mutator
     mutate_preferences.go      #   write_setting mutator + the defaultsAllowlist curated settings map
+    pipeline.go                #   RunPipeline: chains read-only, binary-backed stages (see "pipeline" above)
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where
   transaction/                 # the stage↔execute/undo bridge (no deps on engine/registry/MCP)
@@ -361,6 +433,7 @@ internal/
   server/                      # the MCP adapter (depends on engine + registry + transaction)
     tools.go                   #   domain tools + execute/undo; the request handlers
     menu.go                    #   render each domain tool's embedded operation/param menu
+    pipeline.go                #   the pipeline tool: resolves stage names + renders its description
     inprocess.go               #   Connect(): wires a real Server to an in-memory MCP client,
                                 #   shared by the integration test and the eval harness
   evals/                       # the eval harness's logic (see "Evals"); not part of the shipped binary
@@ -532,27 +605,29 @@ regular test suite.
 
 ## Roadmap
 
-The read-only foundation, the domain-tool surface, and the
-stage → execute → undo mutation gate are all in place, proved on two mutators
-with different undo shapes: `mkdir` (a fixed inverse) and `write_setting` (an
-inverse that depends on prior state captured at stage time). What's next:
+The read-only foundation, the domain-tool surface, the
+stage → execute → undo mutation gate, and read-only composition
+([`pipeline`](#pipeline-composing-capabilities)) are all in place. Mutation is
+proved on two mutators with different undo shapes: `mkdir` (a fixed inverse)
+and `write_setting` (an inverse that depends on prior state captured at stage
+time). What's next:
 
 - **Eval breadth**: the harness (`internal/evals`, see [Evals](#evals)) exists
-  with 14 cases against `claude-sonnet-4-6`; widening model coverage and adding
+  with 15 cases against `claude-sonnet-4-6`; widening model coverage and adding
   cases as new domains/capabilities ship is ongoing, not one-and-done.
 - **Breadth**: more curated `preferences` settings and mutating capabilities in
-  other domains (e.g. `network`, `application`).
+  other domains (e.g. `network`, `application`); more pipeline-eligible
+  capabilities as real composition needs surface.
 - **Irreversible operations**: a heavier confirmation gate plus a Trash/staging
   (`~/.Trash`, `/tmp/mcp-fallback/`) fallback for operations with no true
   inverse, instead of a false promise of undo.
-- **Multi-step plans**: a single domain call that stages and commits several
-  steps, with a **best-effort + report** failure policy (stop on first failure,
+- **Multi-step *mutation* plans**: distinct from the read-only `pipeline` tool
+  above — a single domain call that stages and commits several *mutations*,
+  with a **best-effort + report** failure policy (stop on first failure,
   report what completed, let the user `undo` the completed reversible steps).
+  See `docs/issues/issue-composition-and-transactional-rollback-limitations.md`
+  for why this is still open even though read-only composition is now done.
 - **Force mode**: an explicit opt-in to skip the `execute` confirmation step for
   low-risk reversible operations — never available for irreversible ones.
-- **Composition**: server-side pipelines (no shell — Go can wire one process's
-  stdout directly into the next's stdin) so multi-stage answers like "top 10
-  largest files" don't require the model to loop calls through its own context.
-  See `docs/issues/issue-composition-and-transactional-rollback-limitations.md`.
 
 See `docs/` for the design notes and the approved plans.

@@ -129,12 +129,13 @@
   },
   {
     "name": "wc",
-    "summary": "Count lines, words, characters, or bytes in one or more files.",
+    "summary": "Count lines, words, characters, or bytes in one or more files. Omit paths to count piped input as the non-first stage of a pipeline.",
     "category": "filesystem",
     "binary": "wc",
     "reversibility": "read_only",
     "risk": "none",
     "builder": "generic",
+    "accepts_stdin": true,
     "params": [
       {
         "name": "lines",
@@ -163,8 +164,8 @@
       {
         "name": "paths",
         "type": "path_list",
-        "required": true,
-        "description": "Files to count; supports a leading ~.",
+        "required": false,
+        "description": "Files to count; supports a leading ~. Required when calling wc directly; omit only when this is a non-first pipeline stage.",
         "arg": { "kind": "positional" }
       }
     ]
@@ -262,12 +263,13 @@
   },
   {
     "name": "grep",
-    "summary": "Search files or directories for a regular expression. Binary files are skipped.",
+    "summary": "Search files or directories for a regular expression. Binary files are skipped. Omit paths to search piped input as the non-first stage of a pipeline.",
     "category": "filesystem",
     "binary": "grep",
     "reversibility": "read_only",
     "risk": "low",
     "builder": "grep",
+    "accepts_stdin": true,
     "params": [
       {
         "name": "pattern",
@@ -279,8 +281,8 @@
       {
         "name": "paths",
         "type": "path_list",
-        "required": true,
-        "description": "Files or directories to search; supports a leading ~.",
+        "required": false,
+        "description": "Files or directories to search; supports a leading ~. Required when calling grep directly; omit only when this is a non-first pipeline stage.",
         "arg": { "kind": "none" }
       },
       {
@@ -330,6 +332,86 @@
         "type": "string",
         "description": "Restrict a recursive search to files matching this glob (passes --include=).",
         "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "sort",
+    "summary": "Sort lines of text. Rarely useful standalone (it needs explicit files); its real purpose is ranking another stage's output as part of a pipeline, e.g. ranking find or du results.",
+    "category": "filesystem",
+    "binary": "sort",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "accepts_stdin": true,
+    "params": [
+      {
+        "name": "numeric",
+        "type": "bool",
+        "description": "Sort numerically rather than lexicographically (passes -n).",
+        "arg": { "kind": "flag", "flag": "-n" }
+      },
+      {
+        "name": "human_numeric",
+        "type": "bool",
+        "description": "Sort by human-readable numeric value, understanding suffixes like 1K, 2M, 3G (passes -h). Use this to rank du -h output by size.",
+        "arg": { "kind": "flag", "flag": "-h" }
+      },
+      {
+        "name": "reverse",
+        "type": "bool",
+        "description": "Reverse the sort order, e.g. largest first when combined with numeric or human_numeric (passes -r).",
+        "arg": { "kind": "flag", "flag": "-r" }
+      },
+      {
+        "name": "unique",
+        "type": "bool",
+        "description": "Output only the first of each set of equal lines (passes -u).",
+        "arg": { "kind": "flag", "flag": "-u" }
+      },
+      {
+        "name": "key",
+        "type": "string",
+        "description": "Sort key field specification, e.g. \"2,2\" to sort by the second whitespace-separated field (passes -k).",
+        "arg": { "kind": "valued_flag", "flag": "-k" }
+      },
+      {
+        "name": "paths",
+        "type": "path_list",
+        "required": false,
+        "description": "Files to sort; supports a leading ~. Required when calling sort directly; omit only when this is a non-first pipeline stage, in which case it sorts the previous stage's output.",
+        "arg": { "kind": "positional" }
+      }
+    ]
+  },
+  {
+    "name": "head",
+    "summary": "Show the first N lines (or bytes) of text. Rarely useful standalone; its real purpose is trimming a ranked or filtered pipeline result down to a top-N answer.",
+    "category": "filesystem",
+    "binary": "head",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "accepts_stdin": true,
+    "params": [
+      {
+        "name": "count",
+        "type": "int",
+        "description": "Number of lines to print (passes -n). Defaults to 10 if neither count nor bytes is set.",
+        "arg": { "kind": "valued_flag", "flag": "-n" }
+      },
+      {
+        "name": "bytes",
+        "type": "int",
+        "description": "Number of bytes to print instead of lines (passes -c). Set at most one of count/bytes.",
+        "arg": { "kind": "valued_flag", "flag": "-c" }
+      },
+      {
+        "name": "paths",
+        "type": "path_list",
+        "required": false,
+        "description": "Files to read; supports a leading ~. Required when calling head directly; omit only when this is a non-first pipeline stage, in which case it trims the previous stage's output.",
+        "arg": { "kind": "positional" }
       }
     ]
   },

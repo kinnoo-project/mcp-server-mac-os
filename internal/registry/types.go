@@ -169,4 +169,19 @@ type Capability struct {
 	// Params is the ordered parameter schema. Order is significant for the
 	// generic builder, which emits flags in declaration order.
 	Params []ParamSpec `json:"params"`
+	// AcceptsStdin marks a capability whose underlying binary reads from
+	// standard input when its positional file argument(s) are omitted (the
+	// classic unix filter idiom: wc, grep, sort, head, ...). It exists so this
+	// capability can serve as a non-first stage of a pipeline, receiving the
+	// previous stage's output as its input instead of a named file.
+	//
+	// This is engine-validated, not registry-validated: only a read-only
+	// capability backed by an argv builder (never a builtin or a mutator) may
+	// set this, and the registry package has no way to know which builder
+	// names resolve to which kind — see engine.ValidateBuilders. A capability
+	// invoked standalone (outside a pipeline) with this set and no positional
+	// argument is refused outright rather than executed, because there is
+	// nothing to wire to its stdin and it would otherwise hang forever
+	// waiting for input that will never arrive.
+	AcceptsStdin bool `json:"accepts_stdin,omitempty"`
 }

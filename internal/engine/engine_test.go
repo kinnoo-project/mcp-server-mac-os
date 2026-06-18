@@ -120,6 +120,41 @@ func TestValidateBuilders(t *testing.T) {
 	}
 }
 
+// TestValidateBuilders_AcceptsStdin confirms the AcceptsStdin precondition:
+// only a read-only, argv-builder-backed capability may set it.
+func TestValidateBuilders_AcceptsStdin(t *testing.T) {
+	e := New()
+	validCap := registry.Capability{Name: "v", Builder: "generic", Reversibility: registry.ReadOnly, AcceptsStdin: true}
+	if err := e.ValidateBuilders([]registry.Capability{validCap}); err != nil {
+		t.Errorf("a read-only argv-builder capability should be allowed to set accepts_stdin: %v", err)
+	}
+
+	mutating := registry.Capability{Name: "m", Builder: "generic", Reversibility: registry.Reversible, AcceptsStdin: true}
+	if err := e.ValidateBuilders([]registry.Capability{mutating}); err == nil {
+		t.Error("expected an error: a mutating capability must not set accepts_stdin")
+	}
+
+	builtinCap := registry.Capability{Name: "p", Builder: "pwd", Reversibility: registry.ReadOnly, AcceptsStdin: true}
+	if err := e.ValidateBuilders([]registry.Capability{builtinCap}); err == nil {
+		t.Error("expected an error: a builtin has no stdin to wire and must not set accepts_stdin")
+	}
+}
+
+// TestRun_AcceptsStdinCapabilityRefusesStandaloneWithoutInput confirms a
+// standalone call to an AcceptsStdin capability with no positional input
+// fails fast with a clear error instead of launching a subprocess that would
+// block forever waiting on stdin that will never arrive.
+func TestRun_AcceptsStdinCapabilityRefusesStandaloneWithoutInput(t *testing.T) {
+	wc := lookupCapability(t, "wc")
+	_, err := New().Run(context.Background(), wc, map[string]any{"lines": true}) // no paths
+	if err == nil {
+		t.Fatal("expected an error: wc has no paths and no piped input outside a pipeline")
+	}
+	if !strings.Contains(err.Error(), "piped input") {
+		t.Errorf("error should explain the piped-input requirement, got: %v", err)
+	}
+}
+
 // TestRun_LS executes ls against a temp directory and confirms real output.
 func TestRun_LS(t *testing.T) {
 	dir := t.TempDir()
