@@ -74,3 +74,8 @@ When explaining your reasoning, your design decisions, or what you just implemen
 - Prefer concrete examples ("turns `{all: true}` into the argument `-A`") over abstract descriptions.
 - Identifiers and file paths are fine as *supporting* detail, but the explanation must stand on its own without them.
 - Optimize for a busy human skimming for understanding, not for maximal information density.
+
+## 8. Documentation Upkeep (Non-Negotiable)
+
+1. Always update `README.md`, as necessary, after any new feature implementation.
+2. Always update `docs/TESTS.md`, as necessary, whenever new test sets are written.
