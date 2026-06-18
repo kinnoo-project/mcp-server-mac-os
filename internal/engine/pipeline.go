@@ -132,7 +132,13 @@ func (e *Engine) RunPipeline(ctx context.Context, stages []PipelineStage) (strin
 		if res.ExitCode != 0 {
 			return "", fmt.Errorf("pipeline: stage %d (%s) exited %d: %s", i+1, c.Name, res.ExitCode, res.Stderr)
 		}
-		if len(res.Stdout) > maxPipelineStageBytes {
+		// The cap only applies when this stage's output becomes another
+		// stage's input — i.e. every stage EXCEPT the last. The final stage's
+		// raw output goes straight to formatRunResult/compactOutput below,
+		// exactly like a standalone Run call, which has no pre-compaction
+		// cap of its own; enforcing one here would make a single-stage (or
+		// final-stage) pipeline behave differently from Run for no reason.
+		if i < len(stages)-1 && len(res.Stdout) > maxPipelineStageBytes {
 			return "", fmt.Errorf("pipeline: stage %d (%s) produced %d bytes, exceeding the %d-byte intermediate limit", i+1, c.Name, len(res.Stdout), maxPipelineStageBytes)
 		}
 
@@ -147,6 +153,12 @@ func (e *Engine) RunPipeline(ctx context.Context, stages []PipelineStage) (strin
 // has exactly one) is absent or empty in the normalized parameter map. Used
 // both here (to refuse a pipeline's first stage rather than hang) and by
 // Run (to refuse a standalone call the same way) — see engine.go.
+//
+// This relies on ArgPositional purely as a structural marker for "this is the
+// input slot," even on a named-builder capability (e.g. grep) whose builder
+// ignores Arg entirely when assembling argv. A named builder's manifest entry
+// must still mark its AcceptsStdin-relevant parameter ArgPositional for this
+// function to find it — see grep's "paths" param in filesystem.json.
 func missingPositionalInput(c registry.Capability, normalized map[string]any) bool {
 	for _, p := range c.Params {
 		if p.Arg.Kind != registry.ArgPositional {

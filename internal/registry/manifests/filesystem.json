@@ -283,7 +283,7 @@
         "type": "path_list",
         "required": false,
         "description": "Files or directories to search; supports a leading ~. Required when calling grep directly; omit only when this is a non-first pipeline stage.",
-        "arg": { "kind": "none" }
+        "arg": { "kind": "positional" }
       },
       {
         "name": "recursive",
