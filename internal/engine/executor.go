@@ -1,0 +1,132 @@
+// executor.go is the low-level subprocess layer of the engine: it runs a fully
+// resolved, fully tokenized command and renders its output into a single text
+// block safe to return to an LLM.
+//
+// Every invocation here obeys the project's core execution axioms (see
+// CLAUDE.md and .claude/rules/darwin-execution.md): commands are run via
+// exec.CommandContext with an explicit positional argument vector (never a
+// shell), output is capped to a token-safe budget, and the child process is
+// bound to the request context so client cancellation propagates.
+package engine
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+// maxOutputBytes caps text returned to the MCP client so a verbose utility
+// cannot saturate the model's context window. Output beyond this is truncated
+// to a head/tail window with an explicit notice (see compactOutput).
+const maxOutputBytes = 8000
+
+// runResult captures the outcome of a subprocess invocation in a form suitable
+// for surfacing back through MCP.
+type runResult struct {
+	Stdout   string
+	Stderr   string
+	ExitCode int
+}
+
+// runCommand executes binary with the given pre-tokenized arguments. The
+// command is bound to ctx so client cancellation terminates the child. The
+// caller MUST have already validated binary through the policy layer.
+//
+// stdin is intentionally not wired up: every read-only capability is an
+// argument-driven inspector with no piped input. The environment is inherited
+// so locale and timezone behave like the user's shell.
+//
+// A non-zero exit status is returned as data (in runResult.ExitCode), not as a
+// Go error — for example grep exits 1 on "no match", which is a legitimate
+// result the model should see rather than a transport failure.
+func runCommand(ctx context.Context, binary string, args ...string) (*runResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	cmd := exec.CommandContext(ctx, binary, args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	res := &runResult{Stdout: stdout.String(), Stderr: stderr.String()}
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			res.ExitCode = exitErr.ExitCode()
+			return res, nil
+		}
+		return res, fmt.Errorf("failed to execute %s: %w", binary, err)
+	}
+	return res, nil
+}
+
+// compactOutput enforces the head/tail truncation rule: short output is returned
+// unchanged; long output keeps the first and last halves of the budget with a
+// notice in between describing how many bytes were dropped.
+func compactOutput(raw string) string {
+	if len(raw) <= maxOutputBytes {
+		return raw
+	}
+	const window = maxOutputBytes / 2
+	head := raw[:window]
+	tail := raw[len(raw)-window:]
+	dropped := len(raw) - 2*window
+	return fmt.Sprintf(
+		"%s\n\n... [%d bytes truncated to keep response within %d byte budget] ...\n\n%s",
+		head, dropped, maxOutputBytes, tail,
+	)
+}
+
+// formatRunResult renders a runResult into one human-readable block for an
+// mcp.TextContent payload. Stderr is always preserved and flagged because macOS
+// permission errors surface there; a non-zero exit code is annotated explicitly.
+func formatRunResult(res *runResult) string {
+	var b strings.Builder
+	if res.Stdout != "" {
+		b.WriteString(compactOutput(res.Stdout))
+	}
+	if res.Stderr != "" {
+		if b.Len() > 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString("[stderr]\n")
+		b.WriteString(compactOutput(res.Stderr))
+	}
+	if res.ExitCode != 0 {
+		if b.Len() > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "[exit code: %d]", res.ExitCode)
+	}
+	if b.Len() == 0 {
+		return "(no output)"
+	}
+	return b.String()
+}
+
+// expandUserPath expands a leading ~ or ~/... segment to the current user's home
+// directory and returns all other paths unchanged. We deliberately do NOT invoke
+// any shell, so this tilde is the only metacharacter we honour — every other
+// character is passed through as literal data.
+func expandUserPath(p string) (string, error) {
+	if p == "" {
+		return p, nil
+	}
+	if p == "~" {
+		return os.UserHomeDir()
+	}
+	if strings.HasPrefix(p, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, p[2:]), nil
+	}
+	return p, nil
+}
