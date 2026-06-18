@@ -116,6 +116,11 @@ func (s *Server) Register(srv *mcp.Server) {
 		Description: "Reverse a reversible change that `execute` previously applied, using the undo_token it " +
 			"returned. A given undo_token works once and expires.",
 	}, s.Undo)
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "pipeline",
+		Description: s.pipelineToolDescription(),
+	}, s.Pipeline)
 }
 
 // Domains returns the sorted, unique set of capability categories — one MCP

@@ -96,7 +96,12 @@ const (
 	// ArgValuedFlag appends ArgRule.Flag followed by the parameter's value.
 	ArgValuedFlag ArgKind = "valued_flag"
 	// ArgPositional appends the parameter's value(s) as positional operands
-	// after the "--" terminator.
+	// after the "--" terminator. A named builder ignores this for argv
+	// assembly (it builds argv itself), but should still mark its
+	// AcceptsStdin-relevant parameter ArgPositional: the engine's
+	// missingPositionalInput helper uses this kind purely as a structural
+	// marker for "this is the slot a piped stage's input fills," independent
+	// of whether a generic or named builder is in play (see grep's "paths").
 	ArgPositional ArgKind = "positional"
 	// ArgNone means the parameter takes part in validation but contributes no
 	// argv directly (a named builder consumes it).
@@ -169,4 +174,19 @@ type Capability struct {
 	// Params is the ordered parameter schema. Order is significant for the
 	// generic builder, which emits flags in declaration order.
 	Params []ParamSpec `json:"params"`
+	// AcceptsStdin marks a capability whose underlying binary reads from
+	// standard input when its positional file argument(s) are omitted (the
+	// classic unix filter idiom: wc, grep, sort, head, ...). It exists so this
+	// capability can serve as a non-first stage of a pipeline, receiving the
+	// previous stage's output as its input instead of a named file.
+	//
+	// This is engine-validated, not registry-validated: only a read-only
+	// capability backed by an argv builder (never a builtin or a mutator) may
+	// set this, and the registry package has no way to know which builder
+	// names resolve to which kind — see engine.ValidateBuilders. A capability
+	// invoked standalone (outside a pipeline) with this set and no positional
+	// argument is refused outright rather than executed, because there is
+	// nothing to wire to its stdin and it would otherwise hang forever
+	// waiting for input that will never arrive.
+	AcceptsStdin bool `json:"accepts_stdin,omitempty"`
 }
