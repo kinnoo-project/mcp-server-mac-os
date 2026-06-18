@@ -251,8 +251,8 @@ stdin in a real shell pipe when given no file argument.
   at 1 MiB (generous on purpose — that data never reaches the model, it only
   has to fit in the server's own memory; the *final* stage's output still goes
   through the normal 8 KB model-facing compaction). A failing stage (non-zero
-  exit, or exceeding that cap) aborts the whole pipeline immediately, naming
-  which stage and why.
+  exit, or — for a non-final stage — exceeding that cap) aborts the whole
+  pipeline immediately, naming which stage and why.
 - **Sequential, not concurrently streamed.** Each stage runs to completion and
   its captured output becomes the next stage's input, rather than every stage
   running concurrently with a live OS-level pipe between them. Simpler and
@@ -412,7 +412,7 @@ internal/
     types.go                   #   Capability / ParamSpec / ArgRule + closed enums
     registry.go                #   embed + load + fail-fast structural validation
     manifests/
-      filesystem.json          #   12 filesystem capabilities (10 read-only incl. sort/head + mkdir) as JSON data
+      filesystem.json          #   12 filesystem capabilities (11 read-only incl. sort/head + mkdir) as JSON data
       preferences.json         #   write_setting (the curated "setting" enum) as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec

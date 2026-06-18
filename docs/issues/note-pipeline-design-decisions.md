@@ -51,6 +51,20 @@ already covered in README.md's [pipeline section](../../README.md#pipeline-compo
    and `forbid_tools: ["pipeline"]` on several existing cases) is the
    mechanism for catching, not a runtime restriction.
 
+6. **Two correctness bugs in the initial implementation, caught by PR review
+   (see `docs/pr-reviews/pr5.md` for the full record):** (a) point 2 above's
+   cap was, on first pass, mistakenly checked on *every* stage including the
+   final one — the final stage's raw output is meant to flow straight to the
+   same uncapped compaction path `Run` uses, so a single-stage or final-stage
+   pipeline shouldn't behave differently from a standalone call. Fixed to
+   only check `i < len(stages)-1`. (b) point 3's `missingPositionalInput`
+   guard structurally only finds a parameter tagged `ArgPositional` — but
+   `grep`'s named builder (`buildGrep`) ignores `Arg` entirely for its own
+   argv assembly, so its manifest entry still needed `paths` tagged
+   `positional` purely as a marker for the guard, even though that tag does
+   nothing for argv building. Without it, a bare `grep(pattern: ...)` call
+   with no `paths` silently ran against empty stdin instead of being refused.
+
 See also: `docs/issues/issue-composition-and-transactional-rollback-limitations.md`
 (item 1, composition, is now resolved by this work; item 2, multi-step
 *mutation* plans, remains open and is a distinct, harder problem).
