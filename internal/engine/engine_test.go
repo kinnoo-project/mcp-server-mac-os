@@ -155,6 +155,24 @@ func TestRun_AcceptsStdinCapabilityRefusesStandaloneWithoutInput(t *testing.T) {
 	}
 }
 
+// TestRun_GrepRefusesStandaloneWithoutPaths is the named-builder counterpart
+// to the generic-builder case above: grep's "paths" is consumed entirely by
+// buildGrep (a named builder, which ignores ArgRule when assembling argv), so
+// missingPositionalInput must still find it via its ArgPositional marker —
+// confirms a regression where grep's paths was tagged ArgNone, which made the
+// standalone guard never fire and let a bare `grep(pattern: ...)` call run
+// silently against an empty stdin instead of being refused.
+func TestRun_GrepRefusesStandaloneWithoutPaths(t *testing.T) {
+	grep := lookupCapability(t, "grep")
+	_, err := New().Run(context.Background(), grep, map[string]any{"pattern": "x"}) // no paths
+	if err == nil {
+		t.Fatal("expected an error: grep has no paths and no piped input outside a pipeline")
+	}
+	if !strings.Contains(err.Error(), "piped input") {
+		t.Errorf("error should explain the piped-input requirement, got: %v", err)
+	}
+}
+
 // TestRun_LS executes ls against a temp directory and confirms real output.
 func TestRun_LS(t *testing.T) {
 	dir := t.TempDir()

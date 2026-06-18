@@ -86,7 +86,9 @@ func (s *Server) Pipeline(ctx context.Context, _ *mcp.CallToolRequest, in Pipeli
 
 	out, err := s.eng.RunPipeline(ctx, resolved)
 	if err != nil {
-		return errorResult("pipeline: %v", err)
+		// RunPipeline's errors already carry a "pipeline: stage N (...): ..."
+		// prefix; don't add a second one on top.
+		return errorResult("%v", err)
 	}
 	return textResult(out)
 }

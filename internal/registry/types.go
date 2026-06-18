@@ -96,7 +96,12 @@ const (
 	// ArgValuedFlag appends ArgRule.Flag followed by the parameter's value.
 	ArgValuedFlag ArgKind = "valued_flag"
 	// ArgPositional appends the parameter's value(s) as positional operands
-	// after the "--" terminator.
+	// after the "--" terminator. A named builder ignores this for argv
+	// assembly (it builds argv itself), but should still mark its
+	// AcceptsStdin-relevant parameter ArgPositional: the engine's
+	// missingPositionalInput helper uses this kind purely as a structural
+	// marker for "this is the slot a piped stage's input fills," independent
+	// of whether a generic or named builder is in play (see grep's "paths").
 	ArgPositional ArgKind = "positional"
 	// ArgNone means the parameter takes part in validation but contributes no
 	// argv directly (a named builder consumes it).

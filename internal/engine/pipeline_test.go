@@ -165,9 +165,11 @@ func TestRunPipeline_StageFailureAbortsWithExitCode(t *testing.T) {
 	}
 }
 
-// TestRunPipeline_IntermediateSizeCapEnforced confirms a stage whose raw
-// output exceeds the intermediate cap aborts the pipeline rather than
+// TestRunPipeline_IntermediateSizeCapEnforced confirms a NON-FINAL stage whose
+// raw output exceeds the intermediate cap aborts the pipeline rather than
 // silently feeding an unbounded amount of data into memory or the next stage.
+// The cap is intermediate-only — see TestRunPipeline_FinalStageNotSizeCapped
+// for the final stage's contrasting, uncapped behavior.
 func TestRunPipeline_IntermediateSizeCapEnforced(t *testing.T) {
 	orig := maxPipelineStageBytes
 	maxPipelineStageBytes = 16 // tiny, so a handful of files' worth of paths exceeds it
@@ -176,14 +178,42 @@ func TestRunPipeline_IntermediateSizeCapEnforced(t *testing.T) {
 	dir := t.TempDir()
 	makeFiles(t, dir, "f", 5)
 	find := lookupCapability(t, "find")
+	wc := lookupCapability(t, "wc")
 
 	_, err := New().RunPipeline(context.Background(), []PipelineStage{
-		{Capability: find, Params: map[string]any{"path": dir}},
+		{Capability: find, Params: map[string]any{"path": dir}}, // non-final: subject to the cap
+		{Capability: wc, Params: map[string]any{"lines": true}},
 	})
 	if err == nil {
-		t.Fatal("expected an error: stage output should exceed the lowered intermediate cap")
+		t.Fatal("expected an error: the first (non-final) stage's output should exceed the lowered intermediate cap")
 	}
 	if !strings.Contains(err.Error(), "exceeding") {
 		t.Errorf("error should explain the size cap was exceeded, got: %v", err)
+	}
+}
+
+// TestRunPipeline_FinalStageNotSizeCapped confirms the intermediate cap does
+// NOT apply to a pipeline's last stage (nor to a single-stage pipeline,
+// stage 0 being both first and last) — its raw output goes straight to the
+// same compaction a standalone Run call uses, which has no pre-compaction
+// cap of its own, so a pipeline's final stage shouldn't behave differently
+// from Run just because it arrived via RunPipeline.
+func TestRunPipeline_FinalStageNotSizeCapped(t *testing.T) {
+	orig := maxPipelineStageBytes
+	maxPipelineStageBytes = 16 // tiny — would fail instantly if mistakenly applied to the final stage
+	t.Cleanup(func() { maxPipelineStageBytes = orig })
+
+	dir := t.TempDir()
+	makeFiles(t, dir, "f", 5) // find's output here is well over 16 bytes
+	find := lookupCapability(t, "find")
+
+	out, err := New().RunPipeline(context.Background(), []PipelineStage{
+		{Capability: find, Params: map[string]any{"path": dir}}, // sole stage: also the final stage
+	})
+	if err != nil {
+		t.Fatalf("a single-stage pipeline's output must not be subject to the intermediate cap: %v", err)
+	}
+	if out == "" {
+		t.Error("expected find's real output, got empty string")
 	}
 }
