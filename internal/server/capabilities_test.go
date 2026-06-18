@@ -160,6 +160,27 @@ func TestCapability_Grep_DashPatternIsSafe(t *testing.T) {
 	}
 }
 
+func TestCapability_LargestFiles(t *testing.T) {
+	root := t.TempDir()
+	// Two files of clearly different sizes; the bigger should rank first.
+	if err := os.WriteFile(filepath.Join(root, "big.bin"), make([]byte, 40000), 0o644); err != nil {
+		t.Fatalf("write big: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "small.txt"), make([]byte, 100), 0o644); err != nil {
+		t.Fatalf("write small: %v", err)
+	}
+	out, isErr := run(t, "largest_files", map[string]any{"dir": root, "count": float64(1)})
+	if isErr {
+		t.Fatalf("largest_files errored: %s", out)
+	}
+	if !strings.Contains(out, "big.bin") {
+		t.Errorf("largest_files should rank big.bin first: %s", out)
+	}
+	if strings.Contains(out, "small.txt") {
+		t.Errorf("largest_files count=1 should exclude small.txt: %s", out)
+	}
+}
+
 func TestCapability_Find_Extensions(t *testing.T) {
 	root := makeTempTree(t)
 	out, isErr := run(t, "find", map[string]any{
