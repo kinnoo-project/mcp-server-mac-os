@@ -13,8 +13,8 @@
   },
   {
     "id": "file_identify_type",
-    "description": "Asking what kind of file something is should select file, not stat.",
-    "prompt": "What kind of file is /usr/bin/python3?",
+    "description": "Asking what kind of file something is should select file, not stat. Uses /bin/ls rather than a scripting-language binary: Apple has removed bundled interpreters (e.g. python3) from /usr/bin in some macOS versions, so referencing one here would make this case depend on the specific machine/OS version it runs on.",
+    "prompt": "What kind of file is /bin/ls?",
     "expect": { "tool": "filesystem", "operation": "file" }
   },
   {
