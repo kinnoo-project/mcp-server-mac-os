@@ -77,18 +77,24 @@ func TestLoad_EmbeddedManifests(t *testing.T) {
 	}
 }
 
-// TestReadOnlyInvariant asserts the phase-wide guarantee that every shipped
-// capability is read-only. This replaces the old tools.go-grep test with a
-// registry-driven check.
-func TestReadOnlyInvariant(t *testing.T) {
+// TestRiskClassificationInvariant asserts the cross-cutting safety rule that
+// survives the move into the mutation phase: every shipped capability carries a
+// known reversibility, and any capability that CHANGES system state (anything
+// other than read_only) must be labelled with a non-"none" risk. A risk-free
+// mutation would be a classification bug, because the policy/gating layer keys
+// off risk to decide what needs confirmation.
+func TestRiskClassificationInvariant(t *testing.T) {
 	r, err := Load()
 	if err != nil {
 		t.Fatalf("Load(): %v", err)
 	}
 	for _, c := range r.All() {
-		if c.Reversibility != ReadOnly {
-			t.Errorf("capability %q has reversibility %q; only read_only is allowed this phase",
-				c.Name, c.Reversibility)
+		if !validReversibility[c.Reversibility] {
+			t.Errorf("capability %q has unknown reversibility %q", c.Name, c.Reversibility)
+		}
+		if c.Reversibility != ReadOnly && c.Risk == RiskNone {
+			t.Errorf("mutating capability %q (reversibility %q) must not be risk %q",
+				c.Name, c.Reversibility, RiskNone)
 		}
 	}
 }
