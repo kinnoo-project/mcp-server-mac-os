@@ -45,7 +45,7 @@ decoding, validation, rendering, and the staged `send_message` plan's fields
 only. Manual smoke-test: grant Full Disk Access, run `check_messages` to confirm
 the read path and the friendly permission error, then `send_message` *stage* →
 `execute` to your **own** number/Apple ID. See
-`docs/issues/note-imessage-applescript-send.md` and `note-messages-read-fda.md`.
+`docs/issues/note-imessage-applescript-send.md` and `docs/issues/note-messages-read-fda.md`.
 
 ### Safety note: phone tests never place a real call
 

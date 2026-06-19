@@ -19,8 +19,8 @@
 //   - a numeric LIMIT, formatted from a Go int with %d (never a string), and
 //   - a handle or search term, which is either VALIDATED to a form that cannot
 //     contain a quote (a phone reduced to digits, a checked email) or embedded
-//     via escapeSQLLiteral (doubling ” — the complete and only escaping a
-//     single-quoted SQLite string literal needs).
+//     via escapeSQLLiteral, which doubles each embedded single-quote character —
+//     the complete and only escaping a single-quoted SQLite string literal needs.
 //
 // This is the SQL analogue of the osascript "--" terminator and the open
 // URL-scheme guard. The send_message mutator lives in mutate_messages.go.
@@ -159,7 +159,11 @@ func runSearchMessages(ctx context.Context, _ registry.Capability, in map[string
 		return "", fmt.Errorf("search_messages: %w", err)
 	}
 	limit := cappedLimit(in, defaultMessageLimit)
-	sql := fmt.Sprintf("%s WHERE m.text IS NOT NULL AND m.text LIKE '%%' || '%s' || '%%' ORDER BY m.date DESC LIMIT %d",
+	// instr(lower(text), lower(term)) is a LITERAL case-insensitive substring
+	// match, unlike LIKE which would treat '%' and '_' in the query as
+	// wildcards — contradicting the "substring" the param promises. The term is
+	// still embedded only as the escaped SQL literal `esc`.
+	sql := fmt.Sprintf("%s WHERE m.text IS NOT NULL AND instr(lower(m.text), lower('%s')) > 0 ORDER BY m.date DESC LIMIT %d",
 		baseMessageSelect, esc, limit)
 
 	var rows []messageRow
