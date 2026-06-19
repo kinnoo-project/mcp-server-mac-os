@@ -50,15 +50,15 @@ flowchart TD
 
     subgraph proc["Server process (stdio)"]
         Main["cmd/macos-darwin-mcp<br/><i>wiring: load → build → serve</i>"]
-        ServerPkg["internal/server<br/><b>MCP adapter</b><br/>filesystem/preferences(operation, params)<br/>execute(token) · undo(undo_token) · pipeline(stages)"]
+        ServerPkg["internal/server<br/><b>MCP adapter</b><br/>filesystem/preferences/application-mail(operation, params)<br/>execute(token) · undo(undo_token) · pipeline(stages)"]
         Engine["internal/engine<br/><b>execution</b><br/>Run (read) · Stage / RunCommand (mutate)"]
         Policy["internal/policy<br/><b>trust boundary</b><br/>binaries under /bin /sbin /usr/bin /usr/sbin"]
         Registry["internal/registry<br/><b>capability catalog</b><br/>embedded JSON manifests<br/>+ fail-fast validation"]
         Txn["internal/transaction<br/><b>staging substrate</b><br/>req_ store · undo_ store<br/>(TTL, one-shot tokens)"]
     end
 
-    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · sort · head · mkdir · rmdir · defaults"]
-    Builtin["in-process builtins<br/>pwd · largest_files"]
+    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · sort · head · mkdir · rmdir · defaults · osascript"]
+    Builtin["in-process builtins<br/>pwd · largest_files · search_mail (mdfind + mdls)"]
 
     Client -- "JSON-RPC over stdio" --> ServerPkg
     Main -. loads .-> Registry
@@ -183,6 +183,37 @@ boolean toggles (see [Why `write_setting` is curated, not
 generic](#why-write_setting-is-curated-not-generic) below for the full list and
 the reasoning).
 
+### `application-mail`
+
+| Operation     | Runs                        | Reversibility    | Use it for                                  |
+| ------------- | --------------------------- | ----------------- | -------------------------------------------- |
+| `search_mail` | *(builtin: mdfind + mdls)*  | read-only          | "Find emails mentioning the invoice number." |
+| `send_mail`   | `/usr/bin/osascript`        | **irreversible**   | "Email Alice to confirm tomorrow's meeting."  |
+
+`search_mail` is Spotlight-backed (no Mail.app automation permission needed)
+and has known precision gaps — see
+`docs/issues/note-applescript-mail-search-deferred.md` for when an
+AppleScript-backed alternative would do better (very new mail, recently
+re-indexed archives, Junk/Spam, exact account/mailbox scoping).
+
+`send_mail` is the registry's first **irreversible** capability — there is no
+"unsend." It still goes through the same stage → execute confirmation gate as
+every mutator (see [Mutating
+operations](#mutating-operations-stage--execute--undo)), but `execute`
+returns "this change cannot be undone" instead of an undo token, because
+`StagedPlan.Inverse` is `nil` — that field already existed for exactly this
+case; `send_mail` is just the first capability to use it.
+
+`send_mail` takes an optional `attachments` parameter (one or more file
+paths). Pass the exact path; if you only have a description of where the
+file is ("in Downloads", "in a subfolder called scratch"), ask Claude to
+locate it first with the `filesystem` tool, then attach the resolved path.
+This also covers "find my tax return and email it"-style requests end to
+end — as two ordinary sequential tool calls (`find`, then `send_mail`), not
+via `pipeline`, which structurally cannot include `send_mail` (mutators are
+permanently ineligible — see [`pipeline`: composing
+capabilities](#pipeline-composing-capabilities)).
+
 ### Three ways a read-only capability is fulfilled
 
 The engine resolves each read-only capability through one of three builders,
@@ -304,7 +335,7 @@ change cannot be acted on far outside the period the preview/result was shown.
 token. This is also why the architecture can add many more mutating capabilities
 later without growing the tool surface: only the per-domain operation menu grows.
 
-Two mutators exist today:
+Three mutators exist today:
 - **`mkdir`** — forward is `mkdir -- <path>`, inverse is `rmdir -- <path>` (which
   refuses a non-empty directory, so undo can never destroy files added after the
   create). Staging refuses a path that already exists or begins with `-`.
@@ -316,6 +347,30 @@ Two mutators exist today:
   <domain> <key>`. Staging refuses to proceed if the existing value isn't a plain
   boolean — it never guesses how to round-trip a value shape it doesn't
   understand.
+- **`send_mail`** — the first **irreversible** mutator: there is no inverse to
+  compute, because there is no "unsend" for a real email. `StagedPlan.Inverse`
+  is `nil`, which `execute` already renders as "this change cannot be undone"
+  (that branch existed since the mutation phase was designed, just never
+  exercised until now). The staged preview shows the recipient(s), subject,
+  body, and attachment filenames **verbatim** — never summarized — precisely
+  because there's no second chance once `execute` runs:
+  ```
+  The following email will be sent to alice@example.com:
+
+  Subject: ride from airport
+  Body:
+  Can you pick me up at 5:00pm from the airport? I'm flying Delta.
+  Thanks!
+  -Jerry
+
+  This cannot be undone once sent — there is no "unsend." Send this email?
+  ```
+  Optional file attachments share one flat argv with the recipient list by
+  prefixing a recipient *count* (so two variable-length lists never need a
+  delimiter that some address or path might collide with) — see
+  `docs/issues/note-send-mail-attachments-design.md`. Each attachment path is
+  verified to exist (and not be a directory) at stage time, the same
+  read-before-stage discipline `mkdir` uses for its target path.
 
 ### Why `write_setting` is curated, not generic
 
@@ -394,7 +449,21 @@ what an arbitrary key actually does.
 - **macOS permission model.** The server runs as the user that started it and
   inherits their Full-Disk-Access, Files-and-Folders, and POSIX permissions.
   Permission denials surface verbatim from the underlying utility (look for
-  `[stderr]` in tool output).
+  `[stderr]` in tool output). Automating Mail.app (`send_mail`) additionally
+  requires a one-time Automation permission grant, prompted the first time
+  it runs — same UX pattern as Full-Disk-Access, just a different macOS
+  permission category (Apple Events rather than file access).
+- **No AppleScript injection.** `send_mail` is the one capability that drives
+  a scripting language richer than a flag set, so the no-shell discipline
+  above gets a named counterpart for it: the AppleScript source
+  (`internal/engine/mutate_mail.go`'s `sendMailAppleScript`) is a fixed,
+  reviewed constant, never built by concatenating model-supplied text.
+  Recipients/subject/body/attachment paths all arrive as plain `argv`
+  elements bound by AppleScript's own `on run argv` handler — data, never
+  parsed as code, exactly like every other capability's positional
+  arguments. Each attachment path is also verified to exist (and not be a
+  directory) before staging, the same read-before-stage discipline `mkdir`
+  uses.
 
 ---
 
@@ -414,6 +483,7 @@ internal/
     manifests/
       filesystem.json          #   12 filesystem capabilities (11 read-only incl. sort/head + mkdir) as JSON data
       preferences.json         #   write_setting (the curated "setting" enum) as JSON data
+      mail.json                #   search_mail + send_mail (irreversible, optional attachments) as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
@@ -421,10 +491,12 @@ internal/
     builders_filesystem.go     #   named builders for irregular grammars (find, grep)
     builtins.go                #   builtin registry (pwd)
     builtins_filesystem.go     #   largest_files in-process tree walk + ranking
+    builtins_mail.go           #   search_mail: composes mdfind + mdls (Spotlight has no subject/sender API)
     executor.go                #   subprocess runner, ~ expansion, 8 KB output compaction; runCommandWithStdin
     mutate.go                  #   generic mutation machinery: Mutator/Command/StagedPlan, Stage/RunCommand
     mutate_filesystem.go       #   mkdir mutator
     mutate_preferences.go      #   write_setting mutator + the defaultsAllowlist curated settings map
+    mutate_mail.go             #   send_mail mutator: fixed AppleScript template via osascript -e + argv
     pipeline.go                #   RunPipeline: chains read-only, binary-backed stages (see "pipeline" above)
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where
@@ -482,9 +554,10 @@ claude mcp add mac-os-fs -- /absolute/path/to/bin/macos-darwin-mcp
 claude mcp list   # should show mac-os-fs connected
 ```
 
-This registers a `stdio` MCP server named `mac-os-fs` exposing the `filesystem`
-domain tool. **Restart your Claude Code session** after (re)building so a stale
-tool list is refreshed.
+This registers a `stdio` MCP server named `mac-os-fs` exposing the
+`filesystem`/`preferences`/`application-mail` domain tools plus
+`execute`/`undo`/`pipeline`. **Restart your Claude Code session** after
+(re)building so a stale tool list is refreshed.
 
 ### Claude Desktop
 
@@ -513,8 +586,9 @@ startup and does not hot-reload — always restart after rebuilding.
 ## Try it in natural language
 
 Once registered, prompts like these get answered by Claude calling the right
-tool — `filesystem` or `preferences` for a single operation, `pipeline` to
-combine a few, and `execute`/`undo` for the mutation confirmation flow.
+tool — `filesystem`, `preferences`, or `application-mail` for a single
+operation, `pipeline` to combine a few, and `execute`/`undo` for the mutation
+confirmation flow.
 
 ### Read-only (run immediately, no confirmation)
 
@@ -544,6 +618,25 @@ on disk or in your preferences changes before that.
 - *"Actually, undo that."* (right after either of the above) → Claude calls
   `undo` with the token from the `execute` result; the folder is removed, or
   the Finder setting is restored to whatever it was before.
+
+### Mail — `search_mail` is read-only, `send_mail` cannot be undone
+
+- *"Find emails mentioning the invoice number INV-4471."* → `application-mail`
+  runs `search_mail` immediately (read-only, no confirmation) and returns
+  matching subjects/senders/dates.
+- *"Email Alice to say I'll be 10 minutes late."* → `application-mail` stages
+  `send_mail` and shows the recipient, subject, and body **verbatim**, plus an
+  explicit warning that this cannot be undone. Unlike `mkdir`/`write_setting`,
+  confirming does **not** get you an undo option afterward — there is no
+  "unsend," so think before you say go ahead.
+- *"Attach `~/Downloads/itinerary.pdf` and email it to Alice."* → same
+  `send_mail` flow, with `attachments=["~/Downloads/itinerary.pdf"]`; the
+  preview lists the attachment by filename.
+- *"Find my 2025 tax return on my laptop and email it to my accountant."* →
+  two ordinary sequential calls, not `pipeline` (which can't include a
+  mutator): `filesystem` runs `find` to locate the file, then
+  `application-mail` stages `send_mail` with that resolved path as the
+  attachment.
 
 ### Combining capabilities — `pipeline`, for the long tail no named op covers
 
@@ -629,6 +722,15 @@ so reruns never collide) and `write_setting_*` cases really flip a real Finder
 preference. Both are written as 3-turn stage→confirm→undo scripts so a fully
 passing live run is self-cleaning; see `evals/cases/mutation_confirmation.json`.
 
+**`send_mail` is the one case with no possible self-cleaning**, since it's
+irreversible — there is no undo turn to script. Its eval case
+(`evals/cases/mail.json`) is deliberately single-turn with `forbid_tools:
+["execute"]` and is never followed by a confirmation, so a live run can never
+reach `execute` for it under any circumstance. `search_mail`'s case is safe to
+actually execute (read-only), but uses a query engineered to match no real
+mail, so real personal email content never flows through to the Anthropic API
+as part of a tool result.
+
 See `docs/issues/issue-need-eval-harness-for-tool-selection.md` for the
 original design rationale, and `docs/TESTS.md` for how this fits alongside the
 regular test suite.
@@ -640,19 +742,24 @@ regular test suite.
 The read-only foundation, the domain-tool surface, the
 stage → execute → undo mutation gate, and read-only composition
 ([`pipeline`](#pipeline-composing-capabilities)) are all in place. Mutation is
-proved on two mutators with different undo shapes: `mkdir` (a fixed inverse)
-and `write_setting` (an inverse that depends on prior state captured at stage
-time). What's next:
+proved on three mutators spanning every undo shape the design anticipated:
+`mkdir` (a fixed inverse), `write_setting` (an inverse that depends on prior
+state captured at stage time), and `send_mail` (genuinely irreversible —
+`StagedPlan.Inverse = nil`, no undo offered). What's next:
 
 - **Eval breadth**: the harness (`internal/evals`, see [Evals](#evals)) exists
-  with 15 cases against `claude-sonnet-4-6`; widening model coverage and adding
+  with 18 cases against `claude-sonnet-4-6`; widening model coverage and adding
   cases as new domains/capabilities ship is ongoing, not one-and-done.
-- **Breadth**: more curated `preferences` settings and mutating capabilities in
-  other domains (e.g. `network`, `application`); more pipeline-eligible
-  capabilities as real composition needs surface.
-- **Irreversible operations**: a heavier confirmation gate plus a Trash/staging
-  (`~/.Trash`, `/tmp/mcp-fallback/`) fallback for operations with no true
-  inverse, instead of a false promise of undo.
+- **Breadth**: more curated `preferences` settings, more `application-*`
+  domains beyond mail (e.g. Calendar, Reminders), and mutating capabilities in
+  other domains (e.g. `network`); more pipeline-eligible capabilities as real
+  composition needs surface. An AppleScript-backed `search_mail` alternative
+  for account/mailbox-exact, recency-sensitive queries is a documented,
+  deferred option — see `docs/issues/note-applescript-mail-search-deferred.md`.
+- **Irreversible *file* operations** (delete, as opposed to `send_mail`'s
+  "nothing to fall back to" irreversibility): a Trash/staging
+  (`~/.Trash`, `/tmp/mcp-fallback/`) fallback so a destructive file op gets a
+  practical recovery path even without a true command-level inverse.
 - **Multi-step *mutation* plans**: distinct from the read-only `pipeline` tool
   above — a single domain call that stages and commits several *mutations*,
   with a **best-effort + report** failure policy (stop on first failure,
