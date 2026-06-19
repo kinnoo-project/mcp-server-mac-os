@@ -78,6 +78,7 @@ type Mutator func(ctx context.Context, c registry.Capability, in map[string]any)
 var mutators = map[string]Mutator{
 	"mkdir":         stageMkdir,
 	"write_setting": stageWriteSetting,
+	"send_mail":     stageSendMail,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.

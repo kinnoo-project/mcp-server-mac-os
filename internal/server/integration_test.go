@@ -34,10 +34,10 @@ func connectClient(t *testing.T) *mcp.ClientSession {
 }
 
 // TestIntegration_ToolSurface confirms the protocol exposes one domain tool per
-// category — `filesystem` and `preferences` — alongside the three fixed
-// cross-cutting tools (`execute`, `undo`, `pipeline`), and that each domain
-// tool's description embeds its full operation menu so the model needs no
-// separate discovery call.
+// category — `filesystem`, `preferences`, and `application-mail` — alongside
+// the three fixed cross-cutting tools (`execute`, `undo`, `pipeline`), and
+// that each domain tool's description embeds its full operation menu so the
+// model needs no separate discovery call.
 func TestIntegration_ToolSurface(t *testing.T) {
 	cs := connectClient(t)
 	lt, err := cs.ListTools(context.Background(), nil)
@@ -49,13 +49,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application-mail", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 5 {
-		t.Errorf("expected exactly 5 tools (filesystem, preferences, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 6 {
+		t.Errorf("expected exactly 6 tools (filesystem, preferences, application-mail, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -66,13 +66,18 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	if !strings.Contains(descs["preferences"], "write_setting") {
 		t.Errorf("preferences tool description missing operation %q", "write_setting")
 	}
+	for _, op := range []string{"search_mail", "send_mail"} {
+		if !strings.Contains(descs["application-mail"], op) {
+			t.Errorf("application-mail tool description missing operation %q", op)
+		}
+	}
 	for _, name := range []string{"find", "wc", "grep", "sort", "head"} {
 		if !strings.Contains(descs["pipeline"], name) {
 			t.Errorf("pipeline tool description missing eligible capability %q", name)
 		}
 	}
 	eligible := eligibleCapabilitiesFromDescription(t, descs["pipeline"])
-	for _, name := range []string{"pwd", "largest_files", "mkdir", "write_setting"} {
+	for _, name := range []string{"pwd", "largest_files", "mkdir", "write_setting", "search_mail", "send_mail"} {
 		if eligible[name] {
 			t.Errorf("pipeline tool description lists ineligible capability %q as eligible", name)
 		}
@@ -100,6 +105,69 @@ func eligibleCapabilitiesFromDescription(t *testing.T, desc string) map[string]b
 		set[strings.TrimSuffix(name, ".")] = true
 	}
 	return set
+}
+
+// TestIntegration_SearchMailNoMatch calls the real application-mail domain
+// tool's search_mail operation over the protocol with a query engineered to
+// match nothing, confirming the real path works end to end without ever
+// touching real mail content (see the SAFETY note in builtins_mail_test.go
+// for why this query is safe to run for real).
+func TestIntegration_SearchMailNoMatch(t *testing.T) {
+	cs := connectClient(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "application-mail",
+		Arguments: map[string]any{
+			"operation": "search_mail",
+			"params":    map[string]any{"query": "zzz-search-mail-test-token-guaranteed-no-match-9f3e7c1a"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool search_mail: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("search_mail returned error: %s", textOf(res))
+	}
+	if !strings.Contains(textOf(res), "No mail found") {
+		t.Errorf("expected a clean no-results message, got %q", textOf(res))
+	}
+}
+
+// TestIntegration_SendMailStageOnly calls the real application-mail domain
+// tool's send_mail operation and confirms staging returns a token + preview.
+//
+// SAFETY: this deliberately stops at staging and NEVER calls execute.
+// send_mail is irreversible — there is no synthetic/disposable target the
+// way mkdir's temp directory or write_setting's synthetic allowlist entry
+// provide. Calling execute on a staged send_mail plan would send a real
+// email with no way to undo it, so no test anywhere in this suite may do
+// that.
+func TestIntegration_SendMailStageOnly(t *testing.T) {
+	cs := connectClient(t)
+	staged, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "application-mail",
+		Arguments: map[string]any{
+			"operation": "send_mail",
+			"params": map[string]any{
+				"to":      []any{"test-recipient@example.com"},
+				"subject": "integration test — never sent",
+				"body":    "This plan must never be executed by any test.",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool stage send_mail: %v", err)
+	}
+	if staged.IsError {
+		t.Fatalf("stage send_mail returned error: %s", textOf(staged))
+	}
+	text := textOf(staged)
+	if !strings.Contains(text, "STAGED") {
+		t.Errorf("expected a STAGED preview, got: %s", text)
+	}
+	if !strings.Contains(text, "CANNOT be undone") {
+		t.Errorf("expected the irreversibility warning in the preview, got: %s", text)
+	}
+	_ = extractToken(t, text, "req_") // fails the test if no token is present
 }
 
 // TestIntegration_PipelineFindThenWc drives a real two-stage pipeline over the
