@@ -74,24 +74,28 @@ func stageCall(ctx context.Context, _ registry.Capability, in map[string]any) (*
 }
 
 // resolveSingleNumber looks a name up in Contacts and returns the one number to
-// call. It deliberately refuses ambiguity: if no one matches, or more than one
-// DISTINCT number is found (whether across several people or one person with
-// several numbers), it errors with the candidates so the caller can retry with
-// an explicit `number`. Distinctness is judged on the canonicalized digits, so
-// the same number stored under two labels (e.g. "mobile" and "iPhone") is not
-// treated as ambiguous.
+// call. The lookup is bounded (a broad query can't flood Contacts output);
+// chooseContactNumber then applies the selection policy.
 func resolveSingleNumber(ctx context.Context, name string) (number, displayName string, err error) {
-	contacts, err := resolveContactNumbers(ctx, name)
+	contacts, err := resolveContactNumbers(ctx, name, maxFindContactLimit)
 	if err != nil {
 		return "", "", err
 	}
+	return chooseContactNumber(name, contacts)
+}
+
+// chooseContactNumber applies the resolution policy to a set of matched
+// contacts. It auto-selects EXACTLY when there is a single distinct, dialable
+// number; otherwise it returns an actionable error (no match; the only number
+// isn't dialable; or genuinely ambiguous). Distinctness is judged on the
+// canonicalized digits, so the same number under two labels ("mobile"/"iPhone")
+// counts once. It is split out from the live Contacts query so the decision
+// logic can be unit-tested.
+func chooseContactNumber(name string, contacts []contactPhone) (number, displayName string, err error) {
 	if len(contacts) == 0 {
 		return "", "", fmt.Errorf("call: no contact found matching %q", name)
 	}
 
-	// Collect distinct numbers (by canonical form). A number that fails
-	// canonicalization is still offered as a candidate in the ambiguity message,
-	// but cannot be auto-selected.
 	seen := map[string]bool{}
 	var distinct []contactPhone
 	for _, c := range contacts {
@@ -105,18 +109,23 @@ func resolveSingleNumber(ctx context.Context, name string) (number, displayName 
 		}
 	}
 
+	// Auto-select only a single candidate that actually canonicalizes. A lone
+	// but un-dialable number falls through to a clear error rather than being
+	// returned here and then failing canonicalization in the caller — which is
+	// what the previous code did, contradicting its own "cannot be
+	// auto-selected" intent.
 	if len(distinct) == 1 {
-		return distinct[0].number, distinct[0].name, nil
+		only := distinct[0]
+		if _, cerr := canonicalizePhoneNumber(only.number); cerr == nil {
+			return only.number, only.name, nil
+		}
+		return "", "", fmt.Errorf("call: the only number found for %q (%s: %s) is not in a dialable format; re-issue with an explicit 'number'", name, labelOrPhone(only.label), only.number)
 	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "call: %q is ambiguous — %d possible numbers. Re-issue the call with an explicit 'number':\n", name, len(distinct))
 	for _, c := range distinct {
-		label := c.label
-		if label == "" {
-			label = "phone"
-		}
-		fmt.Fprintf(&b, "  - %s (%s): %s\n", c.name, label, c.number)
+		fmt.Fprintf(&b, "  - %s (%s): %s\n", c.name, labelOrPhone(c.label), c.number)
 	}
 	return "", "", fmt.Errorf("%s", b.String())
 }
