@@ -27,13 +27,17 @@ type BuiltinFunc func(ctx context.Context, c registry.Capability, in map[string]
 // name present here is served in-process; a name present in the argv `builders`
 // map is run as a subprocess. The two sets are disjoint.
 var builtins = map[string]BuiltinFunc{
-	"pwd":            runPwd,
-	"largest_files":  runLargestFiles,
-	"search_mail":    runSearchMail,
-	"list_calendars": runListCalendars,
-	"query_events":   runQueryEvents,
-	"list_reminders": runListReminders,
-	"find_contact":   runFindContact,
+	"pwd":                runPwd,
+	"largest_files":      runLargestFiles,
+	"search_mail":        runSearchMail,
+	"list_calendars":     runListCalendars,
+	"query_events":       runQueryEvents,
+	"list_reminders":     runListReminders,
+	"find_contact":       runFindContact,
+	"check_messages":     runCheckMessages,
+	"search_messages":    runSearchMessages,
+	"read_conversation":  runReadConversation,
+	"list_conversations": runListConversations,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
