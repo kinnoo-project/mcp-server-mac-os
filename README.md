@@ -249,6 +249,35 @@ modify/complete/delete operations. See
 `docs/issues/note-calendar-reminders-undo-fidelity.md` for the small fidelity
 caveats (e.g. a re-created item gets a fresh internal id).
 
+### `application-phone`
+
+| Operation      | Runs                  | Reversibility    | Use it for                                  |
+| -------------- | --------------------- | ---------------- | ------------------------------------------- |
+| `find_contact` | `/usr/bin/osascript`  | read-only        | "What's Alice's number?"                    |
+| `call`         | `/usr/bin/open`       | **irreversible** | "Call Mom." / "FaceTime Bob."               |
+
+`find_contact` searches Contacts.app and returns matching people with their
+labeled numbers (mobile/home/work). `call` places a real call by handing a
+`tel:` / `facetime:` / `facetime-audio:` URL to `open`; like `send_mail` it is
+**irreversible** (there is no "un-call") and so goes through the same
+stage → execute confirmation gate, with the preview naming exactly who will be
+dialed and how.
+
+`call` takes either an explicit `number` **or** a `contact_name` it resolves at
+confirmation time. If the name matches more than one person — or one person with
+more than one number — the call is refused and the candidates are listed, so a
+name is never dialed ambiguously.
+
+**Choosing the method** is the model's call, guided by the operation
+description, because the server cannot detect whether a number is reachable on
+FaceTime or whether an iPhone is paired: default to `cellular` (a phone call
+routed through a paired iPhone via Continuity); fall back to `facetime_audio`
+when cellular isn't available or the person is best reached on FaceTime; use
+`facetime_video` only when the user explicitly asks for a video or "FaceTime"
+call. The first `find_contact` triggers a one-time Contacts automation-permission
+prompt; see `docs/issues/note-phone-calling-limitations.md` for why method
+selection can't be automatic.
+
 ### Three ways a read-only capability is fulfilled
 
 The engine resolves each read-only capability through one of three builders,
@@ -504,6 +533,15 @@ what an arbitrary key actually does.
   Each `send_mail` attachment path is also verified to exist (and not be a
   directory) before staging, the same read-before-stage discipline `mkdir`
   uses.
+- **No URL-scheme injection.** `call` places a call by handing a URL to
+  `/usr/bin/open`. Splitting argv stops shell injection but would *not* stop a
+  model from supplying a value like `file:///…` or `http://…` that `open` would
+  launch as a different scheme. So the URL is **built in Go** from a number that
+  `canonicalizePhoneNumber` (`internal/engine/mutate_phone.go`) has reduced to
+  digits and an optional leading `+` — anything else (letters, a `:` or `/`, an
+  interior `+`) is rejected. The scheme (`tel:` / `facetime:` /
+  `facetime-audio:`) is chosen by code, never by the model, so `open` can only
+  ever receive a call URL this server constructed.
 
 ---
 
@@ -526,6 +564,7 @@ internal/
       mail.json                #   search_mail + send_mail (irreversible, optional attachments) as JSON data
       calendar.json            #   list_calendars/query_events/add_event/modify_event/delete_event as JSON data
       reminders.json           #   list/add/modify/complete/delete_reminder as JSON data
+      phone.json               #   find_contact (read) + call (irreversible) as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
@@ -537,6 +576,7 @@ internal/
     builtins_mail.go           #   search_mail: composes mdfind + mdls (Spotlight has no subject/sender API)
     builtins_calendar.go       #   list_calendars + query_events reads (osascript → tab-delimited → parse)
     builtins_reminders.go      #   list_reminders read (osascript → tab-delimited → parse)
+    builtins_phone.go          #   find_contact read + resolveContactNumbers (shared with call)
     executor.go                #   subprocess runner, ~ expansion, 8 KB output compaction; runCommandWithStdin
     mutate.go                  #   generic mutation machinery: Mutator/Command/StagedPlan, Stage/RunCommand
     mutate_filesystem.go       #   mkdir mutator
@@ -544,6 +584,7 @@ internal/
     mutate_mail.go             #   send_mail mutator: fixed AppleScript template via osascript -e + argv
     mutate_calendar.go         #   add/modify/delete_event mutators (reversible; probe-then-stage)
     mutate_reminders.go        #   add/modify/complete/delete_reminder mutators (reversible; probe-then-stage)
+    mutate_phone.go            #   call mutator: validates number, builds tel:/facetime: URL, open (irreversible)
     pipeline.go                #   RunPipeline: chains read-only, binary-backed stages (see "pipeline" above)
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where

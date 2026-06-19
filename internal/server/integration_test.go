@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application-mail", "application-calendar", "application-reminders", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application-mail", "application-calendar", "application-reminders", "application-phone", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 8 {
-		t.Errorf("expected exactly 8 tools (filesystem, preferences, application-mail, application-calendar, application-reminders, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 9 {
+		t.Errorf("expected exactly 9 tools (filesystem, preferences, application-mail, application-calendar, application-reminders, application-phone, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -80,6 +80,11 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, op := range []string{"list_reminders", "add_reminder", "modify_reminder", "complete_reminder", "delete_reminder"} {
 		if !strings.Contains(descs["application-reminders"], op) {
 			t.Errorf("application-reminders tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"find_contact", "call"} {
+		if !strings.Contains(descs["application-phone"], op) {
+			t.Errorf("application-phone tool description missing operation %q", op)
 		}
 	}
 	for _, name := range []string{"find", "wc", "grep", "sort", "head"} {
