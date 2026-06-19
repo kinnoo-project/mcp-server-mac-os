@@ -278,6 +278,32 @@ call. The first `find_contact` triggers a one-time Contacts automation-permissio
 prompt; see `docs/issues/note-phone-calling-limitations.md` for why method
 selection can't be automatic.
 
+### `application-messages`
+
+| Operation            | Runs                  | Reversibility    | Use it for                                  |
+| -------------------- | --------------------- | ---------------- | ------------------------------------------- |
+| `check_messages`     | `/usr/bin/sqlite3`    | read-only        | "Any new messages?"                         |
+| `search_messages`    | `/usr/bin/sqlite3`    | read-only        | "Find the text about the invoice."          |
+| `read_conversation`  | `/usr/bin/sqlite3`    | read-only        | "Show my recent texts with Alice."          |
+| `list_conversations` | `/usr/bin/sqlite3`    | read-only        | "What conversations have I had lately?"     |
+| `send_message`       | `/usr/bin/osascript`  | **irreversible** | "Text Bob that I'm running late."           |
+
+The four reads query the local Messages database (`~/Library/Messages/chat.db`)
+with `sqlite3 -readonly -json`. Because that database is protected, the reads
+require the host process to have **Full Disk Access** (System Settings →
+Privacy & Security → Full Disk Access) — a heavier grant than the Automation
+permission the other app domains use; until it is granted the reads return an
+explanatory error. `read_conversation` takes a `handle` (phone/email) or a
+`contact_name` resolved via Contacts (reusing the phone domain's resolver, with
+the same ambiguity refusal).
+
+`send_message` sends an iMessage through Messages.app and, like `send_mail`, is
+**irreversible** — it goes through the stage → execute confirmation gate with the
+recipient and full text shown verbatim, and offers no undo. See
+`docs/issues/note-imessage-applescript-send.md` (Messages' scripting `send` is
+version-sensitive) and `docs/issues/note-messages-read-fda.md` (the Full-Disk-
+Access requirement and the read-only, injection-safe query posture).
+
 ### Three ways a read-only capability is fulfilled
 
 The engine resolves each read-only capability through one of three builders,
@@ -542,6 +568,15 @@ what an arbitrary key actually does.
   interior `+`) is rejected. The scheme (`tel:` / `facetime:` /
   `facetime-audio:`) is chosen by code, never by the model, so `open` can only
   ever receive a call URL this server constructed.
+- **No SQL injection.** The `application-messages` reads query the Messages
+  database with `sqlite3`. Every query is a fixed template; the only variable
+  pieces are a numeric `LIMIT` (formatted from a Go `int`, never a string) and a
+  handle or search term, which is either validated to a form that cannot contain
+  a quote (a phone reduced to digits, a checked email) or embedded with
+  `escapeSQLLiteral` (`internal/engine/builtins_messages.go`), which doubles `'`
+  — the complete and only escaping a single-quoted SQLite literal needs. The
+  database is opened `-readonly` as defense in depth, so even a hypothetical
+  escaping miss could only read, never modify.
 
 ---
 
@@ -565,6 +600,7 @@ internal/
       calendar.json            #   list_calendars/query_events/add_event/modify_event/delete_event as JSON data
       reminders.json           #   list/add/modify/complete/delete_reminder as JSON data
       phone.json               #   find_contact (read) + call (irreversible) as JSON data
+      messages.json            #   check/search/read_conversation/list_conversations + send_message as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
@@ -577,6 +613,7 @@ internal/
     builtins_calendar.go       #   list_calendars + query_events reads (osascript → tab-delimited → parse)
     builtins_reminders.go      #   list_reminders read (osascript → tab-delimited → parse)
     builtins_phone.go          #   find_contact read + resolveContactNumbers (shared with call)
+    builtins_messages.go       #   Messages reads via sqlite3 -readonly -json on chat.db; SQL-injection guards
     executor.go                #   subprocess runner, ~ expansion, 8 KB output compaction; runCommandWithStdin
     mutate.go                  #   generic mutation machinery: Mutator/Command/StagedPlan, Stage/RunCommand
     mutate_filesystem.go       #   mkdir mutator
@@ -585,6 +622,7 @@ internal/
     mutate_calendar.go         #   add/modify/delete_event mutators (reversible; probe-then-stage)
     mutate_reminders.go        #   add/modify/complete/delete_reminder mutators (reversible; probe-then-stage)
     mutate_phone.go            #   call mutator: validates number, builds tel:/facetime: URL, open (irreversible)
+    mutate_messages.go         #   send_message mutator: fixed Messages AppleScript via osascript (irreversible)
     pipeline.go                #   RunPipeline: chains read-only, binary-backed stages (see "pipeline" above)
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where
