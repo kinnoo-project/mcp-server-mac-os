@@ -185,7 +185,51 @@ func (s *Server) runDomainOperation(ctx context.Context, category string, in Dom
 		}
 		return textResult(out)
 	}
+	// A mutation marked auto_commit is a benign, low-stakes side-effect that runs
+	// at once instead of waiting behind the execute token (the registry already
+	// confined this to none/low risk). Everything else is STAGED for explicit
+	// human approval.
+	if c.AutoCommit {
+		return s.autoCommitMutation(ctx, category, c, in.Params)
+	}
 	return s.stageMutation(ctx, category, c, in.Params)
+}
+
+// autoCommitMutation stages a mutation and immediately commits it, skipping the
+// human-approval token gate that stageMutation imposes. It still goes through the
+// engine's Stage step so the forward and inverse commands are computed exactly as
+// they would be for a gated mutation — the only difference is that the forward
+// command runs now rather than on a later `execute` call. When the operation is
+// reversible, its inverse is registered under a fresh undo token so the change can
+// still be rolled back, mirroring what Execute returns for a committed plan.
+func (s *Server) autoCommitMutation(ctx context.Context, category string, c registry.Capability, params map[string]any) (*mcp.CallToolResult, any, error) {
+	plan, err := s.eng.Stage(ctx, c, params)
+	if err != nil {
+		return errorResult("%s.%s: %v", category, c.Name, err)
+	}
+
+	out, err := s.eng.RunCommand(ctx, plan.Forward)
+	if err != nil {
+		return errorResult("%s.%s: %v", category, c.Name, err)
+	}
+
+	// An irreversible auto-commit (e.g. focusing an app) carries no inverse, so
+	// there is nothing to offer an undo for.
+	if plan.Inverse == nil {
+		return textResult(fmt.Sprintf("%s\n\nDone: %s. This cannot be undone.", out, c.Name))
+	}
+
+	undoToken, err := s.undo.Put(*plan.Inverse)
+	if err != nil {
+		// The change already happened; we just can't register an undo for it.
+		return textResult(fmt.Sprintf(
+			"%s\n\nDone: %s, but could not register an undo (%v); it cannot be reversed automatically.",
+			out, c.Name, err))
+	}
+	return textResult(fmt.Sprintf(
+		"%s\n\nDone: %s. To reverse it, call the `undo` tool with undo_token %q.",
+		out, c.Name, undoToken,
+	))
 }
 
 // stageMutation validates and stages a mutating operation, returning the token +
