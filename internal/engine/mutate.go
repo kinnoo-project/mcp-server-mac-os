@@ -76,9 +76,16 @@ type Mutator func(ctx context.Context, c registry.Capability, in map[string]any)
 // disjoint from the read-only `builders` and `builtins` maps: a capability is
 // read-only (run via Run) or mutating (staged via Stage), never both.
 var mutators = map[string]Mutator{
-	"mkdir":         stageMkdir,
-	"write_setting": stageWriteSetting,
-	"send_mail":     stageSendMail,
+	"mkdir":             stageMkdir,
+	"write_setting":     stageWriteSetting,
+	"send_mail":         stageSendMail,
+	"add_event":         stageAddEvent,
+	"modify_event":      stageModifyEvent,
+	"delete_event":      stageDeleteEvent,
+	"add_reminder":      stageAddReminder,
+	"modify_reminder":   stageModifyReminder,
+	"complete_reminder": stageCompleteReminder,
+	"delete_reminder":   stageDeleteReminder,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.

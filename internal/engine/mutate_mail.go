@@ -99,17 +99,12 @@ func stageSendMail(_ context.Context, _ registry.Capability, in map[string]any) 
 		}
 	}
 
-	// The "--" terminator is critical, not cosmetic: every element after it
-	// (subject, body, recipient count, recipients, attachments) is model-
-	// supplied, and osascript parses leading-dash arguments as its OWN flags
-	// until it sees "--". Without it, a subject of "-e" would be read as a
-	// second "-e <statement>" and the following value executed as AppleScript —
-	// the exact "data becomes code" injection the no-shell axiom exists to
-	// prevent. "--" forces osascript to treat all remaining args strictly as
-	// the script's `on run argv`, and osascript consumes the "--" itself rather
-	// than passing it into argv (so the script's item indices are unchanged).
-	args := append([]string{"-e", sendMailAppleScript, "--", subject, body, strconv.Itoa(len(to))}, to...)
-	args = append(args, attachments...)
+	// Data arguments bound to the script's `on run argv`. osascriptCommand
+	// inserts the "--" end-of-options terminator ahead of these, so a value like
+	// subject="-e" reaches the script as data, never as an osascript flag (the
+	// option-injection guard documented in applescript.go and CLAUDE.md §4).
+	dataArgs := append([]string{subject, body, strconv.Itoa(len(to))}, to...)
+	dataArgs = append(dataArgs, attachments...)
 
 	var preview strings.Builder
 	fmt.Fprintf(&preview, "The following email will be sent to %s:\n\n", strings.Join(to, ", "))
@@ -121,7 +116,7 @@ func stageSendMail(_ context.Context, _ registry.Capability, in map[string]any) 
 
 	return &StagedPlan{
 		Preview: preview.String(),
-		Forward: Command{Binary: "osascript", Args: args},
+		Forward: osascriptCommand(sendMailAppleScript, dataArgs...),
 		Inverse: nil, // irreversible: no inverse to offer
 	}, nil
 }
