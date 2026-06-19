@@ -95,6 +95,50 @@ func TestStageCall_RejectsBadNumber(t *testing.T) {
 	}
 }
 
+// TestChooseContactNumber covers the contact-resolution policy that the
+// contact_name path depends on (split out from the live Contacts query so it can
+// be tested without a subprocess).
+func TestChooseContactNumber(t *testing.T) {
+	// No matches.
+	if _, _, err := chooseContactNumber("Nobody", nil); err == nil {
+		t.Error("expected an error when no contact matches")
+	}
+
+	// Single dialable number → auto-selected.
+	num, name, err := chooseContactNumber("Alice", []contactPhone{
+		{name: "Alice Example", label: "Mobile", number: "+1 (555) 123-4567"},
+	})
+	if err != nil || num != "+1 (555) 123-4567" || name != "Alice Example" {
+		t.Errorf("single dialable number = %q, %q, %v", num, name, err)
+	}
+
+	// Same number under two labels → still one distinct → auto-selected.
+	if _, _, err := chooseContactNumber("Alice", []contactPhone{
+		{name: "Alice", label: "Mobile", number: "555-1234"},
+		{name: "Alice", label: "iPhone", number: "(555) 1234"},
+	}); err != nil {
+		t.Errorf("one distinct number across labels should auto-select, got %v", err)
+	}
+
+	// Single but UN-dialable number → not auto-selected; actionable error. This
+	// is the regression for Copilot's comment: the old code returned it and let
+	// canonicalization fail later with a less helpful message.
+	if _, _, err := chooseContactNumber("Weird", []contactPhone{
+		{name: "Weird Contact", label: "Home", number: "ext. 4321"},
+	}); err == nil || !strings.Contains(err.Error(), "not in a dialable format") {
+		t.Errorf("a lone un-dialable number should error clearly, got %v", err)
+	}
+
+	// Two distinct numbers → ambiguous, both listed.
+	_, _, err = chooseContactNumber("Bob", []contactPhone{
+		{name: "Bob", label: "Mobile", number: "555-1111"},
+		{name: "Bob", label: "Work", number: "555-2222"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "ambiguous") {
+		t.Errorf("two distinct numbers should be ambiguous, got %v", err)
+	}
+}
+
 func TestStageCall_RequiresExactlyOneTarget(t *testing.T) {
 	// Neither number nor contact_name.
 	if _, err := stageCall(context.Background(), callCapability(t), map[string]any{"method": "cellular"}); err == nil {

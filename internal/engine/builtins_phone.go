@@ -26,18 +26,25 @@ const (
 //
 //	name \t label \t number
 //
-// argv (data, after "--"): the name query. Helper calls inside the `tell`
-// block are `my`-prefixed so they resolve to this script's handlers, not
-// Contacts' dictionary. A person with several numbers yields several rows, in
-// Contacts' own order, so a caller can see every reachable number.
+// argv (data, after "--"): the name query, then a max-people cap. The cap is
+// enforced INSIDE the script (like query_events' maxN) so a broad query such as
+// "a" can't return thousands of rows and flood the subprocess output before Go
+// ever sees it. A person with several numbers still yields several rows, in
+// Contacts' own order, so a caller can see every reachable number. Helper calls
+// inside the `tell` block are `my`-prefixed so they resolve to this script's
+// handlers, not Contacts' dictionary.
 const findContactScript = asDateHelpers + `on run argv
 	set theQuery to item 1 of argv
+	set maxPeople to (item 2 of argv) as integer
 	set out to ""
+	set n to 0
 	tell application "Contacts"
 		repeat with p in (every person whose name contains theQuery)
+			if n ≥ maxPeople then exit repeat
 			repeat with ph in (phones of p)
 				set out to out & my _clean(name of p) & tab & my _clean(label of ph) & tab & my _clean(value of ph) & linefeed
 			end repeat
+			set n to n + 1
 		end repeat
 	end tell
 	return out
@@ -64,20 +71,20 @@ func runFindContact(ctx context.Context, _ registry.Capability, in map[string]an
 		limit = maxFindContactLimit
 	}
 
-	contacts, err := resolveContactNumbers(ctx, name)
+	contacts, err := resolveContactNumbers(ctx, name, limit)
 	if err != nil {
 		return "", err
 	}
 	return renderContacts(name, contacts, limit), nil
 }
 
-// resolveContactNumbers runs the Contacts query and parses every matching
-// (person, number) pair. It is shared by find_contact (which renders the
-// results) and the call mutator (which resolves a single number from them). A
-// non-zero osascript exit — most commonly a not-yet-granted Contacts automation
-// permission — is surfaced with an actionable hint.
-func resolveContactNumbers(ctx context.Context, query string) ([]contactPhone, error) {
-	res, err := runOsascript(ctx, findContactScript, query)
+// resolveContactNumbers runs the Contacts query (bounded to maxPeople matches)
+// and parses every matching (person, number) pair. It is shared by find_contact
+// (which renders the results) and the call mutator (which resolves a single
+// number from them). A non-zero osascript exit — most commonly a not-yet-granted
+// Contacts automation permission — is surfaced with an actionable hint.
+func resolveContactNumbers(ctx context.Context, query string, maxPeople int) ([]contactPhone, error) {
+	res, err := runOsascript(ctx, findContactScript, query, itoa(maxPeople))
 	if err != nil {
 		return nil, err
 	}
@@ -136,14 +143,19 @@ func renderContacts(query string, contacts []contactPhone, limit int) string {
 	for _, p := range people {
 		fmt.Fprintf(&b, "  %s\n", p.name)
 		for _, ph := range p.phones {
-			label := ph.label
-			if label == "" {
-				label = "phone"
-			}
-			fmt.Fprintf(&b, "    %s: %s\n", label, ph.number)
+			fmt.Fprintf(&b, "    %s: %s\n", labelOrPhone(ph.label), ph.number)
 		}
 	}
 	return b.String()
+}
+
+// labelOrPhone returns a phone label, defaulting an empty one to "phone" so a
+// number with no label still reads sensibly in output and candidate lists.
+func labelOrPhone(label string) string {
+	if label == "" {
+		return "phone"
+	}
+	return label
 }
 
 // friendlyLabel strips Apple's internal label wrapper (`_$!<Mobile>!$_`) down to
