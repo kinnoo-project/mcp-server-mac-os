@@ -48,7 +48,11 @@ const listRemindersScript = asDateHelpers + `on run argv
 			repeat with r in rms
 				if n ≥ maxN then exit repeat
 				set dueText to ""
-				if (due date of r) is not missing value then set dueText to my _fmt(due date of r)
+				if (allday due date of r) is not missing value then
+					set dueText to my _fmt(allday due date of r)
+				else if (due date of r) is not missing value then
+					set dueText to my _fmt(due date of r)
+				end if
 				set doneText to "no"
 				if completed of r then set doneText to "yes"
 				set out to out & my _clean(id of r) & tab & my _clean(name of l) & tab & my _clean(name of r) & tab & dueText & tab & doneText & linefeed
