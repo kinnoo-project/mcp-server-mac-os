@@ -214,6 +214,41 @@ via `pipeline`, which structurally cannot include `send_mail` (mutators are
 permanently ineligible — see [`pipeline`: composing
 capabilities](#pipeline-composing-capabilities)).
 
+### `application-calendar`
+
+| Operation        | Runs                   | Reversibility   | Use it for                                          |
+| ---------------- | ---------------------- | --------------- | --------------------------------------------------- |
+| `list_calendars` | `/usr/bin/osascript`   | read-only       | "Which calendars do I have?"                        |
+| `query_events`   | `/usr/bin/osascript`   | read-only       | "What's on my calendar this week?"                  |
+| `add_event`      | `/usr/bin/osascript`   | reversible      | "Put a dentist appointment on Thursday at 2pm."     |
+| `modify_event`   | `/usr/bin/osascript`   | reversible      | "Move my 3pm review to 4pm."                        |
+| `delete_event`   | `/usr/bin/osascript`   | reversible      | "Cancel the standup on Friday."                     |
+
+### `application-reminders`
+
+| Operation           | Runs                 | Reversibility | Use it for                                |
+| ------------------- | -------------------- | ------------- | ----------------------------------------- |
+| `list_reminders`    | `/usr/bin/osascript` | read-only     | "What reminders are due this week?"       |
+| `add_reminder`      | `/usr/bin/osascript` | reversible    | "Remind me to call the bank on Monday."   |
+| `modify_reminder`   | `/usr/bin/osascript` | reversible    | "Push the rent reminder to the 5th."      |
+| `complete_reminder` | `/usr/bin/osascript` | reversible    | "Mark the dry-cleaning reminder done."    |
+| `delete_reminder`   | `/usr/bin/osascript` | reversible    | "Delete the reminder about the gym."      |
+
+Both domains drive Calendar.app / Reminders.app through their AppleScript
+dictionaries via the same hardened `osascript` path as `send_mail` (a fixed,
+reviewed script with every model value bound as `--`-terminated `argv` data;
+see [Why this server is safe to expose](#why-this-server-is-safe-to-expose)).
+The first use of each triggers a one-time macOS automation-permission prompt
+(System Settings → Privacy & Security → Automation).
+
+Unlike `send_mail`, every calendar/reminder mutation is **reversible**: staging
+captures the prior state first, so undo deletes what was added, re-creates what
+was deleted, or restores what was changed. The reads (`query_events`,
+`list_reminders`) return each item's `uid`/`id` — pass that identifier to the
+modify/complete/delete operations. See
+`docs/issues/note-calendar-reminders-undo-fidelity.md` for the small fidelity
+caveats (e.g. a re-created item gets a fresh internal id).
+
 ### Three ways a read-only capability is fulfilled
 
 The engine resolves each read-only capability through one of three builders,
@@ -449,19 +484,24 @@ what an arbitrary key actually does.
 - **macOS permission model.** The server runs as the user that started it and
   inherits their Full-Disk-Access, Files-and-Folders, and POSIX permissions.
   Permission denials surface verbatim from the underlying utility (look for
-  `[stderr]` in tool output). Automating Mail.app (`send_mail`) additionally
-  requires a one-time Automation permission grant, prompted the first time
-  it runs — same UX pattern as Full-Disk-Access, just a different macOS
-  permission category (Apple Events rather than file access).
-- **No AppleScript injection.** `send_mail` is the one capability that drives
-  a scripting language richer than a flag set, so the no-shell discipline
-  above gets a named counterpart for it: the AppleScript source
-  (`internal/engine/mutate_mail.go`'s `sendMailAppleScript`) is a fixed,
-  reviewed constant, never built by concatenating model-supplied text.
-  Recipients/subject/body/attachment paths all arrive as plain `argv`
-  elements bound by AppleScript's own `on run argv` handler — data, never
-  parsed as code, exactly like every other capability's positional
-  arguments. Each attachment path is also verified to exist (and not be a
+  `[stderr]` in tool output). Automating Mail.app (`send_mail`), Calendar.app,
+  or Reminders.app additionally requires a one-time Automation permission
+  grant, prompted the first time each runs — same UX pattern as
+  Full-Disk-Access, just a different macOS permission category (Apple Events
+  rather than file access).
+- **No AppleScript injection.** Several capabilities (`send_mail`, all of
+  `application-calendar` and `application-reminders`) drive a scripting
+  language richer than a flag set, so the no-shell discipline above gets a
+  single hardened counterpart for all of them in
+  `internal/engine/applescript.go`. Every AppleScript source is a fixed,
+  reviewed constant, never built by concatenating model-supplied text, and
+  all values arrive as plain `argv` elements bound by AppleScript's own
+  `on run argv` handler — data, never parsed as code. Crucially, that shared
+  path always inserts a `--` end-of-options terminator between the script and
+  the first value, so a value beginning with `-` (e.g. a subject or event
+  title of `-e`) can never be parsed as an `osascript` option and executed as
+  script — *option* injection, which argv-splitting alone does **not** stop.
+  Each `send_mail` attachment path is also verified to exist (and not be a
   directory) before staging, the same read-before-stage discipline `mkdir`
   uses.
 
@@ -484,19 +524,26 @@ internal/
       filesystem.json          #   12 filesystem capabilities (11 read-only incl. sort/head + mkdir) as JSON data
       preferences.json         #   write_setting (the curated "setting" enum) as JSON data
       mail.json                #   search_mail + send_mail (irreversible, optional attachments) as JSON data
+      calendar.json            #   list_calendars/query_events/add_event/modify_event/delete_event as JSON data
+      reminders.json           #   list/add/modify/complete/delete_reminder as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
     argbuild.go                #   generic declarative argv builder + typed accessors
+    applescript.go             #   shared hardened osascript seam: the "--" terminator + AppleScript date helpers
     builders_filesystem.go     #   named builders for irregular grammars (find, grep)
     builtins.go                #   builtin registry (pwd)
     builtins_filesystem.go     #   largest_files in-process tree walk + ranking
     builtins_mail.go           #   search_mail: composes mdfind + mdls (Spotlight has no subject/sender API)
+    builtins_calendar.go       #   list_calendars + query_events reads (osascript → tab-delimited → parse)
+    builtins_reminders.go      #   list_reminders read (osascript → tab-delimited → parse)
     executor.go                #   subprocess runner, ~ expansion, 8 KB output compaction; runCommandWithStdin
     mutate.go                  #   generic mutation machinery: Mutator/Command/StagedPlan, Stage/RunCommand
     mutate_filesystem.go       #   mkdir mutator
     mutate_preferences.go      #   write_setting mutator + the defaultsAllowlist curated settings map
     mutate_mail.go             #   send_mail mutator: fixed AppleScript template via osascript -e + argv
+    mutate_calendar.go         #   add/modify/delete_event mutators (reversible; probe-then-stage)
+    mutate_reminders.go        #   add/modify/complete/delete_reminder mutators (reversible; probe-then-stage)
     pipeline.go                #   RunPipeline: chains read-only, binary-backed stages (see "pipeline" above)
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where
