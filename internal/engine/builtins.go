@@ -29,6 +29,7 @@ type BuiltinFunc func(ctx context.Context, c registry.Capability, in map[string]
 var builtins = map[string]BuiltinFunc{
 	"pwd":           runPwd,
 	"largest_files": runLargestFiles,
+	"search_mail":   runSearchMail,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
