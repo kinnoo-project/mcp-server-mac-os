@@ -86,6 +86,7 @@ var mutators = map[string]Mutator{
 	"modify_reminder":   stageModifyReminder,
 	"complete_reminder": stageCompleteReminder,
 	"delete_reminder":   stageDeleteReminder,
+	"call":              stageCall,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.
