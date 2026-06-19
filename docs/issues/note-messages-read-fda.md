@@ -26,7 +26,18 @@ Design posture for the reads (recorded for future maintainers):
   conversion to local time (`/1000000000 + 978307200`, `datetime(...,'unixepoch',
   'localtime')`) is done in SQL so Go needs no date math.
 
-Known limitation: rows whose `text` is NULL (attachment-only messages, or newer
-"rich" messages stored in `attributedBody` rather than `text`) render as
-"(no text — attachment or unsupported message)". Decoding `attributedBody` is a
-documented fast-follow, not built now.
+Message text recovery: recent macOS stores most message text only in the
+`message.attributedBody` blob (a serialized NSAttributedString "typedstream"),
+leaving `message.text` NULL. The reads fetch `hex(attributedBody)` when `text`
+is empty and recover the string in Go (`extractTypedstreamText` /
+`decodeAttributedBody`): anchor on the `NSString` class marker, find the `+`
+(0x2B) inline-data marker a few bytes later, read the typedstream length, then
+the UTF-8 text. This was verified against real chat.db rows (e.g. a blank-`text`
+message whose blob reads `…NSString 01 94 84 01 2B 40 <utf8…>`). It is
+best-effort: an unrecognized blob shape degrades to the "(no text — attachment
+or unsupported message)" placeholder rather than erroring the read.
+
+Remaining limitation: genuinely text-free messages (image/file attachments,
+tapbacks, or unusual rich payloads my extractor doesn't recognize) still render
+as that placeholder. Full typedstream deserialization (attributes, multiple
+runs) is a documented fast-follow, not built now.

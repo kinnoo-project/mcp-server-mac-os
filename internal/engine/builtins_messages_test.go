@@ -7,6 +7,7 @@ package engine
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -108,6 +109,61 @@ func TestRenderMessages(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("render missing %q: %s", want, out)
 		}
+	}
+}
+
+// typedstreamBlob builds a minimal serialized-NSAttributedString blob carrying
+// text, matching the real chat.db layout the extractor targets: a prefix (with
+// no stray "NSString"), the class name, the version/`+` marker bytes, a length
+// (single-byte, or 0x81-escaped for ≥128), the UTF-8 text, then trailing bytes.
+func typedstreamBlob(text string) []byte {
+	b := []byte("streamtyped\x81\xe8\x03\x84\x01@\x84NSObjectX NSString")
+	b = append(b, 0x01, 0x94, 0x84, 0x01, '+')
+	if n := len(text); n < 0x80 {
+		b = append(b, byte(n))
+	} else {
+		b = append(b, 0x81, byte(n&0xff), byte(n>>8))
+	}
+	b = append(b, []byte(text)...)
+	return append(b, 0x86, 0x84)
+}
+
+func TestExtractTypedstreamText(t *testing.T) {
+	for _, want := range []string{
+		"Only after school is open so no rush",
+		"Hi",
+		"emoji 😀 and unicode ñ",
+		strings.Repeat("long ", 60), // forces the 0x81 two-byte length path
+	} {
+		if got := extractTypedstreamText(typedstreamBlob(want)); got != want {
+			t.Errorf("extractTypedstreamText round-trip = %q, want %q", got, want)
+		}
+	}
+	// No NSString marker, or truncated → empty, never a panic.
+	if got := extractTypedstreamText([]byte("no marker here")); got != "" {
+		t.Errorf("missing marker should yield \"\", got %q", got)
+	}
+	if got := extractTypedstreamText([]byte("NSString")); got != "" {
+		t.Errorf("truncated blob should yield \"\", got %q", got)
+	}
+}
+
+func TestMessageText(t *testing.T) {
+	// Plain text present → used as-is, blob ignored.
+	if got := messageText("plain text", hex.EncodeToString(typedstreamBlob("blob text"))); got != "plain text" {
+		t.Errorf("plain text should win, got %q", got)
+	}
+	// Text empty → recovered from the attributedBody hex.
+	if got := messageText("", hex.EncodeToString(typedstreamBlob("from the blob"))); got != "from the blob" {
+		t.Errorf("blob fallback = %q, want \"from the blob\"", got)
+	}
+	// Both empty → empty (a genuine attachment-only message).
+	if got := messageText("", ""); got != "" {
+		t.Errorf("no text anywhere should be empty, got %q", got)
+	}
+	// Garbage hex must not error or panic, just yield "".
+	if got := messageText("", "zzznothex"); got != "" {
+		t.Errorf("invalid hex should yield \"\", got %q", got)
 	}
 }
 
