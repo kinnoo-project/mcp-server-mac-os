@@ -39,6 +39,7 @@ const findContactScript = asDateHelpers + `on run argv
 	set out to ""
 	set n to 0
 	tell application "Contacts"
+		launch
 		repeat with p in (every person whose name contains theQuery)
 			if n ≥ maxPeople then exit repeat
 			repeat with ph in (phones of p)
