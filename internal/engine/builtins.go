@@ -33,6 +33,7 @@ var builtins = map[string]BuiltinFunc{
 	"list_calendars": runListCalendars,
 	"query_events":   runQueryEvents,
 	"list_reminders": runListReminders,
+	"find_contact":   runFindContact,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
