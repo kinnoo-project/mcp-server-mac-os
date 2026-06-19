@@ -99,6 +99,7 @@ const modifyReminderScript = asDateHelpers + `on run argv
 			set remind me date of r to missing value
 		else if dueMode is "allday" then
 			set due date of r to missing value
+			set remind me date of r to missing value
 			set allday due date of r to my _mkdate(item 7 of argv, item 8 of argv, item 9 of argv, 0, 0)
 		else if dueMode is "timed" then
 			set allday due date of r to missing value
