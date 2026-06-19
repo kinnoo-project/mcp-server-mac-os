@@ -204,6 +204,16 @@ returns "this change cannot be undone" instead of an undo token, because
 `StagedPlan.Inverse` is `nil` — that field already existed for exactly this
 case; `send_mail` is just the first capability to use it.
 
+`send_mail` takes an optional `attachments` parameter (one or more file
+paths). Pass the exact path; if you only have a description of where the
+file is ("in Downloads", "in a subfolder called scratch"), ask Claude to
+locate it first with the `filesystem` tool, then attach the resolved path.
+This also covers "find my tax return and email it"-style requests end to
+end — as two ordinary sequential tool calls (`find`, then `send_mail`), not
+via `pipeline`, which structurally cannot include `send_mail` (mutators are
+permanently ineligible — see [`pipeline`: composing
+capabilities](#pipeline-composing-capabilities)).
+
 ### Three ways a read-only capability is fulfilled
 
 The engine resolves each read-only capability through one of three builders,
@@ -341,9 +351,26 @@ Three mutators exist today:
   compute, because there is no "unsend" for a real email. `StagedPlan.Inverse`
   is `nil`, which `execute` already renders as "this change cannot be undone"
   (that branch existed since the mutation phase was designed, just never
-  exercised until now). The staged preview shows the recipient(s), subject, and
-  body **verbatim** — never summarized — precisely because there's no second
-  chance once `execute` runs.
+  exercised until now). The staged preview shows the recipient(s), subject,
+  body, and attachment filenames **verbatim** — never summarized — precisely
+  because there's no second chance once `execute` runs:
+  ```
+  The following email will be sent to alice@example.com:
+
+  Subject: ride from airport
+  Body:
+  Can you pick me up at 5:00pm from the airport? I'm flying Delta.
+  Thanks!
+  -Jerry
+
+  This cannot be undone once sent — there is no "unsend." Send this email?
+  ```
+  Optional file attachments share one flat argv with the recipient list by
+  prefixing a recipient *count* (so two variable-length lists never need a
+  delimiter that some address or path might collide with) — see
+  `docs/issues/note-send-mail-attachments-design.md`. Each attachment path is
+  verified to exist (and not be a directory) at stage time, the same
+  read-before-stage discipline `mkdir` uses for its target path.
 
 ### Why `write_setting` is curated, not generic
 
@@ -431,9 +458,12 @@ what an arbitrary key actually does.
   above gets a named counterpart for it: the AppleScript source
   (`internal/engine/mutate_mail.go`'s `sendMailAppleScript`) is a fixed,
   reviewed constant, never built by concatenating model-supplied text.
-  Recipients/subject/body arrive as plain `argv` elements bound by
-  AppleScript's own `on run argv` handler — data, never parsed as code,
-  exactly like every other capability's positional arguments.
+  Recipients/subject/body/attachment paths all arrive as plain `argv`
+  elements bound by AppleScript's own `on run argv` handler — data, never
+  parsed as code, exactly like every other capability's positional
+  arguments. Each attachment path is also verified to exist (and not be a
+  directory) before staging, the same read-before-stage discipline `mkdir`
+  uses.
 
 ---
 
@@ -453,7 +483,7 @@ internal/
     manifests/
       filesystem.json          #   12 filesystem capabilities (11 read-only incl. sort/head + mkdir) as JSON data
       preferences.json         #   write_setting (the curated "setting" enum) as JSON data
-      mail.json                #   search_mail + send_mail (the first irreversible capability) as JSON data
+      mail.json                #   search_mail + send_mail (irreversible, optional attachments) as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
@@ -599,6 +629,14 @@ on disk or in your preferences changes before that.
   explicit warning that this cannot be undone. Unlike `mkdir`/`write_setting`,
   confirming does **not** get you an undo option afterward — there is no
   "unsend," so think before you say go ahead.
+- *"Attach `~/Downloads/itinerary.pdf` and email it to Alice."* → same
+  `send_mail` flow, with `attachments=["~/Downloads/itinerary.pdf"]`; the
+  preview lists the attachment by filename.
+- *"Find my 2025 tax return on my laptop and email it to my accountant."* →
+  two ordinary sequential calls, not `pipeline` (which can't include a
+  mutator): `filesystem` runs `find` to locate the file, then
+  `application-mail` stages `send_mail` with that resolved path as the
+  attachment.
 
 ### Combining capabilities — `pipeline`, for the long tail no named op covers
 
@@ -710,7 +748,7 @@ state captured at stage time), and `send_mail` (genuinely irreversible —
 `StagedPlan.Inverse = nil`, no undo offered). What's next:
 
 - **Eval breadth**: the harness (`internal/evals`, see [Evals](#evals)) exists
-  with 17 cases against `claude-sonnet-4-6`; widening model coverage and adding
+  with 18 cases against `claude-sonnet-4-6`; widening model coverage and adding
   cases as new domains/capabilities ship is ongoing, not one-and-done.
 - **Breadth**: more curated `preferences` settings, more `application-*`
   domains beyond mail (e.g. Calendar, Reminders), and mutating capabilities in

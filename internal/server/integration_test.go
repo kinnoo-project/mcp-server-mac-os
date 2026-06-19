@@ -143,14 +143,21 @@ func TestIntegration_SearchMailNoMatch(t *testing.T) {
 // that.
 func TestIntegration_SendMailStageOnly(t *testing.T) {
 	cs := connectClient(t)
+	dir := t.TempDir()
+	attachment := filepath.Join(dir, "itinerary.pdf")
+	if err := os.WriteFile(attachment, []byte("fake pdf bytes"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
 	staged, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
 		Name: "application-mail",
 		Arguments: map[string]any{
 			"operation": "send_mail",
 			"params": map[string]any{
-				"to":      []any{"test-recipient@example.com"},
-				"subject": "integration test — never sent",
-				"body":    "This plan must never be executed by any test.",
+				"to":          []any{"test-recipient@example.com"},
+				"subject":     "integration test — never sent",
+				"body":        "This plan must never be executed by any test.",
+				"attachments": []any{attachment},
 			},
 		},
 	})
@@ -164,8 +171,11 @@ func TestIntegration_SendMailStageOnly(t *testing.T) {
 	if !strings.Contains(text, "STAGED") {
 		t.Errorf("expected a STAGED preview, got: %s", text)
 	}
-	if !strings.Contains(text, "CANNOT be undone") {
+	if !strings.Contains(text, "cannot be undone") {
 		t.Errorf("expected the irreversibility warning in the preview, got: %s", text)
+	}
+	if !strings.Contains(text, "Attachments: itinerary.pdf") {
+		t.Errorf("expected the attachment filename in the preview, got: %s", text)
 	}
 	_ = extractToken(t, text, "req_") // fails the test if no token is present
 }
