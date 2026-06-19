@@ -12,7 +12,7 @@
         "name": "query",
         "type": "string",
         "required": true,
-        "description": "Free-text search term (subject, sender, or body content).",
+        "description": "Free-text search term (subject, sender, or body content). Must not begin with '-' (rejected as a safety guard, since the underlying Spotlight search would otherwise treat it as an option).",
         "arg": { "kind": "none" }
       },
       {

@@ -42,6 +42,19 @@ func runSearchMail(ctx context.Context, _ registry.Capability, in map[string]any
 	if query == "" {
 		return "", fmt.Errorf("search_mail: 'query' is required")
 	}
+	// Guard against mdfind option injection. mdfind parses a query argument
+	// beginning with "-" as one of its OWN options (e.g. "-name", "-onlyin"),
+	// not as a search term, so a model-supplied query like "-name" would
+	// silently change what mdfind does. The usual defence — a "--"
+	// end-of-options terminator — is unavailable here: mdfind has no "--"
+	// support and rejects it outright. So we apply the darwin-execution.md §4
+	// rule directly and refuse a dash-leading query rather than pass it
+	// through. Only the FIRST character matters: mdfind treats the whole
+	// argument as the query once it begins with a non-dash, so an interior
+	// dash ("foo -bar") is already safe.
+	if strings.HasPrefix(query, "-") {
+		return "", fmt.Errorf("search_mail: 'query' must not begin with '-' (mdfind would parse it as an option, and mdfind has no '--' terminator to prevent that)")
+	}
 	limit, ok := getInt(in, "limit")
 	if !ok || limit <= 0 {
 		limit = defaultSearchMailLimit
