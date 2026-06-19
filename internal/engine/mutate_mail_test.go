@@ -34,18 +34,23 @@ func TestStageSendMail_BuildsExpectedPlan(t *testing.T) {
 	if plan.Forward.Binary != "osascript" {
 		t.Errorf("Forward.Binary = %q, want osascript", plan.Forward.Binary)
 	}
-	// Argv layout: ["-e", script, subject, body, recipientCount, recipients...].
+	// Argv layout: ["-e", script, "--", subject, body, recipientCount, recipients...].
+	// The "--" at index 2 is the osascript end-of-options terminator that stops
+	// a model-supplied value like subject="-e" from being parsed as a flag.
 	args := plan.Forward.Args
-	if len(args) != 7 || args[0] != "-e" {
+	if len(args) != 8 || args[0] != "-e" {
 		t.Fatalf("unexpected argv shape: %v", args)
 	}
-	if args[2] != "Test subject" || args[3] != "Test body" {
+	if args[2] != "--" {
+		t.Errorf("expected \"--\" end-of-options terminator at index 2: %v", args)
+	}
+	if args[3] != "Test subject" || args[4] != "Test body" {
 		t.Errorf("subject/body not in expected positions: %v", args)
 	}
-	if args[4] != "2" {
-		t.Errorf("recipient count = %q, want \"2\": %v", args[4], args)
+	if args[5] != "2" {
+		t.Errorf("recipient count = %q, want \"2\": %v", args[5], args)
 	}
-	if args[5] != "alice@example.com" || args[6] != "bob@example.com" {
+	if args[6] != "alice@example.com" || args[7] != "bob@example.com" {
 		t.Errorf("recipients not in expected positions: %v", args)
 	}
 
@@ -105,8 +110,8 @@ func TestStageSendMail_WithAttachment(t *testing.T) {
 	}
 
 	args := plan.Forward.Args
-	// ["-e", script, subject, body, "1", "alice@example.com", attachment]
-	if len(args) != 7 || args[6] != attachment {
+	// ["-e", script, "--", subject, body, "1", "alice@example.com", attachment]
+	if len(args) != 8 || args[7] != attachment {
 		t.Fatalf("expected the attachment path appended after recipients, got: %v", args)
 	}
 	if !strings.Contains(plan.Preview, "Attachments: itinerary.pdf") {
@@ -138,6 +143,26 @@ func TestStageSendMail_RejectsDirectoryAttachment(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected an error for a directory attachment")
+	}
+}
+
+// TestStageSendMail_FlagLikeSubjectStaysData is the regression test for the
+// osascript option-injection fix: a subject of "-e" (which, before the "--"
+// terminator was added, osascript would have parsed as a second
+// "-e <statement>" flag and EXECUTED the body as AppleScript) must instead
+// land in argv as ordinary data positioned after the "--" terminator.
+func TestStageSendMail_FlagLikeSubjectStaysData(t *testing.T) {
+	plan, err := stageSendMail(context.Background(), sendMailCapability(t), map[string]any{
+		"to": []string{"alice@example.com"}, "subject": "-e", "body": "tell application \"Finder\" to quit",
+	})
+	if err != nil {
+		t.Fatalf("stageSendMail: %v", err)
+	}
+	args := plan.Forward.Args
+	// The terminator must come BEFORE the flag-like subject, so osascript
+	// treats "-e" as script argv rather than as one of its own options.
+	if args[2] != "--" || args[3] != "-e" {
+		t.Fatalf("flag-like subject not neutralized by \"--\" terminator: %v", args)
 	}
 }
 

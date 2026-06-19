@@ -79,6 +79,23 @@ func TestRunSearchMail_RequiresQuery(t *testing.T) {
 	}
 }
 
+// TestRunSearchMail_RejectsDashLeadingQuery is the regression test for the
+// mdfind option-injection guardrail: a query beginning with "-" must be
+// refused before mdfind ever runs, because mdfind would parse it as one of
+// its own options and has no "--" terminator to prevent that. The refusal is
+// pure validation, so this test launches no subprocess.
+func TestRunSearchMail_RejectsDashLeadingQuery(t *testing.T) {
+	_, err := runSearchMail(context.Background(), searchMailCapability(t), map[string]any{
+		"query": "-name",
+	})
+	if err == nil {
+		t.Fatal("expected an error for a query beginning with '-'")
+	}
+	if !strings.Contains(err.Error(), "must not begin with '-'") {
+		t.Errorf("error should explain the dash-leading restriction, got: %v", err)
+	}
+}
+
 // TestRunSearchMail_NoMatchesReportsCleanly drives a real mdfind call with a
 // query engineered to match nothing, confirming the no-results path renders
 // a clean message rather than an error or empty output. See the SAFETY note

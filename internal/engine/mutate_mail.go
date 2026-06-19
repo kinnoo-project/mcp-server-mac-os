@@ -99,7 +99,16 @@ func stageSendMail(_ context.Context, _ registry.Capability, in map[string]any) 
 		}
 	}
 
-	args := append([]string{"-e", sendMailAppleScript, subject, body, strconv.Itoa(len(to))}, to...)
+	// The "--" terminator is critical, not cosmetic: every element after it
+	// (subject, body, recipient count, recipients, attachments) is model-
+	// supplied, and osascript parses leading-dash arguments as its OWN flags
+	// until it sees "--". Without it, a subject of "-e" would be read as a
+	// second "-e <statement>" and the following value executed as AppleScript —
+	// the exact "data becomes code" injection the no-shell axiom exists to
+	// prevent. "--" forces osascript to treat all remaining args strictly as
+	// the script's `on run argv`, and osascript consumes the "--" itself rather
+	// than passing it into argv (so the script's item indices are unchanged).
+	args := append([]string{"-e", sendMailAppleScript, "--", subject, body, strconv.Itoa(len(to))}, to...)
 	args = append(args, attachments...)
 
 	var preview strings.Builder
