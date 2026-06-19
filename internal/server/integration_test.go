@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 10 {
-		t.Errorf("expected exactly 10 tools (filesystem, preferences, application-mail, application-calendar, application-reminders, application-phone, application-messages, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 13 {
+		t.Errorf("expected exactly 13 tools (filesystem, preferences, application, printer, system, application-mail, application-calendar, application-reminders, application-phone, application-messages, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -90,6 +90,21 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, op := range []string{"check_messages", "search_messages", "read_conversation", "list_conversations", "send_message"} {
 		if !strings.Contains(descs["application-messages"], op) {
 			t.Errorf("application-messages tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_applications", "search_applications", "list_running_applications", "open_application", "focus_application", "quit_application"} {
+		if !strings.Contains(descs["application"], op) {
+			t.Errorf("application tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_printers", "list_print_jobs", "print_file", "print_test_page"} {
+		if !strings.Contains(descs["printer"], op) {
+			t.Errorf("printer tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"wifi_status", "list_preferred_wifi", "bluetooth_status", "power_status", "open_settings"} {
+		if !strings.Contains(descs["system"], op) {
+			t.Errorf("system tool description missing operation %q", op)
 		}
 	}
 	for _, name := range []string{"find", "wc", "grep", "sort", "head"} {
@@ -340,6 +355,42 @@ func TestDefaultsAllowlist_MatchesManifestEnum(t *testing.T) {
 	for i := range manifestEnum {
 		if manifestEnum[i] != engineKeys[i] {
 			t.Fatalf("manifest enum and engine allowlist diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
+		}
+	}
+}
+
+// TestSettingsPanes_MatchManifestEnum guards against the open_settings pane list
+// being declared twice (once as the manifest's "pane" enum, once as the engine's
+// settingsPaneURLs map) and the two drifting apart — which would let the enum
+// admit a pane the engine has no URL for, or hide a URL the model can never reach.
+func TestSettingsPanes_MatchManifestEnum(t *testing.T) {
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatalf("registry.Load(): %v", err)
+	}
+	capability, ok := reg.Lookup("open_settings")
+	if !ok {
+		t.Fatal("open_settings capability not found in registry")
+	}
+	var manifestEnum []string
+	for _, p := range capability.Params {
+		if p.Name == "pane" {
+			manifestEnum = p.Enum
+		}
+	}
+	if manifestEnum == nil {
+		t.Fatal("open_settings manifest entry has no 'pane' param with an enum")
+	}
+	sort.Strings(manifestEnum)
+	engineKeys := engine.SettingsPaneKeys() // already sorted
+
+	if len(manifestEnum) != len(engineKeys) {
+		t.Fatalf("manifest enum has %d panes, engine map has %d: manifest=%v engine=%v",
+			len(manifestEnum), len(engineKeys), manifestEnum, engineKeys)
+	}
+	for i := range manifestEnum {
+		if manifestEnum[i] != engineKeys[i] {
+			t.Fatalf("manifest enum and engine pane map diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
 		}
 	}
 }

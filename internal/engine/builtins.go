@@ -38,6 +38,18 @@ var builtins = map[string]BuiltinFunc{
 	"search_messages":    runSearchMessages,
 	"read_conversation":  runReadConversation,
 	"list_conversations": runListConversations,
+
+	"list_applications":         runListApplications,
+	"search_applications":       runSearchApplications,
+	"list_running_applications": runListRunningApplications,
+
+	"list_printers":   runListPrinters,
+	"list_print_jobs": runListPrintJobs,
+
+	"wifi_status":         runWifiStatus,
+	"list_preferred_wifi": runListPreferredWifi,
+	"bluetooth_status":    runBluetoothStatus,
+	"power_status":        runPowerStatus,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.

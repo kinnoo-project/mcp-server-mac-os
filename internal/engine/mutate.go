@@ -88,6 +88,12 @@ var mutators = map[string]Mutator{
 	"delete_reminder":   stageDeleteReminder,
 	"call":              stageCall,
 	"send_message":      stageSendMessage,
+	"open_application":  stageOpenApplication,
+	"focus_application": stageFocusApplication,
+	"quit_application":  stageQuitApplication,
+	"print_file":        stagePrintFile,
+	"print_test_page":   stagePrintTestPage,
+	"open_settings":     stageOpenSettings,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.
