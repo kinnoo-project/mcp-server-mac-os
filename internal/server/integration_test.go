@@ -34,10 +34,11 @@ func connectClient(t *testing.T) *mcp.ClientSession {
 }
 
 // TestIntegration_ToolSurface confirms the protocol exposes one domain tool per
-// category — `filesystem`, `preferences`, and `application-mail` — alongside
-// the three fixed cross-cutting tools (`execute`, `undo`, `pipeline`), and
-// that each domain tool's description embeds its full operation menu so the
-// model needs no separate discovery call.
+// category — `filesystem`, `preferences`, `application-mail`,
+// `application-calendar`, and `application-reminders` — alongside the three
+// fixed cross-cutting tools (`execute`, `undo`, `pipeline`), and that each
+// domain tool's description embeds its full operation menu so the model needs no
+// separate discovery call.
 func TestIntegration_ToolSurface(t *testing.T) {
 	cs := connectClient(t)
 	lt, err := cs.ListTools(context.Background(), nil)
@@ -49,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application-mail", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application-mail", "application-calendar", "application-reminders", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 6 {
-		t.Errorf("expected exactly 6 tools (filesystem, preferences, application-mail, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 8 {
+		t.Errorf("expected exactly 8 tools (filesystem, preferences, application-mail, application-calendar, application-reminders, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -69,6 +70,16 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, op := range []string{"search_mail", "send_mail"} {
 		if !strings.Contains(descs["application-mail"], op) {
 			t.Errorf("application-mail tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_calendars", "query_events", "add_event", "modify_event", "delete_event"} {
+		if !strings.Contains(descs["application-calendar"], op) {
+			t.Errorf("application-calendar tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_reminders", "add_reminder", "modify_reminder", "complete_reminder", "delete_reminder"} {
+		if !strings.Contains(descs["application-reminders"], op) {
+			t.Errorf("application-reminders tool description missing operation %q", op)
 		}
 	}
 	for _, name := range []string{"find", "wc", "grep", "sort", "head"} {
