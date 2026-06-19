@@ -54,6 +54,13 @@
         "required": true,
         "description": "Email body text.",
         "arg": { "kind": "none" }
+      },
+      {
+        "name": "attachments",
+        "type": "path_list",
+        "required": false,
+        "description": "Absolute or ~-relative path(s) of file(s) to attach; each must already exist. Supply the exact path — if you only know a description of where the file is (e.g. \"in Downloads\"), use the filesystem tool (ls/find) to locate it first, then pass the resolved path here.",
+        "arg": { "kind": "none" }
       }
     ]
   }
