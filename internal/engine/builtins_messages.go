@@ -27,7 +27,9 @@
 package engine
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -46,30 +48,43 @@ const (
 	maxMessageLimit          = 50
 )
 
+// bodyHexExpr is the SQL that, for a message whose plain `text` column is empty,
+// returns the hex of its `attributedBody` blob so Go can extract the text from
+// it (see decodeAttributedBody). Recent macOS stores most message text only in
+// attributedBody — a binary "typedstream" NSAttributedString — leaving
+// message.text NULL. The hex is fetched ONLY when text is empty, so messages
+// that still populate text don't bloat the output with a redundant blob.
+const bodyHexExpr = `CASE WHEN m.text IS NULL OR m.text = '' THEN hex(m.attributedBody) ELSE NULL END AS body_hex`
+
 // baseMessageSelect is the shared SELECT for check/search/read_conversation. It
-// projects each message as the four JSON fields messageRow decodes, converting
+// projects each message as the JSON fields messageRow decodes, converting
 // Apple's date (nanoseconds since 2001-01-01 UTC; 978307200 is the offset to the
 // Unix epoch) into a local-time string in SQL so Go needs no date math. COALESCE
 // turns NULL text/handle (attachment-only rows, unknown senders) into "".
 const baseMessageSelect = `SELECT m.is_from_me AS is_from_me, ` +
 	`COALESCE(h.id,'') AS handle, ` +
 	`datetime(m.date/1000000000 + 978307200,'unixepoch','localtime') AS ts, ` +
-	`COALESCE(m.text,'') AS text ` +
+	`COALESCE(m.text,'') AS text, ` +
+	bodyHexExpr + ` ` +
 	`FROM message m LEFT JOIN handle h ON m.handle_id = h.ROWID`
 
-// messageRow is one decoded row of baseMessageSelect's JSON output.
+// messageRow is one decoded row of baseMessageSelect's JSON output. BodyHex is
+// the fallback blob (hex) present only when Text is empty; messageText resolves
+// the two into the text to display.
 type messageRow struct {
 	IsFromMe int    `json:"is_from_me"`
 	Handle   string `json:"handle"`
 	Ts       string `json:"ts"`
 	Text     string `json:"text"`
+	BodyHex  string `json:"body_hex"`
 }
 
 // conversationRow is one decoded row of the list_conversations query.
 type conversationRow struct {
-	Chat string `json:"chat"`
-	Ts   string `json:"ts"`
-	Text string `json:"text"`
+	Chat    string `json:"chat"`
+	Ts      string `json:"ts"`
+	Text    string `json:"text"`
+	BodyHex string `json:"body_hex"`
 }
 
 // chatDBPath returns the absolute path to the Messages database.
@@ -188,10 +203,11 @@ func runReadConversation(ctx context.Context, _ registry.Capability, in map[stri
 // window function picks the most recent message per chat.
 func runListConversations(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
 	limit := cappedLimit(in, defaultMessageLimit)
-	sql := fmt.Sprintf(`SELECT chat, ts, text FROM (`+
+	sql := fmt.Sprintf(`SELECT chat, ts, text, body_hex FROM (`+
 		`SELECT COALESCE(NULLIF(c.display_name,''), c.chat_identifier) AS chat, `+
 		`datetime(m.date/1000000000 + 978307200,'unixepoch','localtime') AS ts, `+
 		`COALESCE(m.text,'') AS text, `+
+		bodyHexExpr+`, `+
 		`ROW_NUMBER() OVER (PARTITION BY c.ROWID ORDER BY m.date DESC) AS rn `+
 		`FROM chat c `+
 		`JOIN chat_message_join cmj ON cmj.chat_id = c.ROWID `+
@@ -208,7 +224,7 @@ func runListConversations(ctx context.Context, _ registry.Capability, in map[str
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d recent conversation(s):\n", len(rows))
 	for _, c := range rows {
-		fmt.Fprintf(&b, "  [%s] %s: %s\n", c.Ts, orUnknown(c.Chat), previewText(c.Text))
+		fmt.Fprintf(&b, "  [%s] %s: %s\n", c.Ts, orUnknown(c.Chat), previewText(messageText(c.Text, c.BodyHex)))
 	}
 	return b.String(), nil
 }
@@ -305,9 +321,90 @@ func renderMessages(heading string, rows []messageRow) string {
 		if r.IsFromMe == 1 {
 			who = "Me"
 		}
-		fmt.Fprintf(&b, "  [%s] %s: %s\n", r.Ts, who, previewText(r.Text))
+		fmt.Fprintf(&b, "  [%s] %s: %s\n", r.Ts, who, previewText(messageText(r.Text, r.BodyHex)))
 	}
 	return b.String()
+}
+
+// messageText resolves the text to display for a message: the plain `text`
+// column when present, otherwise the text recovered from the attributedBody
+// blob (recent macOS stores most message text only there). Either may still be
+// empty (a genuine attachment-only message), which previewText renders as a
+// placeholder.
+func messageText(text, bodyHex string) string {
+	if strings.TrimSpace(text) != "" {
+		return text
+	}
+	return decodeAttributedBody(bodyHex)
+}
+
+// decodeAttributedBody recovers the plain text from the hex of a message's
+// attributedBody blob. It is best-effort: any decode/parse failure yields "" so
+// a malformed or unusual blob degrades to the "no text" placeholder rather than
+// erroring the whole read.
+func decodeAttributedBody(hexStr string) string {
+	if hexStr == "" {
+		return ""
+	}
+	raw, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return ""
+	}
+	return extractTypedstreamText(raw)
+}
+
+// extractTypedstreamText pulls the message string out of a serialized
+// NSAttributedString ("typedstream"). The layout around the text is stable
+// across messages: the class name `NSString`, a few version/reference bytes, a
+// `+` (0x2B) marker that introduces inline data, a length, then the UTF-8 text:
+//
+//	… NSString \x01\x94\x84\x01 + <len> <utf8 text> \x86\x84 …
+//
+// We anchor on the FIRST `NSString` (the text's own class; the class hierarchy
+// above it — NSMutableAttributedString/NSAttributedString/NSObject — does not
+// contain that exact substring) and on the `+` shortly after it. This recovers
+// ordinary text/emoji messages; an unrecognized shape returns "".
+func extractTypedstreamText(b []byte) string {
+	i := bytes.Index(b, []byte("NSString"))
+	if i < 0 {
+		return ""
+	}
+	i += len("NSString")
+	// The '+' marker sits a few bytes past the class name; search only a short
+	// window so we can't accidentally land on a '+' inside the message text.
+	window := b[i:min(i+12, len(b))]
+	rel := bytes.IndexByte(window, '+')
+	if rel < 0 {
+		return ""
+	}
+	length, p, ok := readTypedstreamLength(b, i+rel+1)
+	if !ok || length < 0 || p+length > len(b) {
+		return ""
+	}
+	return string(b[p : p+length])
+}
+
+// readTypedstreamLength reads a typedstream length at b[p]. Small lengths are a
+// single byte; 0x81/0x82 escape to a little-endian 16-/32-bit count. It returns
+// the length, the index just past it, and whether parsing stayed in bounds.
+func readTypedstreamLength(b []byte, p int) (length, next int, ok bool) {
+	if p >= len(b) {
+		return 0, p, false
+	}
+	switch b[p] {
+	case 0x81:
+		if p+3 > len(b) {
+			return 0, p, false
+		}
+		return int(b[p+1]) | int(b[p+2])<<8, p + 3, true
+	case 0x82:
+		if p+5 > len(b) {
+			return 0, p, false
+		}
+		return int(b[p+1]) | int(b[p+2])<<8 | int(b[p+3])<<16 | int(b[p+4])<<24, p + 5, true
+	default:
+		return int(b[p]), p + 1, true
+	}
 }
 
 // previewText collapses a (possibly multi-line) message body to a single tidy
