@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application-mail", "application-calendar", "application-reminders", "application-phone", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 9 {
-		t.Errorf("expected exactly 9 tools (filesystem, preferences, application-mail, application-calendar, application-reminders, application-phone, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 10 {
+		t.Errorf("expected exactly 10 tools (filesystem, preferences, application-mail, application-calendar, application-reminders, application-phone, application-messages, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -85,6 +85,11 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, op := range []string{"find_contact", "call"} {
 		if !strings.Contains(descs["application-phone"], op) {
 			t.Errorf("application-phone tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"check_messages", "search_messages", "read_conversation", "list_conversations", "send_message"} {
+		if !strings.Contains(descs["application-messages"], op) {
+			t.Errorf("application-messages tool description missing operation %q", op)
 		}
 	}
 	for _, name := range []string{"find", "wc", "grep", "sort", "head"} {
