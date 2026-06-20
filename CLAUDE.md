@@ -43,11 +43,9 @@ The server is built around a **capability registry + a fixed engine** (the desig
 
 ### 6. Compile as a Universal 2 Binary
 
-The first Mac laptops to ship with the Apple Silicon M1 chip (announced and released in November 2020) shipped with macOS 11.0 Big Sur
+The project's **minimum supported OS is macOS 13.0 Ventura (Darwin 22)**; older releases (including Big Sur and Monterey) are not supported. Ventura re-architected System Settings, so the server relies on the modern `x-apple.systempreferences:` pane identifiers and does no per-version fallback. Treat Ventura/Darwin 22 as the floor for any binary, plist-parsing, or Settings deep-link assumption.
 
-Under the hood, the corresponding Darwin kernel version that introduced native ARM64 support for Apple Silicon is **Darwin 20.1.0**.
-
-To ensure your Go-based MCP server runs natively on both modern Apple Silicon chips (M1, M2, M3, M4) and older Intel-based Macs that are still running legacy macOS versions, you should compile your Go server into a **Universal 2 Binary**.
+To ensure your Go-based MCP server runs natively on both modern Apple Silicon chips (M1, M2, M3, M4) and Intel-based Macs (running a supported macOS version), you should compile your Go server into a **Universal 2 Binary**.
 
 Go handles this through cross-compilation environment variables. You can add a dedicated release script or modify your `.claude/skills/verify-pipeline.md` automation file to compile both targets and stitch them together using macOS’s native `lipo` tool:
 

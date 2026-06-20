@@ -169,6 +169,18 @@ func validate(caps []Capability) error {
 		if !validRisk[c.Risk] {
 			return fmt.Errorf("registry: capability %q: unknown risk %q", c.Name, c.Risk)
 		}
+		// auto_commit bypasses the human-approval gate, so it is confined to
+		// low-stakes mutations: it is meaningless on a read-only capability
+		// (there is nothing to commit) and forbidden on medium/high-risk ones
+		// (those must keep the stage→execute confirmation step).
+		if c.AutoCommit {
+			if c.Reversibility == ReadOnly {
+				return fmt.Errorf("registry: capability %q: auto_commit is not valid on a read_only capability", c.Name)
+			}
+			if c.Risk == RiskMedium || c.Risk == RiskHigh {
+				return fmt.Errorf("registry: capability %q: auto_commit requires risk none or low, got %q", c.Name, c.Risk)
+			}
+		}
 		if err := validateParams(c); err != nil {
 			return err
 		}

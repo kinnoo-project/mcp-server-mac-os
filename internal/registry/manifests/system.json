@@ -1,0 +1,62 @@
+[
+  {
+    "name": "wifi_status",
+    "summary": "Report the Wi-Fi radio's power state and the network it is currently joined to (if any).",
+    "category": "system",
+    "binary": "networksetup",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "wifi_status",
+    "params": []
+  },
+  {
+    "name": "list_preferred_wifi",
+    "summary": "List the preferred (remembered) Wi-Fi networks this Mac will auto-join, in priority order. Note: listing nearby/available networks to join is not supported (it requires elevated privileges on current macOS) — use open_settings (pane 'wifi') to pick a new network.",
+    "category": "system",
+    "binary": "networksetup",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_preferred_wifi",
+    "params": []
+  },
+  {
+    "name": "bluetooth_status",
+    "summary": "Report whether Bluetooth is powered on and which devices are currently connected.",
+    "category": "system",
+    "binary": "system_profiler",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "bluetooth_status",
+    "params": []
+  },
+  {
+    "name": "power_status",
+    "summary": "Report power and battery state: the current power source, battery charge and charging status, and whether Low Power Mode is on.",
+    "category": "system",
+    "binary": "pmset",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "power_status",
+    "params": []
+  },
+  {
+    "name": "open_settings",
+    "summary": "Open a specific pane of System Settings for the user. Use this to hand off actions this server cannot perform directly because they need administrator rights — e.g. connecting/re-enabling a printer, joining a Wi-Fi network, toggling Bluetooth, or changing battery/Low-Power settings. Runs immediately; cannot be undone (it just opens a window).",
+    "category": "system",
+    "binary": "open",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "open_settings",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "pane",
+        "type": "enum",
+        "required": true,
+        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network"],
+        "description": "Which System Settings pane to open.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]

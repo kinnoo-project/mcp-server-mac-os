@@ -30,11 +30,11 @@ been rebuilt around two ideas:
 2. **The model sees domain tools, not the engine's plumbing.** Instead of one
    tool per operation (which doesn't scale) or a single opaque `query` tool (poor
    ergonomics), the server exposes **one tool per capability category** —
-   `filesystem` and `preferences` today. You call a domain tool with an
-   `operation` (a capability name) plus that operation's `params`. Each domain
-   tool's description embeds the full menu of its operations and their
-   parameters, so the model can form a correct call in one shot with no separate
-   discovery step.
+   `filesystem`, `preferences`, `application`, `printer`, `system`, and the
+   `application-*` app domains. You call a domain tool with an `operation` (a
+   capability name) plus that operation's `params`. Each domain tool's
+   description embeds the full menu of its operations and their parameters, so the
+   model can form a correct call in one shot with no separate discovery step.
 
 The net effect: the registry is the single source of truth, the engine enforces
 every safety rule in one place, and the tool surface stays small and stable no
@@ -299,10 +299,79 @@ the same ambiguity refusal).
 
 `send_message` sends an iMessage through Messages.app and, like `send_mail`, is
 **irreversible** — it goes through the stage → execute confirmation gate with the
-recipient and full text shown verbatim, and offers no undo. See
+recipient and full text shown verbatim, and offers no undo. It takes an optional
+`attachments` parameter (one or more file paths — an image, PDF, etc.); each is
+sent as an iMessage attachment, and the `text` is optional when at least one
+attachment is supplied (so you can send a file with no caption). Each attachment
+path is verified to exist and be a regular file before the plan is staged, and
+the preview lists the attachments by filename. See
 `docs/issues/note-imessage-applescript-send.md` (Messages' scripting `send` is
 version-sensitive) and `docs/issues/note-messages-read-fda.md` (the Full-Disk-
 Access requirement and the read-only, injection-safe query posture).
+
+### `application`
+
+| Operation                   | Runs                 | Reversibility    | Use it for                                       |
+| --------------------------- | -------------------- | ---------------- | ------------------------------------------------ |
+| `list_applications`         | `/usr/bin/mdfind`    | read-only        | "What apps are installed?"                        |
+| `search_applications`       | `/usr/bin/mdfind`    | read-only        | "Find the app with 'note' in its name."          |
+| `list_running_applications` | `/usr/bin/osascript` | read-only        | "What's open right now?"                          |
+| `open_application`          | `/usr/bin/open`      | reversible *     | "Open Notes." (runs immediately)                 |
+| `focus_application`         | `/usr/bin/osascript` | irreversible     | "Bring Safari to the front." (runs immediately)  |
+| `quit_application`          | `/usr/bin/osascript` | irreversible     | "Quit Mail." (staged — confirm first)            |
+
+`list_applications`/`search_applications` enumerate `.app` bundles via Spotlight
+and filter by name **in Go** (so no untrusted text reaches `mdfind`, which has no
+`--` terminator). `open_application` and `focus_application` use the **auto-commit
+lane** (see below): they run at once rather than going through the confirmation
+gate. `open_application` is reversible — *if staging finds the app was not already
+running*, undo quits it; if it was already open (we merely focused it), no undo is
+offered. `quit_application` stays staged because unsaved work could be lost.
+Focusing/quitting drive the app through `osascript` and so need Automation
+permission the first time.
+
+### `printer`
+
+| Operation         | Runs              | Reversibility    | Use it for                                  |
+| ----------------- | ----------------- | ---------------- | ------------------------------------------- |
+| `list_printers`   | `/usr/bin/lpstat` | read-only        | "What printers do I have, and are they on?" |
+| `list_print_jobs` | `/usr/bin/lpstat` | read-only        | "What's in the print queue?"                |
+| `print_file`      | `/usr/bin/lp`     | **irreversible** | "Print this PDF." (staged)                  |
+| `print_test_page` | `/usr/bin/lp`     | **irreversible** | "Print a test page on the office laser."    |
+
+Printing is irreversible (paper/ink), so `print_file`/`print_test_page` go through
+the stage → execute confirmation gate with no undo. macOS ships no CUPS test page,
+so `print_test_page` carries its own (embedded into the binary) and writes it to a
+scratch file under `/tmp/mcp-fallback/` at stage time. **Connecting/re-enabling a
+printer needs administrator rights** (`lpadmin`/`cupsenable`) that can't be
+obtained over this transport — `list_printers` flags a disabled queue and points
+you at `system`'s `open_settings` (pane `printers`) to finish in System Settings.
+
+### `system`
+
+| Operation             | Runs                      | Reversibility | Use it for                                    |
+| --------------------- | ------------------------- | ------------- | --------------------------------------------- |
+| `wifi_status`         | `/usr/sbin/networksetup`  | read-only     | "Is Wi-Fi on, and what am I joined to?"       |
+| `list_preferred_wifi` | `/usr/sbin/networksetup`  | read-only     | "What networks does this Mac remember?"       |
+| `bluetooth_status`    | `/usr/sbin/system_profiler` | read-only   | "Is Bluetooth on? What's connected?"          |
+| `power_status`        | `/usr/bin/pmset`          | read-only     | "Battery level? Is Low Power Mode on?"        |
+| `open_settings`       | `/usr/bin/open`           | irreversible  | Hand off to a System Settings pane.           |
+
+The reads parse machine-readable output where it exists (`system_profiler -json`
+for Bluetooth) and tolerant text parsing otherwise. `open_settings` is the guided
+fallback for anything needing admin rights (joining Wi-Fi, toggling Bluetooth,
+battery/Low-Power changes, connecting a printer): it uses the **auto-commit lane**
+to open the requested pane immediately. The model picks a pane from a closed enum;
+the engine maps that to a vetted **Ventura+** `x-apple.systempreferences:` URL
+(macOS 13 is the minimum supported OS, so no per-version handling is needed).
+
+### Accessibility & preference toggles
+
+`preferences`' `write_setting` covers a curated allowlist of reversible,
+non-security-relevant toggles. Alongside the Finder/Dock/keyboard entries it now
+includes accessibility toggles (`accessibility_reduce_motion`,
+`accessibility_reduce_transparency`, `accessibility_increase_contrast`,
+`accessibility_differentiate_without_color`) backed by `com.apple.universalaccess`.
 
 ### Three ways a read-only capability is fulfilled
 
@@ -424,6 +493,21 @@ change cannot be acted on far outside the period the preview/result was shown.
 *any* staged plan — the model never names an operation when calling them, only a
 token. This is also why the architecture can add many more mutating capabilities
 later without growing the tool surface: only the per-domain operation menu grows.
+
+**The auto-commit lane.** Forcing the full token dance on every benign action
+("open Notes") would be pure friction, so a mutating capability may declare
+`auto_commit: true` in its manifest. Such an operation still goes through the
+engine's stage step (so its forward and inverse are computed exactly the same
+way), but the server commits the forward command **immediately** and, when the
+change is reversible, returns an `undo_…` token in the same response — no separate
+`execute` call. The registry confines this to low-stakes mutations: `auto_commit`
+is rejected on a read-only capability and on anything risk `medium`/`high`, so
+paper-consuming prints and lossy quits stay behind the confirmation gate.
+Today's auto-commit operations are `open_application`, `focus_application`, and
+`open_settings`. Each operation line in a domain tool's menu states its lane —
+"runs immediately", "runs immediately; may return an undo token", or "STAGED —
+confirm with the user, then execute" — so the model knows what a call will do up
+front.
 
 Three mutators exist today:
 - **`mkdir`** — forward is `mkdir -- <path>`, inverse is `rmdir -- <path>` (which
@@ -600,7 +684,7 @@ internal/
       calendar.json            #   list_calendars/query_events/add_event/modify_event/delete_event as JSON data
       reminders.json           #   list/add/modify/complete/delete_reminder as JSON data
       phone.json               #   find_contact (read) + call (irreversible) as JSON data
-      messages.json            #   check/search/read_conversation/list_conversations + send_message as JSON data
+      messages.json            #   check/search/read_conversation/list_conversations + send_message (irreversible, optional attachments) as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
@@ -622,7 +706,7 @@ internal/
     mutate_calendar.go         #   add/modify/delete_event mutators (reversible; probe-then-stage)
     mutate_reminders.go        #   add/modify/complete/delete_reminder mutators (reversible; probe-then-stage)
     mutate_phone.go            #   call mutator: validates number, builds tel:/facetime: URL, open (irreversible)
-    mutate_messages.go         #   send_message mutator: fixed Messages AppleScript via osascript (irreversible)
+    mutate_messages.go         #   send_message mutator: fixed Messages AppleScript via osascript (irreversible, optional file attachments)
     pipeline.go                #   RunPipeline: chains read-only, binary-backed stages (see "pipeline" above)
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where

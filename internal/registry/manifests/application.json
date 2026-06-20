@@ -1,0 +1,120 @@
+[
+  {
+    "name": "list_applications",
+    "summary": "List installed applications (from Spotlight's index of .app bundles). Optionally narrow to those whose name contains a substring.",
+    "category": "application",
+    "binary": "mdfind",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_applications",
+    "params": [
+      {
+        "name": "name_contains",
+        "type": "string",
+        "required": false,
+        "description": "Optional case-insensitive substring to filter application names by (e.g. 'safari'). Omit to list everything.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 200,
+        "description": "Maximum number of applications to return (default 200, maximum 500).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "search_applications",
+    "summary": "Search installed applications by a name substring and return the matches. A focused alternative to list_applications when you already know part of the name.",
+    "category": "application",
+    "binary": "mdfind",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "search_applications",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "description": "Case-insensitive substring to match against application names (e.g. 'note').",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 50,
+        "description": "Maximum number of matches to return (default 50, maximum 500).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "list_running_applications",
+    "summary": "List the applications currently running with a visible presence (foreground apps, not background daemons). Requires permission to control System Events.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_running_applications",
+    "params": []
+  },
+  {
+    "name": "open_application",
+    "summary": "Launch an application by name (or bring it to the front if already running). Runs immediately. If the app was not already running, undo will quit it again.",
+    "category": "application",
+    "binary": "open",
+    "reversibility": "reversible",
+    "risk": "low",
+    "builder": "open_application",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "The application's name, e.g. 'Safari', 'Notes', 'Visual Studio Code'.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "focus_application",
+    "summary": "Bring an already-running (or launchable) application to the front and give it focus. Runs immediately; cannot be undone. Requires permission to control the target app.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "focus_application",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "The application's name to bring to the front, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "quit_application",
+    "summary": "Quit a running application. STAGED for confirmation because unsaved work could be lost, and relaunching is not a true reversal. Requires permission to control the target app.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "medium",
+    "builder": "quit_application",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "The application's name to quit, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]

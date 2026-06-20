@@ -27,7 +27,11 @@
           "global_autocorrect",
           "global_smart_quotes",
           "global_smart_dashes",
-          "global_period_substitution"
+          "global_period_substitution",
+          "accessibility_reduce_motion",
+          "accessibility_reduce_transparency",
+          "accessibility_increase_contrast",
+          "accessibility_differentiate_without_color"
         ],
         "description": "Which curated setting to change. Each is a well-known, reversible, non-security-relevant boolean toggle.",
         "arg": { "kind": "none" }
