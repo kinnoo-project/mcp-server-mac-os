@@ -325,7 +325,7 @@ Access requirement and the read-only, injection-safe query posture).
 | `search_applications`       | `/usr/bin/mdfind`    | read-only        | "Find the app with 'note' in its name."          |
 | `list_running_applications` | `/usr/bin/osascript` | read-only        | "What's open right now?"                          |
 | `open_application`          | `/usr/bin/open`      | reversible *     | "Open Notes." (runs immediately)                 |
-| `open_file`                 | `/usr/bin/open`      | reversible       | "Open Leah.png in Preview." (staged — confirm)   |
+| `open_file`                 | `/usr/bin/open`      | reversible       | "Open Leah.png in Preview." / "Open this PDF." (staged) |
 | `focus_application`         | `/usr/bin/osascript` | irreversible     | "Bring Safari to the front." (runs immediately)  |
 | `quit_application`          | `/usr/bin/osascript` | irreversible     | "Quit Mail." (staged — confirm first)            |
 
@@ -341,9 +341,12 @@ on this otherwise-low-friction action. `quit_application` stays staged because
 unsaved work could be lost. Focusing/quitting drive the app through `osascript`
 and so need Automation permission the first time.
 
-`open_file` opens a specific file in a specific app (e.g. a PNG in Preview). It is
-**always staged** — every open waits for confirmation — and the preview tells you
-whether the app actually handles the file's type, so you confirm with full context.
+`open_file` opens a file, optionally in a specific app (e.g. a PNG in Preview); the
+`app` parameter is optional, and omitting it opens the file in macOS's default
+handler for its type (the forward command is simply `open -- <file>`, with no
+support check to run and no app to quit on undo). It is **always staged** — every
+open waits for confirmation — and when an app *is* named the preview tells you
+whether that app actually handles the file's type, so you confirm with full context.
 The check is read-only and Spotlight-independent: it reads the app bundle's
 `Info.plist` document-type declarations with `plutil` (the extensions and UTIs it
 opens) and the file's own type with `mdimport -t -d1` (used in preference to

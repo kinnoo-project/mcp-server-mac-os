@@ -135,20 +135,29 @@ func lsappinfoListsApp(stdout, name string) bool {
 	return false
 }
 
-// stageOpenFile stages opening a file in a named application (e.g. a PNG in
-// Preview). Unlike open_application it is NOT auto-commit: every open waits behind
-// the execute confirmation gate, so nothing launches until the user approves. As
-// part of staging it asks appdocs.go whether the app actually handles the file's
-// type and folds that verdict into the preview, so the user confirms with full
-// context — a clean "Open X in Y" when supported, or a prominent warning when the
-// app may not handle the file (or when support could not be determined).
+// stageOpenFile stages opening a file, optionally in a named application (e.g. a
+// PNG in Preview). Unlike open_application it is NOT auto-commit: every open waits
+// behind the execute confirmation gate, so nothing launches until the user
+// approves.
 //
-// The forward command is `open -a <app> -- <file>`. The "--" terminator keeps the
-// path from ever being read as an `open` option; validateAppName and the explicit
-// dash-leading file check below add the same belt-and-suspenders guards the other
-// path-bearing mutators (print_file) use. Reversibility mirrors open_application:
-// if the app was not already running, undo quits it; if it was, no undo is offered
-// so we never quit an app the user already had open.
+// # Two shapes
+//
+//   - With "app": the forward command is `open -a <app> -- <file>`. Staging asks
+//     appdocs.go whether the app actually handles the file's type and folds that
+//     verdict into the preview — a clean "Open X in Y" when supported, or a
+//     prominent warning when it may not be (or when support could not be
+//     determined). Reversibility mirrors open_application: if the app was not
+//     already running, undo quits it; if it was, no undo is offered so we never
+//     quit an app the user already had open.
+//   - Without "app": the forward command is `open -- <file>`, which opens the file
+//     in whatever application macOS has registered as the default handler for its
+//     type. No support check is needed (the default handler opens the type by
+//     definition; if there is none, `open` itself errors on execute), and no undo
+//     is offered because staging cannot know which app will be launched.
+//
+// The "--" terminator keeps the path from ever being read as an `open` option;
+// validateAppNameValue and the explicit dash-leading file check below add the same
+// belt-and-suspenders guards the other path-bearing mutators (print_file) use.
 func stageOpenFile(ctx context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
 	file, _ := getString(in, "file")
 	if strings.TrimSpace(file) == "" {
@@ -167,7 +176,17 @@ func stageOpenFile(ctx context.Context, _ registry.Capability, in map[string]any
 		return nil, fmt.Errorf("open_file: %q is a directory, not a file", file)
 	}
 
-	app, err := validateAppName("open_file", in)
+	// No app named → open with the system default handler.
+	appRaw, _ := getString(in, "app")
+	if strings.TrimSpace(appRaw) == "" {
+		return &StagedPlan{
+			Preview: fmt.Sprintf("Open %s with its default application. This cannot be undone automatically.", file),
+			Forward: openFileForward("", file),
+			Inverse: nil,
+		}, nil
+	}
+
+	app, err := validateAppNameValue("open_file", "app", appRaw)
 	if err != nil {
 		return nil, err
 	}
@@ -187,11 +206,16 @@ func stageOpenFile(ctx context.Context, _ registry.Capability, in map[string]any
 	return plan, nil
 }
 
-// openFileForward builds the `open -a <app> -- <file>` command. The "--" comes
-// before the file so `open` can never read the path as one of its own options;
-// it is a pure helper (no probing) so the argv layout — specifically that the
-// path always lands AFTER the terminator as data — is unit-testable directly.
+// openFileForward builds the `open` command for opening a file. With app empty it
+// is `open -- <file>` (the default-handler form); otherwise `open -a <app> --
+// <file>`. The "--" always precedes the file so `open` can never read the path as
+// one of its own options. It is a pure helper (no probing) so the argv layout —
+// specifically that the path always lands AFTER the terminator as data — is
+// unit-testable directly.
 func openFileForward(app, file string) Command {
+	if app == "" {
+		return Command{Binary: "open", Args: []string{"--", file}}
+	}
 	return Command{Binary: "open", Args: []string{"-a", app, "--", file}}
 }
 
@@ -263,11 +287,22 @@ func stageQuitApplication(_ context.Context, _ registry.Capability, in map[strin
 // splitting and the osascript "--" terminator); this rejects values that are
 // obviously not an application name so the failure is a clear validation error
 // rather than a confusing AppleScript or `open` error later.
+//
+// It reads the conventional "name" parameter; capabilities that carry the app
+// under a different key (open_file uses "app") call validateAppNameValue directly.
 func validateAppName(op string, in map[string]any) (string, error) {
 	name, _ := getString(in, "name")
+	return validateAppNameValue(op, "name", name)
+}
+
+// validateAppNameValue is the field-agnostic core of validateAppName: it applies
+// the same non-empty / no-leading-dash / no-control-character checks to an already
+// extracted value, naming field in the "required" error so the message matches the
+// parameter the caller actually exposes.
+func validateAppNameValue(op, field, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", fmt.Errorf("%s: 'name' is required", op)
+		return "", fmt.Errorf("%s: '%s' is required", op, field)
 	}
 	// A leading dash would be unusual for an app name and risks being read as a
 	// flag by `open`; reject it rather than rely on positional consumption.

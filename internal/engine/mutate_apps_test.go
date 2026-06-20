@@ -16,6 +16,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -161,12 +162,19 @@ func TestOpenFileForward_PathIsDataAfterTerminator(t *testing.T) {
 	if cmd.Args[0] != "-a" || cmd.Args[1] != "Preview" {
 		t.Errorf("app must be passed via -a; got args %v", cmd.Args)
 	}
+
+	// With no app, the default-handler form drops -a: open -- <file>.
+	def := openFileForward("", "/Users/me/Leah.png")
+	if got := def.Args; len(got) != 2 || got[0] != "--" || got[1] != "/Users/me/Leah.png" {
+		t.Errorf("default-app form should be [-- <file>]; got %v", got)
+	}
 }
 
 // TestStageOpenFile_Validation exercises the checks that short-circuit BEFORE any
 // live probing (so the test never touches mdfind/plutil/mdimport): a missing file
 // param, a flag-like path (the option-injection regression — a "-e" file is
-// refused, never forwarded), a non-existent file, a directory, and a bad app name.
+// refused, never forwarded), a non-existent file, a directory, and a flag-like app.
+// A MISSING app is intentionally absent here: it is valid (the default-app path).
 func TestStageOpenFile_Validation(t *testing.T) {
 	cap := lookupCapability(t, "open_file")
 	dir := t.TempDir()
@@ -184,13 +192,56 @@ func TestStageOpenFile_Validation(t *testing.T) {
 		{"flag-like file", map[string]any{"file": "-e", "app": "Preview"}},
 		{"nonexistent file", map[string]any{"file": filepath.Join(dir, "nope.png"), "app": "Preview"}},
 		{"directory", map[string]any{"file": dir, "app": "Preview"}},
-		{"missing app", map[string]any{"file": real}},
 		{"flag-like app", map[string]any{"file": real, "app": "-e"}},
 	}
 	for _, c := range cases {
 		if _, err := stageOpenFile(context.Background(), cap, c.params); err == nil {
 			t.Errorf("%s: expected an error, got nil", c.name)
 		}
+	}
+}
+
+// TestStageOpenFile_DefaultApp covers the no-app path end to end (it does NO
+// probing, so it is hermetic): a valid file with no app stages `open -- <file>`,
+// offers no undo, and previews the default-application intent.
+func TestStageOpenFile_DefaultApp(t *testing.T) {
+	cap := lookupCapability(t, "open_file")
+	dir := t.TempDir()
+	real := filepath.Join(dir, "x.png")
+	if err := os.WriteFile(real, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := stageOpenFile(context.Background(), cap, map[string]any{"file": real})
+	if err != nil {
+		t.Fatalf("stageOpenFile (default app): %v", err)
+	}
+	if plan.Inverse != nil {
+		t.Error("default-app open offers no targeted undo: Inverse should be nil")
+	}
+	wantArgs := []string{"--", real}
+	if plan.Forward.Binary != "open" || !reflect.DeepEqual(plan.Forward.Args, wantArgs) {
+		t.Errorf("forward = %s %v, want open %v", plan.Forward.Binary, plan.Forward.Args, wantArgs)
+	}
+	if !strings.Contains(plan.Preview, "default application") {
+		t.Errorf("preview should mention the default application: %q", plan.Preview)
+	}
+}
+
+// TestStageOpenFile_ReadsAppParam is the regression guarding that the named-app
+// branch reads the "app" parameter (not "name"): a flag-like app must fail with
+// the leading-dash message, which only happens if the value was actually read and
+// validated. A param-name mix-up would instead yield a generic "is required".
+func TestStageOpenFile_ReadsAppParam(t *testing.T) {
+	cap := lookupCapability(t, "open_file")
+	dir := t.TempDir()
+	real := filepath.Join(dir, "x.png")
+	if err := os.WriteFile(real, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := stageOpenFile(context.Background(), cap, map[string]any{"file": real, "app": "-e"})
+	if err == nil || !strings.Contains(err.Error(), "must not begin with '-'") {
+		t.Errorf("expected the leading-dash app error (proving the app param was read), got %v", err)
 	}
 }
 
