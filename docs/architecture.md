@@ -65,7 +65,7 @@ flowchart TD
         Txn["internal/transaction<br/><b>staging substrate</b><br/>req_ store · undo_ store<br/>(TTL, one-shot tokens)"]
     end
 
-    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · sort · head · mkdir · rmdir<br/>defaults · osascript · open · mdfind · lpstat · lp<br/>networksetup · system_profiler · pmset · sqlite3 · lsappinfo"]
+    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · sort · head · mkdir · rmdir<br/>defaults · osascript · open · mdfind · lpstat · lp<br/>networksetup · system_profiler · pmset · sqlite3 · lsappinfo · plutil · mdimport"]
     Builtin["purpose-written Go builders<br/>pwd · largest_files (pure Go)<br/>search_mail · find_contact · calendar/reminders/messages reads<br/>app/printer/system reads (compose a trusted binary in-process)"]
 
     Client -- "JSON-RPC over stdio" --> ServerPkg
@@ -325,6 +325,7 @@ Access requirement and the read-only, injection-safe query posture).
 | `search_applications`       | `/usr/bin/mdfind`    | read-only        | "Find the app with 'note' in its name."          |
 | `list_running_applications` | `/usr/bin/osascript` | read-only        | "What's open right now?"                          |
 | `open_application`          | `/usr/bin/open`      | reversible *     | "Open Notes." (runs immediately)                 |
+| `open_file`                 | `/usr/bin/open`      | reversible       | "Open Leah.png in Preview." (staged — confirm)   |
 | `focus_application`         | `/usr/bin/osascript` | irreversible     | "Bring Safari to the front." (runs immediately)  |
 | `quit_application`          | `/usr/bin/osascript` | irreversible     | "Quit Mail." (staged — confirm first)            |
 
@@ -339,6 +340,21 @@ System Events AppleScript probe, so it never trips an Automation permission prom
 on this otherwise-low-friction action. `quit_application` stays staged because
 unsaved work could be lost. Focusing/quitting drive the app through `osascript`
 and so need Automation permission the first time.
+
+`open_file` opens a specific file in a specific app (e.g. a PNG in Preview). It is
+**always staged** — every open waits for confirmation — and the preview tells you
+whether the app actually handles the file's type, so you confirm with full context.
+The check is read-only and Spotlight-independent: it reads the app bundle's
+`Info.plist` document-type declarations with `plutil` (the extensions and UTIs it
+opens) and the file's own type with `mdimport -t -d1` (used in preference to
+`mdls`, which fails on files the Spotlight index hasn't seen). A match on the
+file's extension or exact UTI yields a clean "Open X in Y" preview; a confident
+mismatch, or an inconclusive result (the app declares no document types, can't be
+located, or the file's type can't be read), prepends a warning that the file may
+not be supported. The verdict only shapes the preview text — the staged
+forward/undo commands are identical regardless — so the confirmation gate is the
+single place the open is allowed or abandoned. Reversibility mirrors
+`open_application`: undo quits the app only if it wasn't already running.
 
 ### `printer`
 

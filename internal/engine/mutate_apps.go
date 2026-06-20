@@ -25,6 +25,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -132,6 +133,100 @@ func lsappinfoListsApp(stdout, name string) bool {
 		}
 	}
 	return false
+}
+
+// stageOpenFile stages opening a file in a named application (e.g. a PNG in
+// Preview). Unlike open_application it is NOT auto-commit: every open waits behind
+// the execute confirmation gate, so nothing launches until the user approves. As
+// part of staging it asks appdocs.go whether the app actually handles the file's
+// type and folds that verdict into the preview, so the user confirms with full
+// context — a clean "Open X in Y" when supported, or a prominent warning when the
+// app may not handle the file (or when support could not be determined).
+//
+// The forward command is `open -a <app> -- <file>`. The "--" terminator keeps the
+// path from ever being read as an `open` option; validateAppName and the explicit
+// dash-leading file check below add the same belt-and-suspenders guards the other
+// path-bearing mutators (print_file) use. Reversibility mirrors open_application:
+// if the app was not already running, undo quits it; if it was, no undo is offered
+// so we never quit an app the user already had open.
+func stageOpenFile(ctx context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	file, _ := getString(in, "file")
+	if strings.TrimSpace(file) == "" {
+		return nil, fmt.Errorf("open_file: 'file' is required")
+	}
+	// A leading dash would be read as an option by `open` (and by the mdimport/
+	// plutil probes); reject it rather than rely on positional consumption.
+	if strings.HasPrefix(file, "-") {
+		return nil, fmt.Errorf("open_file: path %q begins with '-' and is not allowed; prefix it with ./", file)
+	}
+	info, err := os.Stat(file)
+	if err != nil {
+		return nil, fmt.Errorf("open_file: cannot read %q: %w", file, err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("open_file: %q is a directory, not a file", file)
+	}
+
+	app, err := validateAppName("open_file", in)
+	if err != nil {
+		return nil, err
+	}
+
+	plan := &StagedPlan{Forward: openFileForward(app, file)}
+	// Reversibility (identical rationale to stageOpenApplication): only offer an
+	// undo that quits the app when staging observed it was NOT already running.
+	running := appAlreadyRunning(ctx, app)
+	openClause := openUndoClause(app, running)
+	if !running {
+		inverse := osascriptCommand(quitScript, app)
+		plan.Inverse = &inverse
+	}
+
+	// Fold the support verdict into the preview the user will confirm.
+	plan.Preview = composeOpenFilePreview(file, app, openClause, assessFileSupport(ctx, app, file))
+	return plan, nil
+}
+
+// openFileForward builds the `open -a <app> -- <file>` command. The "--" comes
+// before the file so `open` can never read the path as one of its own options;
+// it is a pure helper (no probing) so the argv layout — specifically that the
+// path always lands AFTER the terminator as data — is unit-testable directly.
+func openFileForward(app, file string) Command {
+	return Command{Binary: "open", Args: []string{"-a", app, "--", file}}
+}
+
+// openUndoClause renders the trailing sentence of an open_file preview describing
+// what opening (and undo) will do, branching on whether the app is already running.
+func openUndoClause(app string, running bool) string {
+	if running {
+		return fmt.Sprintf("%q is already running, so it will simply be brought forward; this cannot be undone.", app)
+	}
+	return fmt.Sprintf("If %q is not already running it will be launched; undo will quit it again.", app)
+}
+
+// composeOpenFilePreview builds the human-readable preview for an open_file stage,
+// leading with any support warning so the user sees it before deciding. The
+// supported case has no warning and reads as a plain intent sentence.
+func composeOpenFilePreview(file, app, openClause string, s fileSupport) string {
+	intent := fmt.Sprintf("Open %s in %q. %s", file, app, openClause)
+	name := filepath.Base(file)
+	switch s.Level {
+	case supportUnsupported:
+		warn := fmt.Sprintf("⚠️ %q does not appear to support %q (%s); it opens",
+			app, name, s.FileType)
+		if len(s.Accepts) > 0 {
+			warn += " e.g. " + strings.Join(s.Accepts, ", ")
+		} else {
+			warn += " other types"
+		}
+		warn += ". Opening it may fail or show an error."
+		return warn + "\n\n" + intent
+	case supportUncertain:
+		return fmt.Sprintf("⚠️ Could not confirm %q supports %q (%s); it may be unsupported.\n\n%s",
+			app, name, s.Reason, intent)
+	default: // supportSupported
+		return intent
+	}
 }
 
 // stageFocusApplication stages (for immediate auto-commit) bringing an app to the
