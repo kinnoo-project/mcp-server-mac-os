@@ -141,8 +141,8 @@ func stageAppendToNote(ctx context.Context, _ registry.Capability, in map[string
 	if strings.TrimSpace(id) == "" {
 		return nil, fmt.Errorf("append_to_note: 'id' is required (from list_notes/search_notes)")
 	}
-	if text == "" {
-		return nil, fmt.Errorf("append_to_note: 'text' is required")
+	if strings.TrimSpace(text) == "" {
+		return nil, fmt.Errorf("append_to_note: 'text' is required (non-whitespace)")
 	}
 
 	title, priorBody, err := probeNoteBody(ctx, id)

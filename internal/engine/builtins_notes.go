@@ -189,7 +189,11 @@ func runReadNote(ctx context.Context, _ registry.Capability, in map[string]any) 
 	}
 	// title <sep> body; SplitN keeps a body that itself contains nothing but the
 	// (0x1f) separator intact, though HTML/plaintext never contains 0x1f.
-	parts := strings.SplitN(strings.TrimRight(res.Stdout, "\n"), asFieldSep, 2)
+	// osascript prints a single trailing newline after the returned string; strip
+	// exactly that one (TrimSuffix, not TrimRight) so a note whose plaintext
+	// intentionally ends in blank lines is not silently truncated — same rationale
+	// as probeNoteBody.
+	parts := strings.SplitN(strings.TrimSuffix(res.Stdout, "\n"), asFieldSep, 2)
 	if len(parts) != 2 {
 		return "", fmt.Errorf("read_note: unexpected probe output for id %q", id)
 	}
