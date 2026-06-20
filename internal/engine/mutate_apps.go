@@ -180,7 +180,7 @@ func stageOpenFile(ctx context.Context, _ registry.Capability, in map[string]any
 	appRaw, _ := getString(in, "app")
 	if strings.TrimSpace(appRaw) == "" {
 		return &StagedPlan{
-			Preview: fmt.Sprintf("Open %s with its default application. This cannot be undone automatically.", file),
+			Preview: fmt.Sprintf("Open file %s with its default application. This can't be undone automatically. Proceed?", file),
 			Forward: openFileForward("", file),
 			Inverse: nil,
 		}, nil
@@ -195,14 +195,14 @@ func stageOpenFile(ctx context.Context, _ registry.Capability, in map[string]any
 	// Reversibility (identical rationale to stageOpenApplication): only offer an
 	// undo that quits the app when staging observed it was NOT already running.
 	running := appAlreadyRunning(ctx, app)
-	openClause := openUndoClause(app, running)
+	undoNote := openUndoNote(running)
 	if !running {
 		inverse := osascriptCommand(quitScript, app)
 		plan.Inverse = &inverse
 	}
 
 	// Fold the support verdict into the preview the user will confirm.
-	plan.Preview = composeOpenFilePreview(file, app, openClause, assessFileSupport(ctx, app, file))
+	plan.Preview = composeOpenFilePreview(file, app, undoNote, assessFileSupport(ctx, app, file))
 	return plan, nil
 }
 
@@ -219,20 +219,25 @@ func openFileForward(app, file string) Command {
 	return Command{Binary: "open", Args: []string{"-a", app, "--", file}}
 }
 
-// openUndoClause renders the trailing sentence of an open_file preview describing
-// what opening (and undo) will do, branching on whether the app is already running.
-func openUndoClause(app string, running bool) string {
+// openUndoNote renders the short sentence describing what launching (and undo)
+// will do. Staging already knows the running state, so the phrasing is definite
+// rather than conditional.
+func openUndoNote(running bool) string {
 	if running {
-		return fmt.Sprintf("%q is already running, so it will simply be brought forward; this cannot be undone.", app)
+		return "It is already running, so it will just be brought to the front; this can't be undone."
 	}
-	return fmt.Sprintf("If %q is not already running it will be launched; undo will quit it again.", app)
+	return "It will be launched; undo will quit it again."
 }
 
-// composeOpenFilePreview builds the human-readable preview for an open_file stage,
-// leading with any support warning so the user sees it before deciding. The
-// supported case has no warning and reads as a plain intent sentence.
-func composeOpenFilePreview(file, app, openClause string, s fileSupport) string {
-	intent := fmt.Sprintf("Open %s in %q. %s", file, app, openClause)
+// composeOpenFilePreview builds the human-readable preview for an open_file stage.
+// It leads with a clear, concrete intent sentence — "Open file <path> with
+// "<app>"." — followed by the undo note and a "Proceed?" call to action, so the
+// confirmation reads naturally. When support is in doubt, a ⚠️ warning is placed
+// FIRST (on its own line) so the user sees the risk before the action.
+func composeOpenFilePreview(file, app, undoNote string, s fileSupport) string {
+	intent := fmt.Sprintf("Open file %s with %q.", file, app)
+	tail := strings.TrimSpace(strings.TrimSpace(undoNote) + " Proceed?")
+	action := strings.TrimSpace(intent + " " + tail)
 	name := filepath.Base(file)
 	switch s.Level {
 	case supportUnsupported:
@@ -244,12 +249,12 @@ func composeOpenFilePreview(file, app, openClause string, s fileSupport) string 
 			warn += " other types"
 		}
 		warn += ". Opening it may fail or show an error."
-		return warn + "\n\n" + intent
+		return warn + "\n\n" + action
 	case supportUncertain:
 		return fmt.Sprintf("⚠️ Could not confirm %q supports %q (%s); it may be unsupported.\n\n%s",
-			app, name, s.Reason, intent)
+			app, name, s.Reason, action)
 	default: // supportSupported
-		return intent
+		return action
 	}
 }
 

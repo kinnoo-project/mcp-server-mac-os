@@ -46,7 +46,8 @@ preview can warn the user. Several deliberate design choices were made:
   `.txt`/`public.plain-text` correctly does not match Preview), so the gap rarely
   bites.
 
-- **Three-way verdict, not boolean.** supported → clean "Open X in Y" preview;
+- **Three-way verdict, not boolean.** supported → clean "Open file `<path>` with
+  `<app>`. Proceed?" preview;
   unsupported (both sides read, no match) → ⚠️ warning listing what the app does
   handle; uncertain (app not located, app declares no document types, or the file's
   type could not be read) → ⚠️ "could not confirm support" warning. The verdict only

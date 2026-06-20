@@ -190,7 +190,10 @@ type infoPlistDocTypes struct {
 //
 // declaredAny lets the caller distinguish "app opens nothing we recognise" from
 // "app makes no claim about file types" — the latter is reported as uncertain
-// rather than unsupported.
+// rather than unsupported. It is true only when at least one extension or UTI was
+// actually extracted: an app can carry CFBundleDocumentTypes entries that name no
+// extensions and no UTIs (e.g. only a CFBundleTypeName), which is effectively no
+// claim at all and must not be mistaken for a confident "unsupported" mismatch.
 func appDeclaredDocTypes(ctx context.Context, bundlePath string) (exts, utis map[string]bool, declaredAny bool, err error) {
 	plutilBin, rerr := policy.ResolveBinary("plutil")
 	if rerr != nil {
@@ -229,7 +232,7 @@ func parseDocTypes(jsonBlob []byte) (exts, utis map[string]bool, declaredAny boo
 			}
 		}
 	}
-	return exts, utis, len(info.CFBundleDocumentTypes) > 0, nil
+	return exts, utis, len(exts) > 0 || len(utis) > 0, nil
 }
 
 // mdimportTypeRe extracts the UTI from `mdimport -t -d1` debug output, whose line

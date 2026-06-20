@@ -351,8 +351,10 @@ The check is read-only and Spotlight-independent: it reads the app bundle's
 `Info.plist` document-type declarations with `plutil` (the extensions and UTIs it
 opens) and the file's own type with `mdimport -t -d1` (used in preference to
 `mdls`, which fails on files the Spotlight index hasn't seen). A match on the
-file's extension or exact UTI yields a clean "Open X in Y" preview; a confident
-mismatch, or an inconclusive result (the app declares no document types, can't be
+file's extension or exact UTI yields a clean "Open file `<path>` with `<app>`.
+Proceed?" preview; a confident mismatch, or an inconclusive result (the app
+declares no document types — counted as none only when it actually names zero
+extensions and zero UTIs — or it can't be
 located, or the file's type can't be read), prepends a warning that the file may
 not be supported. The verdict only shapes the preview text — the staged
 forward/undo commands are identical regardless — so the confirmation gate is the
