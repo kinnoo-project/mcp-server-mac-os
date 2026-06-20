@@ -1,0 +1,29 @@
+[
+  {
+    "name": "capture_screen",
+    "summary": "Capture the screen to an image file and return its path, dimensions, and size. Saves into a server-owned scratch directory (the caller does not choose the destination); open the returned path to view the image. Requires the Screen Recording permission (System Settings → Privacy & Security → Screen Recording); a denied permission is reported with a grant hint. Captures the whole desktop, never a specific window or region (those are not yet supported).",
+    "category": "screenshot",
+    "binary": "screencapture",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "capture_screen",
+    "params": [
+      {
+        "name": "display",
+        "type": "int",
+        "required": false,
+        "description": "1-based index of the display to capture (1 is the main display). Omit to capture the main display.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "format",
+        "type": "enum",
+        "required": false,
+        "default": "png",
+        "enum": ["png", "jpg", "pdf", "tiff"],
+        "description": "Image file format (default: png).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]

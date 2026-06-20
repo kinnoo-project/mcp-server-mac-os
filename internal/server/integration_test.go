@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "screenshot", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 14 {
-		t.Errorf("expected exactly 14 tools (filesystem, preferences, application, printer, system, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 15 {
+		t.Errorf("expected exactly 15 tools (filesystem, preferences, application, printer, system, screenshot, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -111,6 +111,9 @@ func TestIntegration_ToolSurface(t *testing.T) {
 		if !strings.Contains(descs["system"], op) {
 			t.Errorf("system tool description missing operation %q", op)
 		}
+	}
+	if !strings.Contains(descs["screenshot"], "capture_screen") {
+		t.Errorf("screenshot tool description missing operation %q", "capture_screen")
 	}
 	for _, name := range []string{"find", "wc", "grep", "sort", "head"} {
 		if !strings.Contains(descs["pipeline"], name) {
