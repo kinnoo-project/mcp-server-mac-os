@@ -116,7 +116,7 @@ func runCaptureScreen(ctx context.Context, _ registry.Capability, in map[string]
 	return reportCapture(outPath, info.Size(), spec.decodable), nil
 }
 
-// resolveScreenshotPath decides the absolute output path and the effective image
+// resolveScreenshotPath decides the output path and the effective image
 // format from the optional caller-supplied output_path (already tilde-expanded):
 //
 //   - empty            → ~/Pictures/Screenshots/<generated-name>, format unchanged
@@ -218,8 +218,8 @@ func imageDimensions(path string) (width, height int, ok bool) {
 }
 
 // screencapturePermissionError turns a failed capture into an actionable message,
-// mirroring messagesDBError/appScriptError. An empty/zero-byte image is almost
-// always a denied Screen Recording grant, so we lead with that remedy.
+// mirroring messagesDBError/appScriptError. A missing Screen Recording grant is
+// a common cause, but stderr detail may indicate another failure.
 func screencapturePermissionError(exitCode int, stderr string) error {
 	stderr = strings.TrimSpace(stderr)
 	detail := stderr
@@ -227,7 +227,7 @@ func screencapturePermissionError(exitCode int, stderr string) error {
 		detail = fmt.Sprintf("screencapture produced no image (exit code %d)", exitCode)
 	}
 	return fmt.Errorf(
-		"capture_screen: screen capture failed (%s). The most likely cause is that this app has not been granted Screen Recording. Grant it in System Settings → Privacy & Security → Screen Recording, then try again",
+		"capture_screen: screen capture failed (%s). A common cause is missing Screen Recording permission. If needed, grant it in System Settings → Privacy & Security → Screen Recording, then try again",
 		detail,
 	)
 }
