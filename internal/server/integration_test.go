@@ -34,9 +34,10 @@ func connectClient(t *testing.T) *mcp.ClientSession {
 }
 
 // TestIntegration_ToolSurface confirms the protocol exposes one domain tool per
-// category — `filesystem` and `preferences` — alongside the three fixed
-// cross-cutting tools (`execute`, `undo`, `pipeline`), and that each domain
-// tool's description embeds its full operation menu so the model needs no
+// category — `filesystem`, `preferences`, `application-mail`,
+// `application-calendar`, and `application-reminders` — alongside the three
+// fixed cross-cutting tools (`execute`, `undo`, `pipeline`), and that each
+// domain tool's description embeds its full operation menu so the model needs no
 // separate discovery call.
 func TestIntegration_ToolSurface(t *testing.T) {
 	cs := connectClient(t)
@@ -49,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 5 {
-		t.Errorf("expected exactly 5 tools (filesystem, preferences, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 13 {
+		t.Errorf("expected exactly 13 tools (filesystem, preferences, application, printer, system, application-mail, application-calendar, application-reminders, application-phone, application-messages, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -66,13 +67,53 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	if !strings.Contains(descs["preferences"], "write_setting") {
 		t.Errorf("preferences tool description missing operation %q", "write_setting")
 	}
+	for _, op := range []string{"search_mail", "send_mail"} {
+		if !strings.Contains(descs["application-mail"], op) {
+			t.Errorf("application-mail tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_calendars", "query_events", "add_event", "modify_event", "delete_event"} {
+		if !strings.Contains(descs["application-calendar"], op) {
+			t.Errorf("application-calendar tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_reminders", "add_reminder", "modify_reminder", "complete_reminder", "delete_reminder"} {
+		if !strings.Contains(descs["application-reminders"], op) {
+			t.Errorf("application-reminders tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"find_contact", "call"} {
+		if !strings.Contains(descs["application-phone"], op) {
+			t.Errorf("application-phone tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"check_messages", "search_messages", "read_conversation", "list_conversations", "send_message"} {
+		if !strings.Contains(descs["application-messages"], op) {
+			t.Errorf("application-messages tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_applications", "search_applications", "list_running_applications", "open_application", "focus_application", "quit_application"} {
+		if !strings.Contains(descs["application"], op) {
+			t.Errorf("application tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_printers", "list_print_jobs", "print_file", "print_test_page"} {
+		if !strings.Contains(descs["printer"], op) {
+			t.Errorf("printer tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"wifi_status", "list_preferred_wifi", "bluetooth_status", "power_status", "open_settings"} {
+		if !strings.Contains(descs["system"], op) {
+			t.Errorf("system tool description missing operation %q", op)
+		}
+	}
 	for _, name := range []string{"find", "wc", "grep", "sort", "head"} {
 		if !strings.Contains(descs["pipeline"], name) {
 			t.Errorf("pipeline tool description missing eligible capability %q", name)
 		}
 	}
 	eligible := eligibleCapabilitiesFromDescription(t, descs["pipeline"])
-	for _, name := range []string{"pwd", "largest_files", "mkdir", "write_setting"} {
+	for _, name := range []string{"pwd", "largest_files", "mkdir", "write_setting", "search_mail", "send_mail"} {
 		if eligible[name] {
 			t.Errorf("pipeline tool description lists ineligible capability %q as eligible", name)
 		}
@@ -100,6 +141,79 @@ func eligibleCapabilitiesFromDescription(t *testing.T, desc string) map[string]b
 		set[strings.TrimSuffix(name, ".")] = true
 	}
 	return set
+}
+
+// TestIntegration_SearchMailNoMatch calls the real application-mail domain
+// tool's search_mail operation over the protocol with a query engineered to
+// match nothing, confirming the real path works end to end without ever
+// touching real mail content (see the SAFETY note in builtins_mail_test.go
+// for why this query is safe to run for real).
+func TestIntegration_SearchMailNoMatch(t *testing.T) {
+	cs := connectClient(t)
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "application-mail",
+		Arguments: map[string]any{
+			"operation": "search_mail",
+			"params":    map[string]any{"query": "zzz-search-mail-test-token-guaranteed-no-match-9f3e7c1a"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool search_mail: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("search_mail returned error: %s", textOf(res))
+	}
+	if !strings.Contains(textOf(res), "No mail found") {
+		t.Errorf("expected a clean no-results message, got %q", textOf(res))
+	}
+}
+
+// TestIntegration_SendMailStageOnly calls the real application-mail domain
+// tool's send_mail operation and confirms staging returns a token + preview.
+//
+// SAFETY: this deliberately stops at staging and NEVER calls execute.
+// send_mail is irreversible — there is no synthetic/disposable target the
+// way mkdir's temp directory or write_setting's synthetic allowlist entry
+// provide. Calling execute on a staged send_mail plan would send a real
+// email with no way to undo it, so no test anywhere in this suite may do
+// that.
+func TestIntegration_SendMailStageOnly(t *testing.T) {
+	cs := connectClient(t)
+	dir := t.TempDir()
+	attachment := filepath.Join(dir, "itinerary.pdf")
+	if err := os.WriteFile(attachment, []byte("fake pdf bytes"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	staged, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "application-mail",
+		Arguments: map[string]any{
+			"operation": "send_mail",
+			"params": map[string]any{
+				"to":          []any{"test-recipient@example.com"},
+				"subject":     "integration test — never sent",
+				"body":        "This plan must never be executed by any test.",
+				"attachments": []any{attachment},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool stage send_mail: %v", err)
+	}
+	if staged.IsError {
+		t.Fatalf("stage send_mail returned error: %s", textOf(staged))
+	}
+	text := textOf(staged)
+	if !strings.Contains(text, "STAGED") {
+		t.Errorf("expected a STAGED preview, got: %s", text)
+	}
+	if !strings.Contains(text, "cannot be undone") {
+		t.Errorf("expected the irreversibility warning in the preview, got: %s", text)
+	}
+	if !strings.Contains(text, "Attachments: itinerary.pdf") {
+		t.Errorf("expected the attachment filename in the preview, got: %s", text)
+	}
+	_ = extractToken(t, text, "req_") // fails the test if no token is present
 }
 
 // TestIntegration_PipelineFindThenWc drives a real two-stage pipeline over the
@@ -241,6 +355,42 @@ func TestDefaultsAllowlist_MatchesManifestEnum(t *testing.T) {
 	for i := range manifestEnum {
 		if manifestEnum[i] != engineKeys[i] {
 			t.Fatalf("manifest enum and engine allowlist diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
+		}
+	}
+}
+
+// TestSettingsPanes_MatchManifestEnum guards against the open_settings pane list
+// being declared twice (once as the manifest's "pane" enum, once as the engine's
+// settingsPaneURLs map) and the two drifting apart — which would let the enum
+// admit a pane the engine has no URL for, or hide a URL the model can never reach.
+func TestSettingsPanes_MatchManifestEnum(t *testing.T) {
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatalf("registry.Load(): %v", err)
+	}
+	capability, ok := reg.Lookup("open_settings")
+	if !ok {
+		t.Fatal("open_settings capability not found in registry")
+	}
+	var manifestEnum []string
+	for _, p := range capability.Params {
+		if p.Name == "pane" {
+			manifestEnum = p.Enum
+		}
+	}
+	if manifestEnum == nil {
+		t.Fatal("open_settings manifest entry has no 'pane' param with an enum")
+	}
+	sort.Strings(manifestEnum)
+	engineKeys := engine.SettingsPaneKeys() // already sorted
+
+	if len(manifestEnum) != len(engineKeys) {
+		t.Fatalf("manifest enum has %d panes, engine map has %d: manifest=%v engine=%v",
+			len(manifestEnum), len(engineKeys), manifestEnum, engineKeys)
+	}
+	for i := range manifestEnum {
+		if manifestEnum[i] != engineKeys[i] {
+			t.Fatalf("manifest enum and engine pane map diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
 		}
 	}
 }

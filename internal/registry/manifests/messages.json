@@ -1,0 +1,146 @@
+[
+  {
+    "name": "check_messages",
+    "summary": "List the most recent messages from Messages.app (iMessage/SMS). Optionally only unread messages from other people. Reads the local Messages database; requires Full Disk Access.",
+    "category": "application-messages",
+    "binary": "sqlite3",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "check_messages",
+    "params": [
+      {
+        "name": "unread_only",
+        "type": "bool",
+        "required": false,
+        "default": false,
+        "description": "Only show unread messages received from others (default false: show the most recent messages either way).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 20,
+        "description": "Maximum number of messages to return (default 20, maximum 50).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "search_messages",
+    "summary": "Search message text in Messages.app for a term and return matching messages, most recent first. Reads the local Messages database; requires Full Disk Access.",
+    "category": "application-messages",
+    "binary": "sqlite3",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "search_messages",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "description": "Text to search for within message bodies (case-insensitive substring).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 20,
+        "description": "Maximum number of messages to return (default 20, maximum 50).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "read_conversation",
+    "summary": "Show the recent message history with one person, identified by a phone/email handle OR a contact_name resolved via Contacts. Reads the local Messages database; requires Full Disk Access.",
+    "category": "application-messages",
+    "binary": "sqlite3",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "read_conversation",
+    "params": [
+      {
+        "name": "handle",
+        "type": "string",
+        "required": false,
+        "description": "The other party's phone number or email (e.g. as shown by check_messages/list_conversations). Provide this OR contact_name, not both.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "contact_name",
+        "type": "string",
+        "required": false,
+        "description": "Name to look up in Contacts and read the conversation with. Provide this OR handle, not both. An ambiguous name is refused with the candidates.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 30,
+        "description": "Maximum number of messages to return (default 30, maximum 50).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "list_conversations",
+    "summary": "List recent conversations in Messages.app, each with its last message and timestamp. Reads the local Messages database; requires Full Disk Access.",
+    "category": "application-messages",
+    "binary": "sqlite3",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_conversations",
+    "params": [
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 20,
+        "description": "Maximum number of conversations to return (default 20, maximum 50).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "send_message",
+    "summary": "Send an iMessage, optionally with one or more file attachments (images, PDFs, etc.). STAGED for confirmation before it is sent. Irreversible: there is no way to unsend a message. Provide the recipient as a phone/email handle OR a contact_name resolved via Contacts. Provide message text, attachments, or both.",
+    "category": "application-messages",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "high",
+    "builder": "send_message",
+    "params": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": false,
+        "description": "The message text to send. Optional when one or more attachments are supplied; at least one of text/attachments is required.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "attachments",
+        "type": "path_list",
+        "required": false,
+        "description": "Absolute or ~-relative path(s) of file(s) to send as iMessage attachments (e.g. an image or PDF); each must already exist and be a regular file. Supply the exact path — if you only know a description of where the file is (e.g. \"in Downloads\"), use the filesystem tool (ls/find) to locate it first, then pass the resolved path here.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "handle",
+        "type": "string",
+        "required": false,
+        "description": "Recipient phone number or email (iMessage handle). Provide this OR contact_name, not both.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "contact_name",
+        "type": "string",
+        "required": false,
+        "description": "Name to look up in Contacts and send to. Provide this OR handle, not both. An ambiguous name is refused with the candidates.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]

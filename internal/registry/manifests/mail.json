@@ -1,0 +1,67 @@
+[
+  {
+    "name": "search_mail",
+    "summary": "Search Mail.app's indexed content via Spotlight (subjects, senders, body text). See docs/issues/note-applescript-mail-search-deferred.md for known precision gaps (very new mail, recently-migrated archives, Junk/Spam, account-exact scoping).",
+    "category": "application-mail",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "search_mail",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "description": "Free-text search term (subject, sender, or body content). Must not begin with '-' (rejected as a safety guard, since the underlying Spotlight search would otherwise treat it as an option).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 20,
+        "description": "Maximum number of results to return (default 20, maximum 50).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "send_mail",
+    "summary": "Compose and SEND a real email via Mail.app. Irreversible: there is no undo for a sent email.",
+    "category": "application-mail",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "high",
+    "builder": "send_mail",
+    "params": [
+      {
+        "name": "to",
+        "type": "string_list",
+        "required": true,
+        "description": "Recipient email address(es).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "subject",
+        "type": "string",
+        "required": true,
+        "description": "Email subject line.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "body",
+        "type": "string",
+        "required": true,
+        "description": "Email body text.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "attachments",
+        "type": "path_list",
+        "required": false,
+        "description": "Absolute or ~-relative path(s) of file(s) to attach; each must already exist. Supply the exact path — if you only know a description of where the file is (e.g. \"in Downloads\"), use the filesystem tool (ls/find) to locate it first, then pass the resolved path here.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]

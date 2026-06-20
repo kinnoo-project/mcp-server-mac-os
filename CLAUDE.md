@@ -17,6 +17,7 @@ This project provides a highly scalable, enterprise-grade Model Context Protocol
 ## 4. Fundamental Engineering Axioms (Non-Negotiable)
 1. **Zero Stream Corruption (`os.Stdout`)**: The `os.Stdout` channel belongs strictly to the JSON-RPC messaging loop. All internal log engines (`log.Printf`), fmt print statements, process initialization output, and inner panicked stack traces MUST be routed explicitly to `os.Stderr`. Any loose string leakage to stdout will break protocol framing and crash the client interface.
 2. **Defensive Parameter Slicing**: Bypassing tokenization via shell string mapping is banned. All native utilities must be invoked via `exec.CommandContext` using explicit positional string arrays (`[]string`). Shell wrappers (`sh`, `bash`, `zsh`, `eval`) are entirely forbidden.
+   - **`osascript` / option-injection hardening (mandatory for every AppleScript-backed capability)**: passing argv to a tool via `exec.CommandContext` stops *shell* injection, but it does NOT stop *option* injection — a model-supplied value that begins with `-` can still be parsed by the target binary as one of ITS OWN flags. For `osascript` this is a code-execution hole: a value like `-e` is read as an extra `-e <statement>` and the next argument is executed as AppleScript, defeating the "data, never code" property. So any capability that shells out to `osascript` (or any other binary fed model-controlled values) MUST neutralize this before assembling argv: insert a `--` end-of-options terminator after the script source so every following value is treated strictly as the script's `on run argv` (osascript consumes the `--` and does not pass it into argv). Where a binary has no `--` terminator (e.g. `mdfind`), reject dash-leading values up front instead (see `.claude/rules/darwin-execution.md` §4). Every such capability MUST ship a regression test that feeds a flag-like value (e.g. subject `-e`) and asserts it lands as data, not as a flag — these are easy to break silently later.
 3. **Transactional Execution Loop for Mutating State**: Tools that delete, overwrite, or mutate system configurations must map to a discrete two-phase architecture: `Stage` (validates intent, calculates risk indices, signs with an ephemeral Request ID) and `Commit` (executes the staged data structure upon explicit external confirmation payload).
 4. **Code Quality**: Write modular, maintainable code by strictly following SOLID principles (Single responsibility, Open/closed, Liskov substitution, Interface segregation, Dependency inversion).
 5. **Self-Documenting Code (Always)**: All code MUST be written so that a human or a review agent can understand it without reading the surrounding implementation. This is non-negotiable for every file and every change:
@@ -42,11 +43,9 @@ The server is built around a **capability registry + a fixed engine** (the desig
 
 ### 6. Compile as a Universal 2 Binary
 
-The first Mac laptops to ship with the Apple Silicon M1 chip (announced and released in November 2020) shipped with macOS 11.0 Big Sur
+The project's **minimum supported OS is macOS 13.0 Ventura (Darwin 22)**; older releases (including Big Sur and Monterey) are not supported. Ventura re-architected System Settings, so the server relies on the modern `x-apple.systempreferences:` pane identifiers and does no per-version fallback. Treat Ventura/Darwin 22 as the floor for any binary, plist-parsing, or Settings deep-link assumption.
 
-Under the hood, the corresponding Darwin kernel version that introduced native ARM64 support for Apple Silicon is **Darwin 20.1.0**.
-
-To ensure your Go-based MCP server runs natively on both modern Apple Silicon chips (M1, M2, M3, M4) and older Intel-based Macs that are still running legacy macOS versions, you should compile your Go server into a **Universal 2 Binary**.
+To ensure your Go-based MCP server runs natively on both modern Apple Silicon chips (M1, M2, M3, M4) and Intel-based Macs (running a supported macOS version), you should compile your Go server into a **Universal 2 Binary**.
 
 Go handles this through cross-compilation environment variables. You can add a dedicated release script or modify your `.claude/skills/verify-pipeline.md` automation file to compile both targets and stitch them together using macOS’s native `lipo` tool:
 

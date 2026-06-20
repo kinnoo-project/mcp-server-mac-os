@@ -73,6 +73,11 @@ var defaultsAllowlist = map[string]defaultsSetting{
 	"global_smart_quotes":             {"NSGlobalDomain", "NSAutomaticQuoteSubstitutionEnabled", "Global: enable smart quote substitution"},
 	"global_smart_dashes":             {"NSGlobalDomain", "NSAutomaticDashSubstitutionEnabled", "Global: enable smart dash substitution"},
 	"global_period_substitution":      {"NSGlobalDomain", "NSAutomaticPeriodSubstitutionEnabled", "Global: enable double-space-to-period substitution"},
+
+	"accessibility_reduce_motion":               {"com.apple.universalaccess", "reduceMotion", "Accessibility: reduce motion (minimize animations)"},
+	"accessibility_reduce_transparency":         {"com.apple.universalaccess", "reduceTransparency", "Accessibility: reduce transparency"},
+	"accessibility_increase_contrast":           {"com.apple.universalaccess", "increaseContrast", "Accessibility: increase contrast"},
+	"accessibility_differentiate_without_color": {"com.apple.universalaccess", "differentiateWithoutColor", "Accessibility: differentiate without color"},
 }
 
 // DefaultsAllowlistKeys returns the sorted setting names defaultsAllowlist

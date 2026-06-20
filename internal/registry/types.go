@@ -189,4 +189,16 @@ type Capability struct {
 	// nothing to wire to its stdin and it would otherwise hang forever
 	// waiting for input that will never arrive.
 	AcceptsStdin bool `json:"accepts_stdin,omitempty"`
+	// AutoCommit marks a MUTATING capability that should run immediately rather
+	// than being parked behind the stage→execute token gate. It exists for
+	// benign, frequent side-effects (e.g. launching or focusing an app, opening
+	// a Settings pane) where forcing a human-approval round-trip on every call
+	// would be pure friction. The capability is still staged internally so its
+	// forward/inverse commands are computed exactly as a gated mutation's are —
+	// the server simply commits the forward command at once and, when an inverse
+	// exists, hands back an undo token. Because this bypasses the approval gate,
+	// the registry restricts it to low-stakes operations: it is rejected on a
+	// read-only capability (nothing to commit) and on any capability whose Risk
+	// is medium or high (those MUST keep the gate). See server.runDomainOperation.
+	AutoCommit bool `json:"auto_commit,omitempty"`
 }
