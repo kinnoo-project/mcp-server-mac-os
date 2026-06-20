@@ -80,6 +80,8 @@ See what's installed and what's open, and drive your apps.
 
 - *"What apps are installed?"* · *"What's open right now?"*
 - **"Open Notes."** · **"Bring Safari to the front."** *(run immediately)*
+- **"Open Leah.png in Preview."** *(previewed first — and it warns if the app may not handle that file type)*
+- **"Open this PDF."** *(no app named — opens in your default app for that type)*
 - **"Quit Mail."** *(previewed first — unsaved work matters)*
 
 ### 🖨️ Printers & ⚙️ System
