@@ -2,7 +2,7 @@
 
 Design and implementation decisions made while building the `pipeline` tool
 (`internal/engine/pipeline.go`, `internal/server/pipeline.go`), beyond what's
-already covered in README.md's [pipeline section](../../README.md#pipeline-composing-capabilities).
+already covered in the [pipeline section](../architecture.md#pipeline-composing-capabilities) of `docs/architecture.md`.
 
 1. **Read-only, binary-backed stages only — deliberately, not as a stopgap.**
    Builtins (`pwd`, `largest_files`) have no subprocess to wire a pipe to;

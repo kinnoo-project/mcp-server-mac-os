@@ -103,8 +103,8 @@ Built per `docs/issues/issue-need-eval-harness-for-tool-selection.md` (now
 resolved). Unlike everything above, this calls a real Anthropic model and is
 therefore **not free, not deterministic, and not run automatically** — it's a
 separate command (`go run ./cmd/runevals`, or `-dry-run` for the zero-cost
-validation-only path) documented in full in README.md's
-[Evals](../README.md#evals) section.
+validation-only path) documented in full in the
+[Evals](architecture.md#evals) section of `docs/architecture.md`.
 
 What IS unit-tested without any network call or API key (so it does run under
 plain `go test ./...`):
