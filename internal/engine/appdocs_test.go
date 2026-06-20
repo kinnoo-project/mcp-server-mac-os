@@ -79,6 +79,30 @@ func TestParseDocTypes_NoDeclarations(t *testing.T) {
 	}
 }
 
+// TestParseDocTypes_EmptyEntriesAreNoClaim covers the Copilot-flagged case: an app
+// can carry CFBundleDocumentTypes entries that declare neither extensions nor UTIs
+// (e.g. only a CFBundleTypeName). That is effectively no claim about file types, so
+// declaredAny must be false — otherwise assessFileSupport would treat the app as a
+// confident "unsupported" mismatch rather than "uncertain".
+func TestParseDocTypes_EmptyEntriesAreNoClaim(t *testing.T) {
+	const blob = `{
+	  "CFBundleDocumentTypes": [
+	    { "CFBundleTypeName": "Some Document", "LSHandlerRank": "Owner" },
+	    { "CFBundleTypeExtensions": [""], "LSItemContentTypes": [] }
+	  ]
+	}`
+	exts, utis, declaredAny, err := parseDocTypes([]byte(blob))
+	if err != nil {
+		t.Fatalf("parseDocTypes: %v", err)
+	}
+	if len(exts) != 0 || len(utis) != 0 {
+		t.Errorf("no extensions/UTIs should be extracted; got exts=%v utis=%v", exts, utis)
+	}
+	if declaredAny {
+		t.Error("entries with no extensions/UTIs are no claim at all: declaredAny must be false")
+	}
+}
+
 func TestAppSupportsFile(t *testing.T) {
 	preview, previewUTIs, _, _ := parseDocTypes([]byte(previewDocTypesJSON))
 	editor, editorUTIs, _, _ := parseDocTypes([]byte(editorDocTypesJSON))

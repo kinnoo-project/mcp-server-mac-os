@@ -257,8 +257,11 @@ func TestComposeOpenFilePreview(t *testing.T) {
 	if strings.Contains(supported, "⚠️") {
 		t.Errorf("supported preview must carry no warning: %q", supported)
 	}
-	if !strings.Contains(supported, "Open /Users/me/Leah.png in \"Preview\"") {
-		t.Errorf("supported preview missing intent line: %q", supported)
+	if !strings.Contains(supported, "Open file /Users/me/Leah.png with \"Preview\".") {
+		t.Errorf("supported preview missing the concrete intent sentence: %q", supported)
+	}
+	if !strings.HasSuffix(supported, "Proceed?") {
+		t.Errorf("supported preview should end with a Proceed? call to action: %q", supported)
 	}
 
 	unsupported := composeOpenFilePreview(file, "Calculator", clause,
