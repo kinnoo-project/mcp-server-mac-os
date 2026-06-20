@@ -39,6 +39,11 @@ var builtins = map[string]BuiltinFunc{
 	"read_conversation":  runReadConversation,
 	"list_conversations": runListConversations,
 
+	"list_notes":   runListNotes,
+	"search_notes": runSearchNotes,
+	"read_note":    runReadNote,
+	"list_folders": runListFolders,
+
 	"list_applications":         runListApplications,
 	"search_applications":       runSearchApplications,
 	"list_running_applications": runListRunningApplications,
