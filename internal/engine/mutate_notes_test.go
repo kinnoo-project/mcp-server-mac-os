@@ -116,6 +116,28 @@ func TestStageCreateNote_Rejects(t *testing.T) {
 	}
 }
 
+// TestStageAppendToNote_Rejects verifies append_to_note rejects a missing id and
+// empty-or-whitespace-only text BEFORE it would run the live Notes probe, so a
+// no-op append (which would add an empty block and mislead the preview) can never
+// be staged. These cases fail at validation, so no real note is read or touched.
+func TestStageAppendToNote_Rejects(t *testing.T) {
+	cap := lookupCapability(t, "append_to_note")
+	cases := map[string]map[string]any{
+		"no id":           {"text": "something"},
+		"blank id":        {"id": "   ", "text": "something"},
+		"no text":         {"id": "x-coredata://abc"},
+		"empty text":      {"id": "x-coredata://abc", "text": ""},
+		"whitespace text": {"id": "x-coredata://abc", "text": "   \n\t "},
+	}
+	for name, params := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := stageAppendToNote(context.Background(), cap, params); err == nil {
+				t.Errorf("expected an error for %s", name)
+			}
+		})
+	}
+}
+
 // TestNoteBodyHTML_Escaping verifies HTML metacharacters in the title/body are
 // escaped (so they render as text, not markup) and newlines become <br>.
 func TestNoteBodyHTML_Escaping(t *testing.T) {

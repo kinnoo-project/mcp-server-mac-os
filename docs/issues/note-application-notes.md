@@ -50,5 +50,3 @@ exists under more than one account (e.g. iCloud *and* On My Mac), the first matc
 wins. `list_folders` lists names only, without their owning account. Multi-account
 folder disambiguation is deferred; for now a note lands in whichever same-named
 folder Notes returns first, or the default folder when none is given.
-
-**fixed**
