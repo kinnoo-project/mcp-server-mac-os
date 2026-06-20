@@ -2,8 +2,8 @@
 
 > **Talk to your Mac.** A Model Context Protocol (MCP) server that turns
 > plain-language requests into safe, native macOS actions — your files, Mail,
-> Calendar, Reminders, Messages, Contacts & calls, apps, printers, and system
-> settings — from any MCP-aware client like **Claude Code** or **Claude Desktop**.
+> Calendar, Reminders, Messages, Notes, Contacts & calls, apps, printers, and
+> system settings — from any MCP-aware client like **Claude Code** or **Claude Desktop**.
 
 [![Platform: macOS 13+](https://img.shields.io/badge/platform-macOS%2013%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
@@ -28,7 +28,7 @@ Mac without you seeing exactly what will happen first.
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **10 domains, ~47 operations**, each invokable in plain
+the Mac you already use. **11 domains, ~53 operations**, each invokable in plain
 English. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -73,6 +73,15 @@ contact name or number.
 - **"Text Bob that I'm running late."** · **"Send this PDF to Alice on iMessage."**
 - *"What's Mom's number?"*
 - **"Call Mom."** · **"FaceTime Bob."** *(names exactly who will be dialed, and how)*
+
+### 📝 Notes
+
+Find and read your notes, and jot new ones down — changes previewed and undoable.
+
+- *"What folders do I have in Notes?"* · *"Show my most recent notes."*
+- *"Find my note about the wifi password."* · *"Read the note titled 'Packing list'."*
+- **"Make a note titled 'Trip ideas' with these three places."** *(previewed; undo deletes it)*
+- **"Add 'buy sunscreen' to my packing-list note."** *(previewed; undo restores the prior contents)*
 
 ### 🚀 Apps
 
@@ -192,14 +201,14 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 10 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`, `printer`,
-`system`) plus the shared `execute`, `undo`, and `pipeline` tools. Try one of the
-prompts from [What you can do](#-what-you-can-do) and watch the model pick the
-right tool.
+You'll now have the 11 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`,
+`printer`, `system`) plus the shared `execute`, `undo`, and `pipeline` tools. Try
+one of the prompts from [What you can do](#-what-you-can-do) and watch the model
+pick the right tool.
 
 > **Note on permissions:** reading Messages needs **Full Disk Access**, and
-> automating Mail/Calendar/Reminders/Contacts/Messages needs a one-time
+> automating Mail/Calendar/Reminders/Contacts/Messages/Notes needs a one-time
 > **Automation** grant — both prompted by macOS the first time, under *System
 > Settings → Privacy & Security*. Granting once is enough.
 

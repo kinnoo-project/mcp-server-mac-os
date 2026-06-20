@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 13 {
-		t.Errorf("expected exactly 13 tools (filesystem, preferences, application, printer, system, application-mail, application-calendar, application-reminders, application-phone, application-messages, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 14 {
+		t.Errorf("expected exactly 14 tools (filesystem, preferences, application, printer, system, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -90,6 +90,11 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, op := range []string{"check_messages", "search_messages", "read_conversation", "list_conversations", "send_message"} {
 		if !strings.Contains(descs["application-messages"], op) {
 			t.Errorf("application-messages tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_notes", "search_notes", "read_note", "list_folders", "create_note", "append_to_note"} {
+		if !strings.Contains(descs["application-notes"], op) {
+			t.Errorf("application-notes tool description missing operation %q", op)
 		}
 	}
 	for _, op := range []string{"list_applications", "search_applications", "list_running_applications", "open_application", "focus_application", "quit_application"} {
