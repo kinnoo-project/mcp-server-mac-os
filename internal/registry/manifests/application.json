@@ -82,7 +82,7 @@
   },
   {
     "name": "open_file",
-    "summary": "Open a file in a specific application (e.g. a PNG or PDF in Preview). STAGED for confirmation: the preview tells you whether the app appears to support the file's type and warns when it may not. If the app was not already running, undo quits it again.",
+    "summary": "Open a file, optionally in a specific application (e.g. a PNG in Preview). With 'app' given, the preview says whether that app appears to support the file's type and warns when it may not, and undo quits the app if it wasn't already running. Omit 'app' to open the file in its default application. STAGED for confirmation either way.",
     "category": "application",
     "binary": "open",
     "reversibility": "reversible",
@@ -99,8 +99,8 @@
       {
         "name": "app",
         "type": "string",
-        "required": true,
-        "description": "The application's name to open the file with, e.g. 'Preview', 'TextEdit', 'Visual Studio Code'.",
+        "required": false,
+        "description": "The application to open the file with, e.g. 'Preview', 'TextEdit', 'Visual Studio Code'. Omit to use the file's default application.",
         "arg": { "kind": "none" }
       }
     ]

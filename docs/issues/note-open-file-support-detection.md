@@ -11,6 +11,18 @@ preview can warn the user. Several deliberate design choices were made:
   before opening an unsupported file" goal without needing a hard refusal or a
   `force`/override parameter.
 
+- **`app` is optional; omitting it uses the default handler.** A prompt like "open
+  this PDF" names no app, so `app` is optional. When it is absent the forward
+  command is just `open -- <file>`, which opens the file in whatever app macOS has
+  registered as the default for its type. That path runs no support check (the
+  default handler opens the type by definition; if there is none, `open` errors at
+  execute) and offers no undo (staging cannot know which app will launch, so there
+  is nothing specific to quit). When `app` IS given, the full named-app behavior
+  below applies. (Note: the named-app branch reads the `app` parameter — an earlier
+  draft mistakenly reused the `name`-reading validator shared with
+  open/focus/quit; `validateAppNameValue` now takes the value explicitly, and a
+  regression test pins that the `app` param is the one read.)
+
 - **`mdimport -t -d1` over `mdls` for the file's type.** `mdls` returns "could not
   find" on files the Spotlight index has not seen (verified on this machine for
   files in `~/Downloads`, `~/Desktop`, and the repo even with indexing enabled),
