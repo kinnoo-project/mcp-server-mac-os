@@ -25,8 +25,10 @@ package engine
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"mcp-server-mac-os/internal/policy"
 	"mcp-server-mac-os/internal/registry"
 )
 
@@ -41,26 +43,17 @@ const quitScript = `on run argv
 	tell application (item 1 of argv) to quit
 end run`
 
-// appRunningProbeScript reports whether a process with the given name is
-// currently running, as "running" or "stopped". It is read-only and used at
-// stage time so open_application can decide whether quitting is a valid inverse.
-const appRunningProbeScript = `on run argv
-	tell application "System Events"
-		if (exists process (item 1 of argv)) then
-			return "running"
-		else
-			return "stopped"
-		end if
-	end tell
-end run`
-
 // stageOpenApplication stages (for immediate auto-commit) launching an app. The
 // forward command is `open -a <name>`, which both launches a stopped app and
-// brings a running one to the front. Whether an undo is offered depends on a
-// read-only probe of the app's current state: if it was NOT already running, the
-// inverse quits it; if it was already running (or the probe could not determine
-// state), no inverse is set, so undo can never quit an app the user already had
-// open.
+// brings a running one to the front. Whether an undo is offered depends on
+// whether the app is already running: if it was NOT already running, the inverse
+// quits it; if it was already running (or we could not determine state), no
+// inverse is set, so undo can never quit an app the user already had open.
+//
+// The running check uses Launch Services (`lsappinfo`), NOT a System Events
+// AppleScript probe. The AppleScript route would trip an Automation permission
+// prompt on first use, which would block this otherwise-low-friction auto-commit
+// operation; `lsappinfo` needs no such grant.
 func stageOpenApplication(ctx context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
 	name, err := validateAppName("open_application", in)
 	if err != nil {
@@ -69,19 +62,11 @@ func stageOpenApplication(ctx context.Context, _ registry.Capability, in map[str
 
 	forward := Command{Binary: "open", Args: []string{"-a", name}}
 
-	// Probe prior state to decide on a safe inverse. A probe failure (e.g.
-	// Automation access not yet granted) is non-fatal: launching does not need
-	// that permission, so we simply proceed without an undo.
-	wasRunning := true // default to "no undo" if we cannot tell
-	if res, perr := runOsascript(ctx, appRunningProbeScript, name); perr == nil && res.ExitCode == 0 {
-		wasRunning = strings.TrimSpace(res.Stdout) != "stopped"
-	}
-
 	plan := &StagedPlan{
 		Forward: forward,
 	}
-	if wasRunning {
-		plan.Preview = fmt.Sprintf("Open %q (it appears to be running already, so it will simply be brought to the front). This cannot be undone.", name)
+	if appAlreadyRunning(ctx, name) {
+		plan.Preview = fmt.Sprintf("Open %q (it appears to be running already, so it will simply be brought to the front).", name)
 		plan.Inverse = nil
 	} else {
 		plan.Preview = fmt.Sprintf("Launch %q. Undo will quit it again.", name)
@@ -89,6 +74,64 @@ func stageOpenApplication(ctx context.Context, _ registry.Capability, in map[str
 		plan.Inverse = &inverse
 	}
 	return plan, nil
+}
+
+// appAlreadyRunning reports whether an application matching name is currently
+// running, using Launch Services via `lsappinfo list` (no Automation grant
+// required, unlike a System Events probe).
+//
+// It deliberately biases toward "running" on any uncertainty — an unreadable
+// listing, or a name we cannot confidently match returns true — because the only
+// consequence of a true result is that open_application offers no undo. A false
+// "stopped" would be the dangerous error: it would let undo quit an app the user
+// already had open, so we never guess in that direction.
+func appAlreadyRunning(ctx context.Context, name string) bool {
+	bin, err := policy.ResolveBinary("lsappinfo")
+	if err != nil {
+		return true // cannot check → assume running → no undo offered
+	}
+	res, err := runCommand(ctx, bin, "list")
+	if err != nil || res.ExitCode != 0 {
+		return true
+	}
+	return lsappinfoListsApp(res.Stdout, name)
+}
+
+// lsappinfoListsApp is the pure matching half of appAlreadyRunning, split out so
+// it can be unit-tested against captured `lsappinfo list` output. It reports
+// whether name (an `open -a` target — a display name or a bundle name, matched
+// case-insensitively like `open -a` itself) appears among the running apps.
+//
+// `lsappinfo list` prints, per running app, a header line carrying the quoted
+// display name (e.g. `12) "Safari" ASN:...`) and a `bundle path="/…/Safari.app"`
+// line. We collect both forms — display name and `.app` bundle basename — so a
+// caller passing either spelling matches.
+func lsappinfoListsApp(stdout, name string) bool {
+	want := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(name, ".app")))
+	if want == "" {
+		return true // nothing sensible to match → err toward "running"
+	}
+	for _, line := range splitNonEmptyLines(stdout) {
+		line = strings.TrimSpace(line)
+		// Display name: the first double-quoted token on a header line.
+		if open := strings.Index(line, `"`); open >= 0 {
+			if close := strings.Index(line[open+1:], `"`); close >= 0 {
+				display := line[open+1 : open+1+close]
+				if strings.EqualFold(display, want) {
+					return true
+				}
+			}
+		}
+		// Bundle path: match the `.app` bundle's basename.
+		if strings.HasPrefix(line, `bundle path="`) {
+			path := strings.TrimSuffix(strings.TrimPrefix(line, `bundle path="`), `"`)
+			base := strings.TrimSuffix(filepath.Base(path), ".app")
+			if strings.EqualFold(base, want) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // stageFocusApplication stages (for immediate auto-commit) bringing an app to the

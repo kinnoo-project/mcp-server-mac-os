@@ -39,7 +39,7 @@ const appBundleQuery = "kMDItemContentType == 'com.apple.application-bundle'"
 func runListApplications(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
 	filter, _ := getString(in, "name_contains")
 	limit := boundedLimit(in, defaultListAppsLimit)
-	return listApps(ctx, filter, limit)
+	return listApps(ctx, "list_applications", filter, limit)
 }
 
 // runSearchApplications is the focused counterpart to runListApplications: the
@@ -50,7 +50,7 @@ func runSearchApplications(ctx context.Context, _ registry.Capability, in map[st
 		return "", fmt.Errorf("search_applications: 'query' is required")
 	}
 	limit := boundedLimit(in, defaultSearchAppLimit)
-	return listApps(ctx, query, limit)
+	return listApps(ctx, "search_applications", query, limit)
 }
 
 // boundedLimit reads an optional "limit" parameter, applying the given default
@@ -71,7 +71,12 @@ func boundedLimit(in map[string]any, def int) int {
 // renders a bounded, alphabetically sorted listing. Filtering in Go (rather than
 // in the mdfind query) is deliberate: it keeps untrusted text out of mdfind,
 // which has no option terminator to neutralise a dash-leading value.
-func listApps(ctx context.Context, filter string, limit int) (string, error) {
+//
+// op is the calling operation's name ("list_applications" or
+// "search_applications"); it is threaded through only so an mdfind failure is
+// reported against the operation the caller actually invoked rather than a
+// hard-coded one.
+func listApps(ctx context.Context, op, filter string, limit int) (string, error) {
 	mdfindBin, err := policy.ResolveBinary("mdfind")
 	if err != nil {
 		return "", err
@@ -81,7 +86,7 @@ func listApps(ctx context.Context, filter string, limit int) (string, error) {
 		return "", err
 	}
 	if res.ExitCode != 0 {
-		return "", fmt.Errorf("list_applications: mdfind exited %d: %s", res.ExitCode, strings.TrimSpace(res.Stderr))
+		return "", fmt.Errorf("%s: mdfind exited %d: %s", op, res.ExitCode, strings.TrimSpace(res.Stderr))
 	}
 	return renderAppList(res.Stdout, filter, limit), nil
 }

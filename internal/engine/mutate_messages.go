@@ -69,14 +69,17 @@ func stageSendMessage(ctx context.Context, _ registry.Capability, in map[string]
 	// Validate attachment paths for real before staging: each must exist and be
 	// a regular file. This is the same read-only-probe-before-staging discipline
 	// send_mail uses, and it also guarantees the script's `as alias` coercion
-	// (which fails on a missing file) won't blow up at commit time.
+	// (which fails on a missing file) won't blow up at commit time. We require a
+	// regular file specifically — not merely "not a directory" — so non-regular
+	// objects (device nodes, sockets, FIFOs) are rejected here with a clear error
+	// rather than failing opaquely in AppleScript at commit time.
 	for _, path := range attachments {
 		info, err := os.Stat(path)
 		if err != nil {
 			return nil, fmt.Errorf("send_message: attachment %q: %w", path, err)
 		}
-		if info.IsDir() {
-			return nil, fmt.Errorf("send_message: attachment %q is a directory, not a file", path)
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("send_message: attachment %q is not a regular file", path)
 		}
 	}
 
