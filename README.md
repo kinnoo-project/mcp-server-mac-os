@@ -93,6 +93,15 @@ See what's installed and what's open, and drive your apps.
 - **"Open this PDF."** *(no app named — opens in your default app for that type)*
 - **"Quit Mail."** *(previewed first — unsaved work matters)*
 
+### 📸 Screenshots
+
+Give the assistant eyes on your screen — it captures the desktop to an image file
+and hands back the path (plus size and dimensions) so it can look at what you see.
+
+- *"Take a screenshot."* · *"Grab a screenshot of my second display as a JPG."*
+- Saved into a server-owned folder; needs the **Screen Recording** permission, and
+  says so plainly if it isn't granted yet.
+
 ### 🖨️ Printers & ⚙️ System
 
 Check hardware and network status, print, and jump straight to the right Settings
@@ -201,16 +210,17 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 11 domain tools (`filesystem`, `preferences`, `application`,
+You'll now have the 12 domain tools (`filesystem`, `preferences`, `application`,
 `application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`,
-`printer`, `system`) plus the shared `execute`, `undo`, and `pipeline` tools. Try
-one of the prompts from [What you can do](#-what-you-can-do) and watch the model
-pick the right tool.
+`printer`, `system`, `screenshot`) plus the shared `execute`, `undo`, and
+`pipeline` tools. Try one of the prompts from
+[What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
-> **Note on permissions:** reading Messages needs **Full Disk Access**, and
-> automating Mail/Calendar/Reminders/Contacts/Messages/Notes needs a one-time
-> **Automation** grant — both prompted by macOS the first time, under *System
-> Settings → Privacy & Security*. Granting once is enough.
+> **Note on permissions:** reading Messages needs **Full Disk Access**, taking
+> screenshots needs **Screen Recording**, and automating
+> Mail/Calendar/Reminders/Contacts/Messages/Notes needs a one-time **Automation**
+> grant — all prompted by macOS the first time, under *System Settings → Privacy &
+> Security*. Granting once is enough.
 
 ---
 
