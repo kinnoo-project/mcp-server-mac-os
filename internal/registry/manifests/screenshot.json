@@ -1,13 +1,20 @@
 [
   {
     "name": "capture_screen",
-    "summary": "Capture the screen to an image file and return its path, dimensions, and size. Saves into a server-owned scratch directory (the caller does not choose the destination); open the returned path to view the image. Requires the Screen Recording permission (System Settings → Privacy & Security → Screen Recording); a denied permission is reported with a grant hint. Captures the whole desktop, never a specific window or region (those are not yet supported).",
+    "summary": "Capture the screen to an image file and return its path, dimensions, and size. Saves to ~/Pictures/Screenshots by default; pass output_path to save elsewhere. Open the returned path to view the image. Requires the Screen Recording permission (System Settings → Privacy & Security → Screen Recording); a denied permission is reported with a grant hint. Captures the whole desktop, never a specific window or region (those are not yet supported).",
     "category": "screenshot",
     "binary": "screencapture",
     "reversibility": "read_only",
     "risk": "low",
     "builder": "capture_screen",
     "params": [
+      {
+        "name": "output_path",
+        "type": "path",
+        "required": false,
+        "description": "Where to save the screenshot. If it is an existing directory (e.g. ~/Desktop), the file is created inside it with a generated name. Otherwise it is the full file path (e.g. ~/Desktop/login.png), and its parent folder is created if needed. A recognized image extension here sets the format. Supports a leading ~. Refuses to overwrite an existing file. Omit to save to ~/Pictures/Screenshots.",
+        "arg": { "kind": "none" }
+      },
       {
         "name": "display",
         "type": "int",

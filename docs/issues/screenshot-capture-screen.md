@@ -18,13 +18,22 @@ Design choices worth recording:
   Recording in System Settings → Privacy & Security" hint, mirroring
   `messagesDBError`/`appScriptError`.
 
-- **The output path is server-generated, never model-chosen.** Every capture lands
-  at `/tmp/mcp-fallback/screenshots/screen-<timestamp>.<ext>` (under the existing
-  `/tmp/mcp-fallback` scratch convention). Because the path is an absolute string
-  the server builds, there is no model-controlled positional and therefore no
-  dash-leading path-injection surface — the only model inputs are a typed `display`
-  int (validated `>= 1`) and a `format` enum (allowlisted by the registry). The
-  timestamp carries nanoseconds so rapid successive captures never collide.
+- **Default location is `~/Pictures/Screenshots`; the caller may override it.**
+  An early version saved to `/tmp/mcp-fallback/screenshots`, but `/tmp` on macOS is
+  cleaned by `/usr/libexec/tmp_cleaner` (a launchd job at midnight) and isn't where
+  a user looks for a screenshot, so the default moved to a durable, discoverable
+  `~/Pictures/Screenshots` (created on first use). The optional `output_path` param
+  lets the user pick a destination in the same prompt: an existing directory gets a
+  generated filename inside it; anything else is treated as a full file path (parent
+  created if missing), with a recognized image extension on the name overriding the
+  `format` param. Captures are **create-only** — `output_path` refuses to overwrite
+  an existing file — which keeps the operation safely in the read-only lane (no
+  destructive side effect, so no stage→execute gate). The path is still guarded:
+  `resolveScreenshotPath` rejects a leading `-` (the same option-injection guard
+  `mkdir`/`open_file` use, since the path is screencapture's trailing operand) and
+  an unsupported extension; `display` is a typed int (validated `>= 1`) and `format`
+  an allowlisted enum. Generated filenames carry a nanosecond timestamp so rapid
+  successive captures never collide.
 
 - **Classified `read_only` / `low` risk despite writing a file.** The only side
   effect is creating a fresh artifact in a server-owned scratch directory the
