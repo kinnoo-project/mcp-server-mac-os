@@ -88,6 +88,8 @@ var mutators = map[string]Mutator{
 	"delete_reminder":   stageDeleteReminder,
 	"call":              stageCall,
 	"send_message":      stageSendMessage,
+	"create_note":       stageCreateNote,
+	"append_to_note":    stageAppendToNote,
 	"open_application":  stageOpenApplication,
 	"open_file":         stageOpenFile,
 	"focus_application": stageFocusApplication,
