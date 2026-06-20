@@ -299,7 +299,12 @@ the same ambiguity refusal).
 
 `send_message` sends an iMessage through Messages.app and, like `send_mail`, is
 **irreversible** — it goes through the stage → execute confirmation gate with the
-recipient and full text shown verbatim, and offers no undo. See
+recipient and full text shown verbatim, and offers no undo. It takes an optional
+`attachments` parameter (one or more file paths — an image, PDF, etc.); each is
+sent as an iMessage attachment, and the `text` is optional when at least one
+attachment is supplied (so you can send a file with no caption). Each attachment
+path is verified to exist and be a regular file before the plan is staged, and
+the preview lists the attachments by filename. See
 `docs/issues/note-imessage-applescript-send.md` (Messages' scripting `send` is
 version-sensitive) and `docs/issues/note-messages-read-fda.md` (the Full-Disk-
 Access requirement and the read-only, injection-safe query posture).
@@ -678,7 +683,7 @@ internal/
       calendar.json            #   list_calendars/query_events/add_event/modify_event/delete_event as JSON data
       reminders.json           #   list/add/modify/complete/delete_reminder as JSON data
       phone.json               #   find_contact (read) + call (irreversible) as JSON data
-      messages.json            #   check/search/read_conversation/list_conversations + send_message as JSON data
+      messages.json            #   check/search/read_conversation/list_conversations + send_message (irreversible, optional attachments) as JSON data
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
@@ -700,7 +705,7 @@ internal/
     mutate_calendar.go         #   add/modify/delete_event mutators (reversible; probe-then-stage)
     mutate_reminders.go        #   add/modify/complete/delete_reminder mutators (reversible; probe-then-stage)
     mutate_phone.go            #   call mutator: validates number, builds tel:/facetime: URL, open (irreversible)
-    mutate_messages.go         #   send_message mutator: fixed Messages AppleScript via osascript (irreversible)
+    mutate_messages.go         #   send_message mutator: fixed Messages AppleScript via osascript (irreversible, optional file attachments)
     pipeline.go                #   RunPipeline: chains read-only, binary-backed stages (see "pipeline" above)
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where
