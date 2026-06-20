@@ -81,6 +81,31 @@
     ]
   },
   {
+    "name": "open_file",
+    "summary": "Open a file, optionally in a specific application (e.g. a PNG in Preview). With 'app' given, the preview says whether that app appears to support the file's type and warns when it may not, and undo quits the app if it wasn't already running. Omit 'app' to open the file in its default application. STAGED for confirmation either way.",
+    "category": "application",
+    "binary": "open",
+    "reversibility": "reversible",
+    "risk": "low",
+    "builder": "open_file",
+    "params": [
+      {
+        "name": "file",
+        "type": "path",
+        "required": true,
+        "description": "Path to the file to open (a leading ~ is expanded), e.g. '~/Downloads/Leah.png'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "app",
+        "type": "string",
+        "required": false,
+        "description": "The application to open the file with, e.g. 'Preview', 'TextEdit', 'Visual Studio Code'. Omit to use the file's default application.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
     "name": "focus_application",
     "summary": "Bring an already-running (or launchable) application to the front and give it focus. Runs immediately; cannot be undone. Requires permission to control the target app.",
     "category": "application",
