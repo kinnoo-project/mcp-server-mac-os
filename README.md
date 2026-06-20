@@ -505,8 +505,9 @@ is rejected on a read-only capability and on anything risk `medium`/`high`, so
 paper-consuming prints and lossy quits stay behind the confirmation gate.
 Today's auto-commit operations are `open_application`, `focus_application`, and
 `open_settings`. Each operation line in a domain tool's menu states its lane —
-"runs immediately", "runs immediately; reversible via undo", or "STAGED — confirm
-with the user, then execute" — so the model knows what a call will do up front.
+"runs immediately", "runs immediately; may return an undo token", or "STAGED —
+confirm with the user, then execute" — so the model knows what a call will do up
+front.
 
 Three mutators exist today:
 - **`mkdir`** — forward is `mkdir -- <path>`, inverse is `rmdir -- <path>` (which

@@ -49,9 +49,14 @@ func domainToolDescription(category string, caps []registry.Capability) string {
 // the model knows up front whether a call runs immediately or returns a token to
 // confirm. The three lanes mirror server.runDomainOperation's dispatch:
 //   - read-only operations run immediately and return their output;
-//   - auto-commit mutations also run immediately, and offer an undo token when
-//     the change is reversible;
+//   - auto-commit mutations also run immediately, and MAY return an undo token
+//     when the change turns out to be reversible;
 //   - every other mutation is STAGED behind the `execute` confirmation step.
+//
+// The auto-commit lane deliberately hedges ("may return an undo token"): some
+// reversible-category operations still omit an inverse at stage time — e.g.
+// open_application offers no undo when it finds the app was already running — so
+// promising an undo unconditionally would overstate the guarantee to the model.
 func executionLane(c registry.Capability) string {
 	switch {
 	case c.Reversibility == registry.ReadOnly:
@@ -59,7 +64,7 @@ func executionLane(c registry.Capability) string {
 	case c.AutoCommit && c.Reversibility == registry.Irreversible:
 		return "runs immediately; cannot be undone"
 	case c.AutoCommit:
-		return "runs immediately; reversible via undo"
+		return "runs immediately; may return an undo token"
 	default:
 		return "STAGED — confirm with the user, then execute"
 	}

@@ -4,11 +4,12 @@
 // as DATA after the osascript "--" terminator, never as a flag.
 //
 // SAFETY: no test executes a StagedPlan, so no app is ever launched, focused, or
-// quit. stageOpenApplication's success path is intentionally NOT unit-tested
-// because it runs a live System Events probe (which can block on an Automation
-// permission prompt); only its pre-probe validation is exercised here. The
-// forward/inverse construction is instead covered through focus/quit, which take
-// the same name through the same osascript path.
+// quit. stageOpenApplication's success path is not unit-tested as a whole because
+// it shells out to `lsappinfo` to decide on an undo; only its pre-check
+// validation is exercised here, plus the pure `lsappinfo list` matcher
+// (lsappinfoListsApp) directly. The forward/inverse construction is otherwise
+// covered through focus/quit, which take the same name through the same osascript
+// path.
 package engine
 
 import (
@@ -96,6 +97,40 @@ func TestStageOpen_RejectsBadName(t *testing.T) {
 	}
 	if _, err := stageOpenApplication(context.Background(), openCapability(t), map[string]any{"name": ""}); err == nil {
 		t.Error("an empty app name should be rejected")
+	}
+}
+
+// sampleLsappinfo mimics `lsappinfo list` output: a numbered header line bearing
+// the quoted display name, followed by indented detail lines including the bundle
+// path. Two apps are listed to exercise both the display-name and bundle-basename
+// match paths.
+const sampleLsappinfo = ` 12) "Safari" ASN:0x0-0xa00a:
+    bundleID="com.apple.Safari"
+    bundle path="/Applications/Safari.app"
+    executable path="/Applications/Safari.app/Contents/MacOS/Safari"
+
+ 13) "Google Chrome" ASN:0x0-0xb00b:
+    bundleID="com.google.Chrome"
+    bundle path="/Applications/Google Chrome.app"
+`
+
+func TestLsappinfoListsApp(t *testing.T) {
+	cases := []struct {
+		name string
+		want bool
+	}{
+		{"Safari", true},        // exact display name
+		{"safari", true},        // case-insensitive, like `open -a`
+		{"Safari.app", true},    // bundle-name spelling with extension
+		{"Google Chrome", true}, // display name with a space
+		{"Notes", false},        // not running
+		{"Saf", false},          // partial must NOT match (avoid bogus undo)
+		{"", true},              // empty → err toward "running"/no undo
+	}
+	for _, c := range cases {
+		if got := lsappinfoListsApp(sampleLsappinfo, c.name); got != c.want {
+			t.Errorf("lsappinfoListsApp(%q) = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 

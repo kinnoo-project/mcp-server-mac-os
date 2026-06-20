@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"mcp-server-mac-os/internal/registry"
@@ -153,6 +154,22 @@ func TestStageSendMessage_RejectsDirAttachment(t *testing.T) {
 		"handle": "5551234567", "attachments": []string{dir},
 	}); err == nil {
 		t.Error("expected an error when an attachment path is a directory")
+	}
+}
+
+// TestStageSendMessage_RejectsNonRegularAttachment verifies a non-regular
+// filesystem object (here a FIFO) is refused at stage time rather than allowed
+// through to fail opaquely in AppleScript: attachments must be regular files, not
+// merely "not directories".
+func TestStageSendMessage_RejectsNonRegularAttachment(t *testing.T) {
+	fifo := filepath.Join(t.TempDir(), "pipe")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Skipf("cannot create FIFO on this platform: %v", err)
+	}
+	if _, err := stageSendMessage(context.Background(), sendMessageCapability(t), map[string]any{
+		"handle": "5551234567", "attachments": []string{fifo},
+	}); err == nil {
+		t.Error("expected an error when an attachment path is not a regular file")
 	}
 }
 

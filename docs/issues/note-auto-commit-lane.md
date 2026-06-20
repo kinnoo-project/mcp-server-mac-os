@@ -20,7 +20,7 @@ Design:
   token in the same response (see `server.autoCommitMutation`). The reversibility
   guarantee ("what runs is what was staged") is preserved.
 - Each operation line in a domain tool's menu states its lane ("runs
-  immediately", "runs immediately; reversible via undo", or "STAGED — confirm
+  immediately", "runs immediately; may return an undo token", or "STAGED — confirm
   with the user, then execute") via `server.executionLane`.
 
 Today's auto-commit operations: `open_application`, `focus_application` (the

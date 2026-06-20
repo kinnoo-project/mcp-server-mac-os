@@ -28,6 +28,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -213,10 +214,17 @@ func (s *Server) autoCommitMutation(ctx context.Context, category string, c regi
 		return errorResult("%s.%s: %v", category, c.Name, err)
 	}
 
+	// Lead with the human-readable account of what happened. Stage already
+	// computed a preview ("Open the X pane of System Settings", "Launch X"), and
+	// for these operations the raw command output is frequently empty (open and
+	// activate succeed silently), so without the preview the caller would get a
+	// bare "Done: <name>" with no description of the effect.
+	describe := composeAutoCommitDescription(plan.Preview, out)
+
 	// An irreversible auto-commit (e.g. focusing an app) carries no inverse, so
 	// there is nothing to offer an undo for.
 	if plan.Inverse == nil {
-		return textResult(fmt.Sprintf("%s\n\nDone: %s. This cannot be undone.", out, c.Name))
+		return textResult(fmt.Sprintf("%s\n\nDone: %s. This cannot be undone.", describe, c.Name))
 	}
 
 	undoToken, err := s.undo.Put(*plan.Inverse)
@@ -224,12 +232,30 @@ func (s *Server) autoCommitMutation(ctx context.Context, category string, c regi
 		// The change already happened; we just can't register an undo for it.
 		return textResult(fmt.Sprintf(
 			"%s\n\nDone: %s, but could not register an undo (%v); it cannot be reversed automatically.",
-			out, c.Name, err))
+			describe, c.Name, err))
 	}
 	return textResult(fmt.Sprintf(
 		"%s\n\nDone: %s. To reverse it, call the `undo` tool with undo_token %q.",
-		out, c.Name, undoToken,
+		describe, c.Name, undoToken,
 	))
+}
+
+// composeAutoCommitDescription joins an operation's staged preview with whatever
+// the forward command printed, dropping either part when it is empty so the
+// result never has dangling blank lines. The preview comes first because it is
+// the readable account of intent; command output (often empty for open/activate
+// operations) follows only when there is something to show.
+func composeAutoCommitDescription(preview, out string) string {
+	preview = strings.TrimSpace(preview)
+	out = strings.TrimSpace(out)
+	switch {
+	case preview != "" && out != "":
+		return preview + "\n\n" + out
+	case out != "":
+		return out
+	default:
+		return preview
+	}
 }
 
 // stageMutation validates and stages a mutating operation, returning the token +
