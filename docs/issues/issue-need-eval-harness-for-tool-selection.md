@@ -72,7 +72,7 @@ via the same in-process harness as the integration tests
 (`server.Connect`, factored out for this reuse), `forbid_tools` as the
 auto-confirm guard, capped-round-trip loop detection mirroring the original
 `largest_files` incident, and a `-dry-run` mode for free iteration. See
-README.md's [Evals](../../README.md#evals) section for usage and
-`docs/TESTS.md` for how this fits alongside the regular test suite.
+the [Evals](../architecture.md#evals) section of `docs/architecture.md` for usage
+and `docs/TESTS.md` for how this fits alongside the regular test suite.
 
 **status: resolved — harness built, 14 initial cases, claude-sonnet-4-6 only**
