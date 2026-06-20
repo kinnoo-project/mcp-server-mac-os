@@ -55,6 +55,8 @@ var builtins = map[string]BuiltinFunc{
 	"list_preferred_wifi": runListPreferredWifi,
 	"bluetooth_status":    runBluetoothStatus,
 	"power_status":        runPowerStatus,
+
+	"capture_screen": runCaptureScreen,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
