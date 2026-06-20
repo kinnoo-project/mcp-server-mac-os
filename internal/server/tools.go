@@ -28,6 +28,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -185,7 +186,76 @@ func (s *Server) runDomainOperation(ctx context.Context, category string, in Dom
 		}
 		return textResult(out)
 	}
+	// A mutation marked auto_commit is a benign, low-stakes side-effect that runs
+	// at once instead of waiting behind the execute token (the registry already
+	// confined this to none/low risk). Everything else is STAGED for explicit
+	// human approval.
+	if c.AutoCommit {
+		return s.autoCommitMutation(ctx, category, c, in.Params)
+	}
 	return s.stageMutation(ctx, category, c, in.Params)
+}
+
+// autoCommitMutation stages a mutation and immediately commits it, skipping the
+// human-approval token gate that stageMutation imposes. It still goes through the
+// engine's Stage step so the forward and inverse commands are computed exactly as
+// they would be for a gated mutation — the only difference is that the forward
+// command runs now rather than on a later `execute` call. When the operation is
+// reversible, its inverse is registered under a fresh undo token so the change can
+// still be rolled back, mirroring what Execute returns for a committed plan.
+func (s *Server) autoCommitMutation(ctx context.Context, category string, c registry.Capability, params map[string]any) (*mcp.CallToolResult, any, error) {
+	plan, err := s.eng.Stage(ctx, c, params)
+	if err != nil {
+		return errorResult("%s.%s: %v", category, c.Name, err)
+	}
+
+	out, err := s.eng.RunCommand(ctx, plan.Forward)
+	if err != nil {
+		return errorResult("%s.%s: %v", category, c.Name, err)
+	}
+
+	// Lead with the human-readable account of what happened. Stage already
+	// computed a preview ("Open the X pane of System Settings", "Launch X"), and
+	// for these operations the raw command output is frequently empty (open and
+	// activate succeed silently), so without the preview the caller would get a
+	// bare "Done: <name>" with no description of the effect.
+	describe := composeAutoCommitDescription(plan.Preview, out)
+
+	// An irreversible auto-commit (e.g. focusing an app) carries no inverse, so
+	// there is nothing to offer an undo for.
+	if plan.Inverse == nil {
+		return textResult(fmt.Sprintf("%s\n\nDone: %s. This cannot be undone.", describe, c.Name))
+	}
+
+	undoToken, err := s.undo.Put(*plan.Inverse)
+	if err != nil {
+		// The change already happened; we just can't register an undo for it.
+		return textResult(fmt.Sprintf(
+			"%s\n\nDone: %s, but could not register an undo (%v); it cannot be reversed automatically.",
+			describe, c.Name, err))
+	}
+	return textResult(fmt.Sprintf(
+		"%s\n\nDone: %s. To reverse it, call the `undo` tool with undo_token %q.",
+		describe, c.Name, undoToken,
+	))
+}
+
+// composeAutoCommitDescription joins an operation's staged preview with whatever
+// the forward command printed, dropping either part when it is empty so the
+// result never has dangling blank lines. The preview comes first because it is
+// the readable account of intent; command output (often empty for open/activate
+// operations) follows only when there is something to show.
+func composeAutoCommitDescription(preview, out string) string {
+	preview = strings.TrimSpace(preview)
+	out = strings.TrimSpace(out)
+	switch {
+	case preview != "" && out != "":
+		return preview + "\n\n" + out
+	case out != "":
+		return out
+	default:
+		return preview
+	}
 }
 
 // stageMutation validates and stages a mutating operation, returning the token +

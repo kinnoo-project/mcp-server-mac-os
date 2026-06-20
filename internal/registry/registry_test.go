@@ -147,6 +147,14 @@ func TestNew_Rejects(t *testing.T) {
 		{"flag kind without flag", func(c *Capability) {
 			c.Params[0].Arg = ArgRule{Kind: ArgFlag} // no Flag token
 		}},
+		// auto_commit is only legal on a low-stakes mutation: never on a
+		// read-only capability, never on a medium/high-risk one.
+		{"auto_commit on read_only", func(c *Capability) { c.AutoCommit = true }}, // validCapability is read_only
+		{"auto_commit high risk", func(c *Capability) {
+			c.Reversibility = Reversible
+			c.Risk = RiskHigh
+			c.AutoCommit = true
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -156,6 +164,19 @@ func TestNew_Rejects(t *testing.T) {
 				t.Fatalf("expected validation error for %q, got nil", tc.name)
 			}
 		})
+	}
+}
+
+// TestNew_AcceptsAutoCommit confirms a low-stakes mutation may opt into the
+// auto-commit lane: a reversible, low-risk capability with auto_commit set must
+// pass validation (the boundary the rejection cases guard the other side of).
+func TestNew_AcceptsAutoCommit(t *testing.T) {
+	c := validCapability()
+	c.Reversibility = Reversible
+	c.Risk = RiskLow
+	c.AutoCommit = true
+	if _, err := New([]Capability{c}); err != nil {
+		t.Fatalf("New rejected a valid auto_commit capability: %v", err)
 	}
 }
 

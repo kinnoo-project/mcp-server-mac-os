@@ -111,3 +111,62 @@ func TestDomain_RejectsUnknownParam(t *testing.T) {
 		t.Fatal("expected IsError for unknown parameter")
 	}
 }
+
+// TestDomain_AutoCommitRunsImmediately confirms the auto-commit lane: a mutating
+// capability marked auto_commit runs at once (no staged token), performs the
+// change, and still returns an undo token when the change is reversible.
+//
+// It uses a hand-built registry whose sole capability is the real `mkdir` mutator
+// re-tagged as a low-risk auto-commit operation, so the test exercises the
+// server's dispatch lane against genuine engine machinery while writing only to a
+// temp directory.
+func TestDomain_AutoCommitRunsImmediately(t *testing.T) {
+	reg, err := registry.New([]registry.Capability{{
+		Name:          "auto_mkdir",
+		Summary:       "Create a directory immediately (test auto-commit).",
+		Category:      "filesystem",
+		Binary:        "mkdir",
+		Reversibility: registry.Reversible,
+		Risk:          registry.RiskLow,
+		Builder:       "mkdir",
+		AutoCommit:    true,
+		Params: []registry.ParamSpec{
+			{Name: "path", Type: registry.TypePath, Required: true, Description: "Directory to create.", Arg: registry.ArgRule{Kind: registry.ArgNone}},
+		},
+	}})
+	if err != nil {
+		t.Fatalf("registry.New(): %v", err)
+	}
+	s, err := New(reg, engine.New())
+	if err != nil {
+		t.Fatalf("server.New(): %v", err)
+	}
+
+	target := filepath.Join(t.TempDir(), "made-now")
+	res, _, _ := s.runDomainOperation(context.Background(), "filesystem", DomainArgs{
+		Operation: "auto_mkdir",
+		Params:    map[string]any{"path": target},
+	})
+	if res.IsError {
+		t.Fatalf("auto_mkdir returned error: %s", textOf(res))
+	}
+	// The change must have happened immediately — no execute step.
+	if info, err := os.Stat(target); err != nil || !info.IsDir() {
+		t.Fatalf("auto-commit should have created the directory immediately; stat err = %v", err)
+	}
+	// A reversible auto-commit must offer an undo token, not a staged req_ token.
+	text := textOf(res)
+	if strings.Contains(text, "STAGED") {
+		t.Errorf("auto-commit must not STAGE; got: %s", text)
+	}
+	undoToken := extractToken(t, text, "undo_")
+
+	// And that undo token must actually reverse the change.
+	undone, _, _ := s.Undo(context.Background(), nil, UndoArgs{UndoToken: undoToken})
+	if undone.IsError {
+		t.Fatalf("undo returned error: %s", textOf(undone))
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("undo should have removed the directory; stat err = %v", err)
+	}
+}
