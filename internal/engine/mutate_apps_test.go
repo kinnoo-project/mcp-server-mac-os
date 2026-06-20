@@ -14,6 +14,9 @@ package engine
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"mcp-server-mac-os/internal/registry"
@@ -131,6 +134,98 @@ func TestLsappinfoListsApp(t *testing.T) {
 		if got := lsappinfoListsApp(sampleLsappinfo, c.name); got != c.want {
 			t.Errorf("lsappinfoListsApp(%q) = %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// TestOpenFileForward_PathIsDataAfterTerminator is the open_file option-injection
+// regression for the `open` command: the file path must always land AFTER the "--"
+// terminator so it can never be read as one of open's own flags.
+func TestOpenFileForward_PathIsDataAfterTerminator(t *testing.T) {
+	cmd := openFileForward("Preview", "/Users/me/Leah.png")
+	if cmd.Binary != "open" {
+		t.Fatalf("expected open command, got %q", cmd.Binary)
+	}
+	termAt := -1
+	for i, a := range cmd.Args {
+		if a == "--" {
+			termAt = i
+			break
+		}
+	}
+	if termAt < 0 {
+		t.Fatalf("no -- terminator in %v", cmd.Args)
+	}
+	if termAt+1 >= len(cmd.Args) || cmd.Args[termAt+1] != "/Users/me/Leah.png" {
+		t.Errorf("file path must be the first value after --; got args %v", cmd.Args)
+	}
+	if cmd.Args[0] != "-a" || cmd.Args[1] != "Preview" {
+		t.Errorf("app must be passed via -a; got args %v", cmd.Args)
+	}
+}
+
+// TestStageOpenFile_Validation exercises the checks that short-circuit BEFORE any
+// live probing (so the test never touches mdfind/plutil/mdimport): a missing file
+// param, a flag-like path (the option-injection regression — a "-e" file is
+// refused, never forwarded), a non-existent file, a directory, and a bad app name.
+func TestStageOpenFile_Validation(t *testing.T) {
+	cap := lookupCapability(t, "open_file")
+	dir := t.TempDir()
+	real := filepath.Join(dir, "x.png")
+	if err := os.WriteFile(real, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name   string
+		params map[string]any
+	}{
+		{"missing file", map[string]any{"app": "Preview"}},
+		{"empty file", map[string]any{"file": "   ", "app": "Preview"}},
+		{"flag-like file", map[string]any{"file": "-e", "app": "Preview"}},
+		{"nonexistent file", map[string]any{"file": filepath.Join(dir, "nope.png"), "app": "Preview"}},
+		{"directory", map[string]any{"file": dir, "app": "Preview"}},
+		{"missing app", map[string]any{"file": real}},
+		{"flag-like app", map[string]any{"file": real, "app": "-e"}},
+	}
+	for _, c := range cases {
+		if _, err := stageOpenFile(context.Background(), cap, c.params); err == nil {
+			t.Errorf("%s: expected an error, got nil", c.name)
+		}
+	}
+}
+
+// TestComposeOpenFilePreview checks that each support verdict produces the right
+// shape of preview: a clean intent line when supported, and a leading ⚠️ warning
+// (carrying the file name) when unsupported or uncertain.
+func TestComposeOpenFilePreview(t *testing.T) {
+	clause := "undo will quit it again."
+	file := "/Users/me/Leah.png"
+
+	supported := composeOpenFilePreview(file, "Preview", clause,
+		fileSupport{Level: supportSupported, FileType: "public.png"})
+	if strings.Contains(supported, "⚠️") {
+		t.Errorf("supported preview must carry no warning: %q", supported)
+	}
+	if !strings.Contains(supported, "Open /Users/me/Leah.png in \"Preview\"") {
+		t.Errorf("supported preview missing intent line: %q", supported)
+	}
+
+	unsupported := composeOpenFilePreview(file, "Calculator", clause,
+		fileSupport{Level: supportUnsupported, FileType: "public.png", Accepts: []string{".calc"}})
+	if !strings.HasPrefix(unsupported, "⚠️") {
+		t.Errorf("unsupported preview must lead with a warning: %q", unsupported)
+	}
+	if !strings.Contains(unsupported, "Leah.png") || !strings.Contains(unsupported, ".calc") {
+		t.Errorf("unsupported preview should name the file and what the app accepts: %q", unsupported)
+	}
+
+	uncertain := composeOpenFilePreview(file, "Mystery", clause,
+		fileSupport{Level: supportUncertain, FileType: "public.png", Reason: "could not determine the file's type"})
+	if !strings.HasPrefix(uncertain, "⚠️") {
+		t.Errorf("uncertain preview must lead with a warning: %q", uncertain)
+	}
+	if !strings.Contains(uncertain, "could not determine the file's type") {
+		t.Errorf("uncertain preview should carry the reason: %q", uncertain)
 	}
 }
 
