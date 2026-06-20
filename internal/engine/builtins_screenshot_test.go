@@ -53,14 +53,18 @@ func TestScreencaptureArgs_Golden(t *testing.T) {
 }
 
 // TestCaptureScreen_RejectsBadInput verifies capture_screen fails fast — before
-// it ever launches screencapture — on an unsupported format or a non-positive
-// display index. These cases return at validation, so no subprocess runs.
+// it ever launches screencapture — on bad input: an unsupported format, a
+// non-positive display, a dash-leading output_path (the option-injection guard),
+// and an output_path with an unsupported extension. These all return during
+// validation/path-resolution, so no subprocess runs.
 func TestCaptureScreen_RejectsBadInput(t *testing.T) {
 	cap := lookupCapability(t, "capture_screen")
 	cases := map[string]map[string]any{
-		"bad format":       {"format": "bmp"},
-		"zero display":     {"format": "png", "display": 0},
-		"negative display": {"format": "png", "display": -1},
+		"bad format":        {"format": "bmp"},
+		"zero display":      {"format": "png", "display": 0},
+		"negative display":  {"format": "png", "display": -1},
+		"dash-leading path": {"format": "png", "output_path": "-oops.png"},
+		"unsupported ext":   {"format": "png", "output_path": "/tmp/x.webp"},
 	}
 	for name, params := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -68,6 +72,100 @@ func TestCaptureScreen_RejectsBadInput(t *testing.T) {
 				t.Errorf("expected an error for %s", name)
 			}
 		})
+	}
+}
+
+// TestResolveScreenshotPath covers the output_path resolution rules: the default
+// location, an existing directory (filename generated inside), a full file path
+// whose extension drives the format (incl. the jpeg→jpg alias), a path with no
+// extension (format's extension appended), and the unsupported-extension and
+// dash-leading rejections.
+func TestResolveScreenshotPath(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir: %v", err)
+	}
+	dir := t.TempDir() // a real existing directory
+
+	t.Run("default location", func(t *testing.T) {
+		path, format, err := resolveScreenshotPath("", "png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantDir := filepath.Join(home, "Pictures", "Screenshots")
+		if filepath.Dir(path) != wantDir || format != "png" || !strings.HasSuffix(path, ".png") {
+			t.Errorf("default = %q (format %q), want a generated .png under %q", path, format, wantDir)
+		}
+	})
+
+	t.Run("existing directory generates name inside", func(t *testing.T) {
+		path, format, err := resolveScreenshotPath(dir, "jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if filepath.Dir(path) != dir || format != "jpg" || !strings.HasSuffix(path, ".jpg") {
+			t.Errorf("dir target = %q (format %q), want generated .jpg under %q", path, format, dir)
+		}
+	})
+
+	t.Run("full path extension wins over format", func(t *testing.T) {
+		in := filepath.Join(dir, "shot.jpg")
+		path, format, err := resolveScreenshotPath(in, "png") // png param, .jpg path
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != in || format != "jpg" {
+			t.Errorf("got %q/%q, want %q/jpg (extension should win)", path, format, in)
+		}
+	})
+
+	t.Run("jpeg alias maps to jpg", func(t *testing.T) {
+		in := filepath.Join(dir, "shot.jpeg")
+		path, format, err := resolveScreenshotPath(in, "png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != in || format != "jpg" {
+			t.Errorf("got %q/%q, want %q/jpg", path, format, in)
+		}
+	})
+
+	t.Run("no extension appends format extension", func(t *testing.T) {
+		in := filepath.Join(dir, "shot")
+		path, format, err := resolveScreenshotPath(in, "png")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if path != in+".png" || format != "png" {
+			t.Errorf("got %q/%q, want %q/png", path, format, in+".png")
+		}
+	})
+
+	t.Run("unsupported extension rejected", func(t *testing.T) {
+		if _, _, err := resolveScreenshotPath(filepath.Join(dir, "x.webp"), "png"); err == nil {
+			t.Error("expected an error for an unsupported extension")
+		}
+	})
+
+	t.Run("dash-leading rejected", func(t *testing.T) {
+		if _, _, err := resolveScreenshotPath("-x.png", "png"); err == nil {
+			t.Error("expected an error for a dash-leading output_path")
+		}
+	})
+}
+
+// TestCaptureScreen_RefusesOverwrite verifies a capture aimed at an already
+// existing file fails before screencapture runs, preserving the create-only (and
+// thus read-only-safe) contract. The error path runs entirely on a temp file.
+func TestCaptureScreen_RefusesOverwrite(t *testing.T) {
+	existing := filepath.Join(t.TempDir(), "taken.png")
+	if err := os.WriteFile(existing, []byte("not empty"), 0o644); err != nil {
+		t.Fatalf("seed file: %v", err)
+	}
+	cap := lookupCapability(t, "capture_screen")
+	_, err := runCaptureScreen(context.Background(), cap, map[string]any{"format": "png", "output_path": existing})
+	if err == nil || !strings.Contains(err.Error(), "overwrite") {
+		t.Errorf("expected an overwrite-refusal error, got %v", err)
 	}
 }
 

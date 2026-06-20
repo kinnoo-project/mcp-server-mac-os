@@ -99,8 +99,10 @@ Give the assistant eyes on your screen — it captures the desktop to an image f
 and hands back the path (plus size and dimensions) so it can look at what you see.
 
 - *"Take a screenshot."* · *"Grab a screenshot of my second display as a JPG."*
-- Saved into a server-owned folder; needs the **Screen Recording** permission, and
-  says so plainly if it isn't granted yet.
+- *"Screenshot my screen and save it to ~/Desktop/login.png."* *(say where, or it
+  defaults to `~/Pictures/Screenshots`; it won't overwrite an existing file)*
+- Needs the **Screen Recording** permission, and says so plainly if it isn't
+  granted yet.
 
 ### 🖨️ Printers & ⚙️ System
 
