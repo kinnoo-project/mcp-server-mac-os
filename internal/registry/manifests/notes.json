@@ -1,0 +1,146 @@
+[
+  {
+    "name": "list_notes",
+    "summary": "List notes from Notes.app, most recently modified first. Returns each note's id — pass that id to read_note or append_to_note. Optionally restrict to one folder. Drives Notes via AppleScript; the first use may prompt for Automation access to Notes.",
+    "category": "application-notes",
+    "binary": "osascript",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_notes",
+    "params": [
+      {
+        "name": "folder",
+        "type": "string",
+        "required": false,
+        "description": "Restrict to a single folder by exact name (see list_folders). Omit to list across all folders.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 25,
+        "description": "Maximum number of notes to return (default 25, maximum 100).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "search_notes",
+    "summary": "Search notes in Notes.app whose title or body contains a term (case-insensitive), most recently modified first. Returns each match's id. Optionally restrict to one folder, which is recommended on a large Notes library: the search reads each scanned note's full body, so scoping to a folder bounds that work. Drives Notes via AppleScript; the first use may prompt for Automation access to Notes.",
+    "category": "application-notes",
+    "binary": "osascript",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "search_notes",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "description": "Text to search for within a note's title or body (case-insensitive substring).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "folder",
+        "type": "string",
+        "required": false,
+        "description": "Restrict the search to a single folder by exact name (see list_folders). Omit to search across all folders. Recommended on large libraries to bound how many note bodies are read.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 25,
+        "description": "Maximum number of notes to return (default 25, maximum 100).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "read_note",
+    "summary": "Read a single note's full plain-text contents, identified by its id (from list_notes/search_notes). A locked (password-protected) note returns a placeholder rather than its contents. Drives Notes via AppleScript; the first use may prompt for Automation access to Notes.",
+    "category": "application-notes",
+    "binary": "osascript",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "read_note",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The note's id, as returned by list_notes or search_notes.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "list_folders",
+    "summary": "List the note folders in Notes.app by name, so a valid folder can be chosen for create_note. Drives Notes via AppleScript; the first use may prompt for Automation access to Notes.",
+    "category": "application-notes",
+    "binary": "osascript",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_folders",
+    "params": []
+  },
+  {
+    "name": "create_note",
+    "summary": "Create a note in Notes.app with a title and optional body, in a named folder or the default folder. STAGED for confirmation; undo deletes the created note (matched by its title).",
+    "category": "application-notes",
+    "binary": "osascript",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "create_note",
+    "params": [
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "description": "The note's title (becomes the first, bold line of the note).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "body",
+        "type": "string",
+        "required": false,
+        "description": "Optional note body text. Newlines are preserved as line breaks.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "folder",
+        "type": "string",
+        "required": false,
+        "description": "Exact name of the folder to create the note in (see list_folders). Omit to use the default folder.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "append_to_note",
+    "summary": "Append text to an existing note in Notes.app, identified by its id (from list_notes/search_notes). STAGED for confirmation; undo restores the note's previous contents. A locked note cannot be appended to.",
+    "category": "application-notes",
+    "binary": "osascript",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "append_to_note",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The note's id, as returned by list_notes or search_notes.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "description": "Text to append to the note as a new block. Newlines are preserved as line breaks.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]

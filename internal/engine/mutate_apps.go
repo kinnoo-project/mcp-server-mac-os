@@ -25,6 +25,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -134,6 +135,129 @@ func lsappinfoListsApp(stdout, name string) bool {
 	return false
 }
 
+// stageOpenFile stages opening a file, optionally in a named application (e.g. a
+// PNG in Preview). Unlike open_application it is NOT auto-commit: every open waits
+// behind the execute confirmation gate, so nothing launches until the user
+// approves.
+//
+// # Two shapes
+//
+//   - With "app": the forward command is `open -a <app> -- <file>`. Staging asks
+//     appdocs.go whether the app actually handles the file's type and folds that
+//     verdict into the preview — a clean "Open X in Y" when supported, or a
+//     prominent warning when it may not be (or when support could not be
+//     determined). Reversibility mirrors open_application: if the app was not
+//     already running, undo quits it; if it was, no undo is offered so we never
+//     quit an app the user already had open.
+//   - Without "app": the forward command is `open -- <file>`, which opens the file
+//     in whatever application macOS has registered as the default handler for its
+//     type. No support check is needed (the default handler opens the type by
+//     definition; if there is none, `open` itself errors on execute), and no undo
+//     is offered because staging cannot know which app will be launched.
+//
+// The "--" terminator keeps the path from ever being read as an `open` option;
+// validateAppNameValue and the explicit dash-leading file check below add the same
+// belt-and-suspenders guards the other path-bearing mutators (print_file) use.
+func stageOpenFile(ctx context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	file, _ := getString(in, "file")
+	if strings.TrimSpace(file) == "" {
+		return nil, fmt.Errorf("open_file: 'file' is required")
+	}
+	// A leading dash would be read as an option by `open` (and by the mdimport/
+	// plutil probes); reject it rather than rely on positional consumption.
+	if strings.HasPrefix(file, "-") {
+		return nil, fmt.Errorf("open_file: path %q begins with '-' and is not allowed; prefix it with ./", file)
+	}
+	info, err := os.Stat(file)
+	if err != nil {
+		return nil, fmt.Errorf("open_file: cannot read %q: %w", file, err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("open_file: %q is a directory, not a file", file)
+	}
+
+	// No app named → open with the system default handler.
+	appRaw, _ := getString(in, "app")
+	if strings.TrimSpace(appRaw) == "" {
+		return &StagedPlan{
+			Preview: fmt.Sprintf("Open file %s with its default application. This can't be undone automatically. Proceed?", file),
+			Forward: openFileForward("", file),
+			Inverse: nil,
+		}, nil
+	}
+
+	app, err := validateAppNameValue("open_file", "app", appRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	plan := &StagedPlan{Forward: openFileForward(app, file)}
+	// Reversibility (identical rationale to stageOpenApplication): only offer an
+	// undo that quits the app when staging observed it was NOT already running.
+	running := appAlreadyRunning(ctx, app)
+	undoNote := openUndoNote(running)
+	if !running {
+		inverse := osascriptCommand(quitScript, app)
+		plan.Inverse = &inverse
+	}
+
+	// Fold the support verdict into the preview the user will confirm.
+	plan.Preview = composeOpenFilePreview(file, app, undoNote, assessFileSupport(ctx, app, file))
+	return plan, nil
+}
+
+// openFileForward builds the `open` command for opening a file. With app empty it
+// is `open -- <file>` (the default-handler form); otherwise `open -a <app> --
+// <file>`. The "--" always precedes the file so `open` can never read the path as
+// one of its own options. It is a pure helper (no probing) so the argv layout —
+// specifically that the path always lands AFTER the terminator as data — is
+// unit-testable directly.
+func openFileForward(app, file string) Command {
+	if app == "" {
+		return Command{Binary: "open", Args: []string{"--", file}}
+	}
+	return Command{Binary: "open", Args: []string{"-a", app, "--", file}}
+}
+
+// openUndoNote renders the short sentence describing what launching (and undo)
+// will do. Staging already knows the running state, so the phrasing is definite
+// rather than conditional.
+func openUndoNote(running bool) string {
+	if running {
+		return "It is already running, so it will just be brought to the front; this can't be undone."
+	}
+	return "It will be launched; undo will quit it again."
+}
+
+// composeOpenFilePreview builds the human-readable preview for an open_file stage.
+// It leads with a clear, concrete intent sentence — "Open file <path> with
+// "<app>"." — followed by the undo note and a "Proceed?" call to action, so the
+// confirmation reads naturally. When support is in doubt, a ⚠️ warning is placed
+// FIRST (on its own line) so the user sees the risk before the action.
+func composeOpenFilePreview(file, app, undoNote string, s fileSupport) string {
+	intent := fmt.Sprintf("Open file %s with %q.", file, app)
+	tail := strings.TrimSpace(strings.TrimSpace(undoNote) + " Proceed?")
+	action := strings.TrimSpace(intent + " " + tail)
+	name := filepath.Base(file)
+	switch s.Level {
+	case supportUnsupported:
+		warn := fmt.Sprintf("⚠️ %q does not appear to support %q (%s); it opens",
+			app, name, s.FileType)
+		if len(s.Accepts) > 0 {
+			warn += " e.g. " + strings.Join(s.Accepts, ", ")
+		} else {
+			warn += " other types"
+		}
+		warn += ". Opening it may fail or show an error."
+		return warn + "\n\n" + action
+	case supportUncertain:
+		return fmt.Sprintf("⚠️ Could not confirm %q supports %q (%s); it may be unsupported.\n\n%s",
+			app, name, s.Reason, action)
+	default: // supportSupported
+		return action
+	}
+}
+
 // stageFocusApplication stages (for immediate auto-commit) bringing an app to the
 // front. Focus has no meaningful inverse, so the plan is irreversible.
 func stageFocusApplication(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
@@ -168,11 +292,22 @@ func stageQuitApplication(_ context.Context, _ registry.Capability, in map[strin
 // splitting and the osascript "--" terminator); this rejects values that are
 // obviously not an application name so the failure is a clear validation error
 // rather than a confusing AppleScript or `open` error later.
+//
+// It reads the conventional "name" parameter; capabilities that carry the app
+// under a different key (open_file uses "app") call validateAppNameValue directly.
 func validateAppName(op string, in map[string]any) (string, error) {
 	name, _ := getString(in, "name")
+	return validateAppNameValue(op, "name", name)
+}
+
+// validateAppNameValue is the field-agnostic core of validateAppName: it applies
+// the same non-empty / no-leading-dash / no-control-character checks to an already
+// extracted value, naming field in the "required" error so the message matches the
+// parameter the caller actually exposes.
+func validateAppNameValue(op, field, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return "", fmt.Errorf("%s: 'name' is required", op)
+		return "", fmt.Errorf("%s: '%s' is required", op, field)
 	}
 	// A leading dash would be unusual for an app name and risks being read as a
 	// flag by `open`; reject it rather than rely on positional consumption.

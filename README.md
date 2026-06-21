@@ -2,8 +2,8 @@
 
 > **Talk to your Mac.** A Model Context Protocol (MCP) server that turns
 > plain-language requests into safe, native macOS actions — your files, Mail,
-> Calendar, Reminders, Messages, Contacts & calls, apps, printers, and system
-> settings — from any MCP-aware client like **Claude Code** or **Claude Desktop**.
+> Calendar, Reminders, Messages, Notes, Contacts & calls, apps, printers, and
+> system settings — from any MCP-aware client like **Claude Code** or **Claude Desktop**.
 
 [![Platform: macOS 13+](https://img.shields.io/badge/platform-macOS%2013%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
@@ -28,7 +28,7 @@ Mac without you seeing exactly what will happen first.
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **10 domains, ~47 operations**, each invokable in plain
+the Mac you already use. **14 domains, ~70 operations**, each invokable in plain
 English. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -74,13 +74,35 @@ contact name or number.
 - *"What's Mom's number?"*
 - **"Call Mom."** · **"FaceTime Bob."** *(names exactly who will be dialed, and how)*
 
+### 📝 Notes
+
+Find and read your notes, and jot new ones down — changes previewed and undoable.
+
+- *"What folders do I have in Notes?"* · *"Show my most recent notes."*
+- *"Find my note about the wifi password."* · *"Read the note titled 'Packing list'."*
+- **"Make a note titled 'Trip ideas' with these three places."** *(previewed; undo deletes it)*
+- **"Add 'buy sunscreen' to my packing-list note."** *(previewed; undo restores the prior contents)*
+
 ### 🚀 Apps
 
 See what's installed and what's open, and drive your apps.
 
 - *"What apps are installed?"* · *"What's open right now?"*
 - **"Open Notes."** · **"Bring Safari to the front."** *(run immediately)*
+- **"Open Leah.png in Preview."** *(previewed first — and it warns if the app may not handle that file type)*
+- **"Open this PDF."** *(no app named — opens in your default app for that type)*
 - **"Quit Mail."** *(previewed first — unsaved work matters)*
+
+### 📸 Screenshots
+
+Give the assistant eyes on your screen — it captures the desktop to an image file
+and hands back the path (plus size and dimensions) so it can look at what you see.
+
+- *"Take a screenshot."* · *"Grab a screenshot of my second display as a JPG."*
+- *"Screenshot my screen and save it to ~/Desktop/login.png."* *(say where, or it
+  defaults to `~/Pictures/Screenshots`; it won't overwrite an existing file)*
+- Needs the **Screen Recording** permission, and says so plainly if it isn't
+  granted yet.
 
 ### 🖨️ Printers & ⚙️ System
 
@@ -90,8 +112,42 @@ pane for anything that needs admin rights.
 - *"What printers do I have, and are they on?"* · *"What's in the print queue?"*
 - **"Print this PDF."** · **"Print a test page on the office laser."**
 - *"Is Wi-Fi on, and what am I joined to?"* · *"Battery level? Is Low Power Mode on?"*
-- *"Is Bluetooth on? What's connected?"*
+- *"Is Bluetooth on? What's connected, and what's paired?"*
 - **"Open System Settings to Wi-Fi."** *(opens the pane for you to finish)*
+
+### 🌐 Network & diagnostics
+
+Answer everyday network questions and let the model diagnose connectivity issues
+by composing these probes. All read-only — nothing here changes your network
+configuration.
+
+- *"What's my IP, router, and MAC address? How many devices fit on this network?"*
+- *"What DNS servers am I using?"* · *"What other devices are on my network?"*
+- *"Can you ping the router? Can you reach 8.8.8.8?"* · *"Does apple.com resolve?"*
+- *"What ports am I listening on, and which apps own them?"*
+- *"I can't reach the internet — can you diagnose it?"* *(checks the gateway, then a
+  public IP, then DNS — and tells you where it breaks)*
+
+> ℹ️ Turning Bluetooth on/off has no command line on macOS, so the model hands you
+> off to System Settings for that — it can still tell you what's connected and paired.
+
+### 📊 Processes & resources
+
+See what's running and what it costs, find runaway or zombie processes, and stop a
+misbehaving one *gracefully* — never a force-kill.
+
+- *"What's eating my CPU / memory / battery right now?"* · *"Show the top memory hogs."*
+- *"How loaded is my Mac overall?"* *(load average, per-core)* · *"How much RAM is free?"*
+- *"How busy is the GPU?"* *(whole-device — per-process GPU isn't exposed without admin rights)*
+- *"Tell me everything about PID 1234."* *(command, the binary responsible, parent,
+  origin, start time, zombie state, whether launchd auto-starts it)*
+- *"What did I install that starts automatically?"* *(launchd agents & daemons)*
+- *"Quit Safari"* / *"stop that stuck process"* — a GUI app gets the normal **Quit**
+  command (so it can prompt to save); a daemon gets a polite **SIGTERM**. Both are
+  **staged for your confirmation** and never force-killed.
+
+> ℹ️ Stopping a process is staged → you approve → it runs. We deliberately never send
+> SIGKILL (force kill), which gives a program no chance to save or clean up.
 
 ### 🎛️ Preferences & accessibility
 
@@ -190,16 +246,17 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 10 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`, `printer`,
-`system`) plus the shared `execute`, `undo`, and `pipeline` tools. Try one of the
-prompts from [What you can do](#-what-you-can-do) and watch the model pick the
-right tool.
+You'll now have the 14 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`,
+`printer`, `system`, `network`, `process`, `screenshot`) plus the shared `execute`,
+`undo`, and `pipeline` tools. Try one of the prompts from
+[What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
-> **Note on permissions:** reading Messages needs **Full Disk Access**, and
-> automating Mail/Calendar/Reminders/Contacts/Messages needs a one-time
-> **Automation** grant — both prompted by macOS the first time, under *System
-> Settings → Privacy & Security*. Granting once is enough.
+> **Note on permissions:** reading Messages needs **Full Disk Access**, taking
+> screenshots needs **Screen Recording**, and automating
+> Mail/Calendar/Reminders/Contacts/Messages/Notes needs a one-time **Automation**
+> grant — all prompted by macOS the first time, under *System Settings → Privacy &
+> Security*. Granting once is enough.
 
 ---
 
@@ -218,7 +275,7 @@ PR conventions.
 
 ## 🗺️ Roadmap
 
-The read-only foundation, the 10-domain tool surface, the
+The read-only foundation, the 14-domain tool surface, the
 stage → execute → undo mutation gate, and read-only composition (`pipeline`) are
 all in place, with mutation proved across every undo shape the design anticipated
 (fixed inverse, prior-state-dependent inverse, and genuinely irreversible).

@@ -115,15 +115,17 @@ func runBluetoothStatus(ctx context.Context, _ registry.Capability, _ map[string
 
 // renderBluetoothStatus is the pure parsing half of runBluetoothStatus, split out
 // so it can be unit-tested against a sample payload. It reads the controller
-// power state and the names of connected devices, tolerating the field's absence
-// (an older/odd profiler payload) rather than failing.
+// power state, the names of currently-connected devices, and the names of
+// devices that are paired but not connected, tolerating any field's absence (an
+// older/odd profiler payload) rather than failing.
 func renderBluetoothStatus(jsonBytes []byte) (string, error) {
 	var report struct {
 		SPBluetoothDataType []struct {
 			ControllerProperties struct {
 				State string `json:"controller_state"`
 			} `json:"controller_properties"`
-			DeviceConnected []map[string]json.RawMessage `json:"device_connected"`
+			DeviceConnected    []map[string]json.RawMessage `json:"device_connected"`
+			DeviceNotConnected []map[string]json.RawMessage `json:"device_not_connected"`
 		} `json:"SPBluetoothDataType"`
 	}
 	if err := json.Unmarshal(jsonBytes, &report); err != nil {
@@ -144,22 +146,41 @@ func renderBluetoothStatus(jsonBytes []byte) (string, error) {
 		b.WriteString("Bluetooth power state is unknown.\n")
 	}
 
-	// Each connected-device entry is a single-key object: { "<Device Name>": {...} }.
+	connected := bluetoothDeviceNames(entry.DeviceConnected)
+	if len(connected) == 0 {
+		b.WriteString("No devices are currently connected.\n")
+	} else {
+		fmt.Fprintf(&b, "%d connected device(s):\n", len(connected))
+		for _, n := range connected {
+			fmt.Fprintf(&b, "  %s\n", n)
+		}
+	}
+
+	// Paired-but-not-connected devices answer "what is paired to this Mac?".
+	paired := bluetoothDeviceNames(entry.DeviceNotConnected)
+	if len(paired) > 0 {
+		fmt.Fprintf(&b, "%d paired device(s) not currently connected:\n", len(paired))
+		for _, n := range paired {
+			fmt.Fprintf(&b, "  %s\n", n)
+		}
+	}
+
+	// Bluetooth cannot be toggled over this transport (no first-party CLI); the
+	// model should hand the user off to System Settings for that.
+	b.WriteString("(To turn Bluetooth on or off, use open_settings with pane 'bluetooth'.)")
+	return b.String(), nil
+}
+
+// bluetoothDeviceNames flattens system_profiler's device list, where each entry
+// is a single-key object: { "<Device Name>": {…} }.
+func bluetoothDeviceNames(devices []map[string]json.RawMessage) []string {
 	var names []string
-	for _, dev := range entry.DeviceConnected {
+	for _, dev := range devices {
 		for name := range dev {
 			names = append(names, name)
 		}
 	}
-	if len(names) == 0 {
-		b.WriteString("No devices are currently connected.")
-	} else {
-		fmt.Fprintf(&b, "%d connected device(s):\n", len(names))
-		for _, n := range names {
-			fmt.Fprintf(&b, "  %s\n", n)
-		}
-	}
-	return b.String(), nil
+	return names
 }
 
 // runPowerStatus reports power source, battery state, and Low Power Mode.
