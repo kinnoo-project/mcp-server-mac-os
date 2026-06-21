@@ -24,7 +24,7 @@ Verbose native system utilities can return massive data outputs that saturate an
 
 * If standard output reads exceed 32,000 bytes, trim the text array.
 * Retain the initial 16,000 bytes and trailing 16,000 bytes cleanly.
-* Inject an explicit structural message indicating exactly how many bytes were dropped during compilation processing.
+* Inject an explicit structural message indicating exactly how many bytes were dropped during compaction.
 
 ## 3. Explicit Binary Suffix & Verification Checks
 
