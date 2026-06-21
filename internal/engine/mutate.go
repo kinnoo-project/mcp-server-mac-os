@@ -77,6 +77,9 @@ type Mutator func(ctx context.Context, c registry.Capability, in map[string]any)
 // read-only (run via Run) or mutating (staged via Stage), never both.
 var mutators = map[string]Mutator{
 	"mkdir":             stageMkdir,
+	"move":              stageMove,
+	"copy":              stageCopy,
+	"remove":            stageRemove,
 	"write_setting":     stageWriteSetting,
 	"send_mail":         stageSendMail,
 	"add_event":         stageAddEvent,

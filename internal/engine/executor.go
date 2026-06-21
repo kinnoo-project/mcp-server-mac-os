@@ -23,7 +23,15 @@ import (
 // maxOutputBytes caps text returned to the MCP client so a verbose utility
 // cannot saturate the model's context window. Output beyond this is truncated
 // to a head/tail window with an explicit notice (see compactOutput).
-const maxOutputBytes = 8000
+//
+// The budget is deliberately generous relative to a single command's typical
+// output (32 KB ≈ a few hundred lines) yet still a small fraction of a modern
+// model's context window. An earlier 8 KB cap was tight enough that ordinary
+// listings (e.g. a manifest dump, a directory walk) lost their middle to
+// truncation, which both hid information and pushed callers toward retrying with
+// narrower queries; 32 KB keeps everyday output intact while still guarding
+// against a runaway multi-megabyte dump.
+const maxOutputBytes = 32000
 
 // runResult captures the outcome of a subprocess invocation in a form suitable
 // for surfacing back through MCP.
