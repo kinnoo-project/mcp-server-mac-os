@@ -10,8 +10,9 @@
 [![MCP](https://img.shields.io/badge/MCP-go--sdk%20v1.4.1-6E56CF)](https://modelcontextprotocol.io/)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-Connect it once and your AI assistant becomes a genuine **macOS command center**.
-Ask in ordinary language —
+Pair this server with an MCP-aware client like **Claude Code** or **Claude
+Desktop** and the two together become a genuine **macOS command center** — one
+place to drive your whole Mac in ordinary language. Ask —
 
 > *"What are my 10 biggest files?"* · *"Text Bob I'm running 10 minutes late."* ·
 > *"Put a dentist appointment on Thursday at 2pm."* · *"Find my tax return and
@@ -19,9 +20,13 @@ Ask in ordinary language —
 > *"Turn on Reduce Motion."*
 
 — and the model answers by calling **real, audited macOS tools**. Every action
-that *reads* runs instantly; every action that *changes something* is previewed
-and gated behind an explicit confirmation you approve. Nothing happens to your
-Mac without you seeing exactly what will happen first.
+that is *read-only* runs instantly; every action that *changes something* gives you a preview first,
+and is gated behind an explicit confirmation you approve. Nothing happens to your
+Mac without you seeing exactly what will happen first and approving the action.
+
+With a client like **Claude Desktop** or **Claude Code** that allows secure remote session access, 
+you can control your Mac device remotely from your phone or from another machine. This enables you
+to monitor and control your Mac on the go!
 
 ---
 
@@ -192,6 +197,18 @@ that trust is earned structurally, not just promised:
   Messages, Desktop/Documents/Downloads…), macOS prompts you to grant access —
   once.
 
+- **The guardrails are enforced by a security test gate.** These properties
+  aren't just promised in prose — a cross-cutting security suite proves them and
+  **must pass before every release** (CI runs it on every push). A registry-wide
+  check fails the build if the surface ever grows to reference a destructive
+  binary (`rm`, `diskutil`, `csrutil`, …) or lets an irrecoverable action skip the
+  confirmation gate; a registry-driven injection sweep proves every
+  model-controlled value lands as inert data; an end-to-end test fires SQL
+  injection at a throwaway Messages database; and token-abuse tests prove a
+  mutation can't be replayed or run unstaged. Adversarial live-model evals
+  (refusing to wipe the disk, ignoring instructions injected into files it reads)
+  round out the picture. See **[docs/TESTS.md](docs/TESTS.md)**.
+
 The complete, line-by-line threat model is in
 **[Why this server is safe to expose](docs/architecture.md#why-this-server-is-safe-to-expose)**.
 
@@ -227,8 +244,8 @@ rm bin/mcp-server-arm64 bin/mcp-server-intel
 **Claude Code:**
 
 ```bash
-claude mcp add mac-os-fs -- /absolute/path/to/bin/macos-darwin-mcp
-claude mcp list   # should show mac-os-fs connected
+claude mcp add mac-os-mcp -- /absolute/path/to/bin/macos-darwin-mcp
+claude mcp list   # should show mac-os-mcp connected
 ```
 
 **Claude Desktop** — edit
@@ -237,7 +254,7 @@ claude mcp list   # should show mac-os-fs connected
 ```json
 {
   "mcpServers": {
-    "mac-os-fs": {
+    "mac-os-mcp": {
       "command": "/absolute/path/to/bin/macos-darwin-mcp"
     }
   }
@@ -262,12 +279,80 @@ You'll now have the 14 domain tools (`filesystem`, `preferences`, `application`,
 
 ---
 
+## 📱 Remote control your Mac from your phone
+
+Here's where the command center gets genuinely powerful: you don't have to be
+sitting at the Mac. Claude Code's built-in **Remote Control** lets you drive a
+Claude session *that's running on your Mac* from the **Claude app on your phone**
+(iOS/Android) or any browser at **[claude.ai/code](https://claude.ai/code)** — and
+because the session stays on your Mac, this `mac-os-mcp` server and all its tools
+come right along with it. From the couch or the bus you can ask your Mac to find a
+file, text someone, check the print queue, or flip a setting, and watch it happen
+on the machine at home.
+
+This is a native Claude Code feature, **independent of this server** — you're
+simply reaching the local session that already has `mac-os-mcp` connected. Nothing
+about your Mac is exposed to the internet: your machine makes **outbound HTTPS only,
+opens no inbound ports**, and the session never leaves your Mac for the cloud.
+
+**What you need:** Claude Code **v2.1.51+** (`claude --version`), signed in with a
+**claude.ai account** via `/login` (Pro, Max, Team, or Enterprise — API-key logins
+aren't supported; on Team/Enterprise an admin enables it first), and this server
+already added per [Get started](#-get-started) above. Remote Control is currently a
+**research preview**.
+
+**Turn it on (on the Mac).** From your project directory, either start a dedicated
+session you steer from your phone:
+
+```bash
+claude remote-control          # prints a session URL; press space to show a QR code
+```
+
+…or flip on Remote Control for a normal interactive session you also type into
+locally:
+
+```bash
+claude --remote-control "My Mac"
+```
+
+…or, if you're already in a session, just run `/remote-control` to hand the current
+conversation off to your phone.
+
+**Connect (on the phone).** Scan the QR code to jump straight into the **Claude
+app**, or open the printed session URL in a browser, or open the Claude app / 
+[claude.ai/code](https://claude.ai/code) and pick the session from the list (in the
+mobile app, tap **Code**) — it shows a computer icon with a green dot when your Mac
+is online. The conversation stays in sync across your terminal, browser, and phone
+at once, and reconnects automatically if your Mac sleeps or the network drops.
+
+As a bonus, with Remote Control active Claude can send **push notifications** to
+your phone when a long task finishes or it needs a decision — handy when you've
+kicked something off on the Mac and walked away. Enable it under `/config`.
+
+> ⚠️ The session is a local process: if you close the terminal or quit the `claude`
+> process on your Mac, remote control ends. Full details and flags are in
+> Anthropic's **[Remote Control docs](https://code.claude.com/docs/en/remote-control)**.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are very welcome — new capabilities, better docs, eval cases, bug
 reports, and design discussion alike. The whole point of the architecture is that
 **most new operations are a JSON manifest entry, not new Go code**, so adding to
 your Mac's command center is genuinely approachable.
+
+**The guiding vision:** the model, paired with an MCP-aware client, should be able
+to do **anything a typical Mac user can do on their own machine** — every
+everyday, point-and-click or menu-bar action, expressed in plain language. A
+capability is in scope if a normal user could perform it themselves, even when it
+needs a one-time permission grant in System Settings (Full Disk Access, Automation,
+Screen Recording, and the like). What is explicitly **out of scope** is anything
+that *strictly requires admin or root privileges* — this is deliberately **not** a
+root-level sysadmin control server. If a `sudo` prompt or an administrator unlock
+is the only way to do it, it doesn't belong here (the server points you to the
+right Settings pane instead). When you propose a capability, that's the line to aim
+at: full parity with an ordinary user, and nothing that demands elevated rights.
 
 Start with **[CONTRIBUTING.md](CONTRIBUTING.md)** for the development setup, the
 build/test/lint pipeline, how to add a capability, and the project's coding and
@@ -276,6 +361,14 @@ PR conventions.
 ---
 
 ## 🗺️ Roadmap
+
+**The north star** is full parity with a human at the keyboard: every action a
+typical Mac user can perform on their own device — files, apps, communication,
+settings, hardware — reachable in plain language through your MCP client, so the
+pairing becomes a true command center for the whole machine. The one firm boundary
+is privilege: capabilities that **strictly require admin or root** are out of scope
+(see [Contributing](#-contributing)). The server widens toward everything a normal
+user can do, and stops there.
 
 The read-only foundation, the 14-domain tool surface, the
 stage → execute → undo mutation gate, and read-only composition (`pipeline`) are

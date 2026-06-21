@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // maxOutputBytes caps text returned to the MCP client so a verbose utility
@@ -32,6 +33,15 @@ import (
 // narrower queries; 32 KB keeps everyday output intact while still guarding
 // against a runaway multi-megabyte dump.
 const maxOutputBytes = 32000
+
+// defaultCommandTimeout bounds how long any single subprocess may run. Without
+// it, a request bound only to the client's context could keep a long-running
+// tool (e.g. find/du/grep rooted at "/", or a cp -R of an enormous tree) busy
+// indefinitely — a time/CPU denial of service — until the client happened to
+// cancel. The ceiling is deliberately generous: ordinary reads finish in well
+// under a second, so two minutes leaves ample room for a legitimately large scan
+// while still capping a runaway. It is a var (not a const) so tests can lower it.
+var commandTimeout = 2 * time.Minute
 
 // runResult captures the outcome of a subprocess invocation in a form suitable
 // for surfacing back through MCP.
@@ -62,13 +72,17 @@ func runCommandWithStdin(ctx context.Context, binary string, stdin []byte, args 
 }
 
 // execCommand is the shared implementation behind runCommand and
-// runCommandWithStdin. The command is bound to ctx so client cancellation
-// terminates the child. The environment is inherited so locale and timezone
-// behave like the user's shell.
+// runCommandWithStdin. The command is bound to a context derived from ctx with
+// an independent wall-clock timeout, so the child is terminated both on client
+// cancellation AND if it overruns commandTimeout. The environment is inherited
+// so locale and timezone behave like the user's shell.
 func execCommand(ctx context.Context, binary string, stdin []byte, args ...string) (*runResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(ctx, commandTimeout)
+	defer cancel()
+
 	cmd := exec.CommandContext(ctx, binary, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -80,6 +94,13 @@ func execCommand(ctx context.Context, binary string, stdin []byte, args ...strin
 	err := cmd.Run()
 	res := &runResult{Stdout: stdout.String(), Stderr: stderr.String()}
 	if err != nil {
+		// A deadline hit is checked BEFORE the ExitError branch: the timeout kills
+		// the child, which surfaces as an ExitError (signal: killed) that would
+		// otherwise be misreported as an ordinary non-zero exit. Distinguish it so
+		// the caller gets a clear "timed out" signal rather than a confusing -1.
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return res, fmt.Errorf("failed to execute %s: timed out after %s", binary, commandTimeout)
+		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
 			res.ExitCode = exitErr.ExitCode()
