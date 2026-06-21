@@ -282,12 +282,24 @@ func runPingHost(ctx context.Context, _ registry.Capability, in map[string]any) 
 	if err != nil {
 		return "", err
 	}
-	// -t bounds total runtime so a black-holed host cannot hang the request.
-	// The host is validated above and placed after "--" as defence in depth.
-	deadline := strconv.Itoa(count + 3)
-	res, err := runCommand(ctx, bin, "-c", strconv.Itoa(count), "-t", deadline, "--", host)
+	// Bound the whole probe with a context deadline rather than a ping flag.
+	// ping's own -c (packet count) and -W (per-reply wait, in milliseconds on
+	// macOS) give the normal-case bound and let it print its statistics summary;
+	// the context timeout is the backstop for a true hang — e.g. a slow name
+	// resolution, which no ping flag covers — and it ties cancellation to the
+	// request. The host is validated above and placed after "--" as defence in
+	// depth.
+	timeout := time.Duration(count+5) * time.Second
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	res, err := runCommand(runCtx, bin, "-c", strconv.Itoa(count), "-W", "2000", "--", host)
 	if err != nil {
 		return "", err
+	}
+	// The backstop fired (and it wasn't the caller cancelling the request):
+	// report the timeout as data rather than ping's signal-killed output.
+	if ctx.Err() == nil && runCtx.Err() != nil {
+		return fmt.Sprintf("Host %s did not respond within %s — treating it as unreachable.", host, timeout), nil
 	}
 	out := strings.TrimSpace(res.Stdout)
 	if out == "" {
@@ -656,9 +668,13 @@ func sweepSubnet(ctx context.Context, pingBin string, hosts []string) {
 				if ctx.Err() != nil {
 					return
 				}
-				// One probe, one-second cap. host is a computed dotted-quad,
+				// One probe with a one-second cap enforced by a per-probe
+				// context deadline (not a ping flag), so a host that never
+				// answers can't stall a worker. host is a computed dotted-quad,
 				// never model input.
-				_, _ = runCommand(ctx, pingBin, "-c", "1", "-t", "1", "--", host)
+				probeCtx, probeCancel := context.WithTimeout(ctx, time.Second)
+				_, _ = runCommand(probeCtx, pingBin, "-c", "1", "-W", "1000", "--", host)
+				probeCancel()
 			}
 		}()
 	}

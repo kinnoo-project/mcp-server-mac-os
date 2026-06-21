@@ -50,8 +50,5 @@ this round. `networksetup -setdnsservers` is reversible in principle (capture th
 prior resolver list at stage time, re-apply on undo, which fits the
 stage → commit → undo model cleanly), but it generally requires administrator
 rights, so it needs a privilege-failure-detection-and-reporting story before it
-can be shipped without hanging or failing cryptically. Tracked for a future round.
-
-**fixed**
-
-Not yet — read-only diagnostics only for now.
+can be shipped without hanging or failing cryptically. Tracked for a future round
+(no `**fixed**` marker until it actually ships — read-only diagnostics only for now).
