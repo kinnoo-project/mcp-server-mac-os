@@ -215,12 +215,25 @@ func validateExistingOperand(op, field, raw string) (string, error) {
 // the operations reversible. When a same-named item already sits in the Trash,
 // a numeric suffix is appended (mirroring Finder's own disambiguation) so an
 // existing trashed item is never overwritten.
+//
+// The Trash directory's existence is verified here, at stage time, rather than
+// being discovered as a failure when the staged `mv` later runs: a StagedPlan is
+// meant to be executable exactly as built, so a missing or non-directory
+// ~/.Trash must fail staging with a clear message instead of producing a plan
+// that is doomed to fail at execute/undo time.
 func trashPathFor(src string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("locating home directory for Trash: %w", err)
 	}
 	trashDir := filepath.Join(home, ".Trash")
+	info, err := os.Stat(trashDir)
+	if err != nil {
+		return "", fmt.Errorf("Trash directory %s is not available: %w", trashDir, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("Trash path %s exists but is not a directory", trashDir)
+	}
 	base := filepath.Base(src)
 	if candidate := filepath.Join(trashDir, base); !pathExists(candidate) {
 		return candidate, nil

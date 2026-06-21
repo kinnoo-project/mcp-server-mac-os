@@ -206,6 +206,42 @@ func TestStageRemove_RejectsMissingAndDash(t *testing.T) {
 	}
 }
 
+// TestTrashPathFor_MissingTrashDir confirms staging fails with a clear error
+// (rather than producing a doomed plan) when ~/.Trash is absent or is not a
+// directory — the case Copilot flagged on PR #19. Both a missing directory and a
+// regular file sitting where the Trash should be must be rejected.
+func TestTrashPathFor_MissingTrashDir(t *testing.T) {
+	// $HOME with no .Trash at all.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if _, err := trashPathFor("/somewhere/test.txt"); err == nil {
+		t.Errorf("expected error when ~/.Trash is missing, got nil")
+	}
+
+	// $HOME where .Trash exists but is a regular file, not a directory.
+	if err := os.WriteFile(filepath.Join(home, ".Trash"), []byte("not a dir"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := trashPathFor("/somewhere/test.txt"); err == nil {
+		t.Errorf("expected error when ~/.Trash is not a directory, got nil")
+	}
+}
+
+// TestStageRemove_FailsWhenTrashMissing confirms the validation surfaces through
+// a real mutator: removing a file fails at STAGE time (not later) when there is
+// nowhere to recycle to.
+func TestStageRemove_FailsWhenTrashMissing(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // no .Trash created
+	dir := t.TempDir()
+	target := filepath.Join(dir, "test.txt")
+	if err := os.WriteFile(target, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stageRemove(context.Background(), registry.Capability{}, map[string]any{"path": target}); err == nil {
+		t.Errorf("stageRemove should fail when ~/.Trash is unavailable")
+	}
+}
+
 // TestTrashPathFor_CollisionSuffix confirms an existing same-named item in the
 // Trash is not overwritten: the helper appends a numeric suffix instead.
 func TestTrashPathFor_CollisionSuffix(t *testing.T) {
