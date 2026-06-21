@@ -65,6 +65,13 @@ var builtins = map[string]BuiltinFunc{
 	"listening_ports": runListeningPorts,
 	"lan_devices":     runLanDevices,
 	"scan_lan":        runScanLan,
+
+	"list_processes": runListProcesses,
+	"process_info":   runProcessInfo,
+	"cpu_load":       runCpuLoad,
+	"memory_stats":   runMemoryStats,
+	"gpu_stats":      runGPUStats,
+	"startup_items":  runStartupItems,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
