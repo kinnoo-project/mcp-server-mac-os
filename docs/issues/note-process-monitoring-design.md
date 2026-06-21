@@ -23,7 +23,9 @@ New read-only builtins over stable, unprivileged system utilities:
 Mutations (both staged → execute, both `Inverse == nil`):
 - `quit_process` — resolves a PID to its `.app` bundle and sends the GUI app the
   normal Quit Apple Event (reusing `quitScript`). A non-app PID is refused.
-- `terminate_process` — `kill -TERM <pid>`, signal hardcoded.
+- `terminate_process` — `kill -TERM <pid>`, signal hardcoded. A GUI-app PID is
+  refused (directed to `quit_process`), so the two mutators cleanly partition
+  the process space: GUI apps quit gracefully, everything else gets SIGTERM.
 
 **issue**
 Per-process GPU usage is NOT available. macOS only exposes per-process GPU

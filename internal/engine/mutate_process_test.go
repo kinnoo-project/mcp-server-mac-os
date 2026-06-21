@@ -90,6 +90,26 @@ func TestTerminateProcess_HardcodesTERM(t *testing.T) {
 	}
 }
 
+// TestMutateProcess_PartitionByAppBundle locks the contract that the two
+// mutators cleanly partition the process space on the SAME discriminator
+// (appNameFromExePath): a GUI-app executable path is what quit_process accepts
+// and terminate_process must refuse, while a plain binary path is the reverse.
+// stageTerminateProcess's GUI-app refusal and stageQuitProcess's non-app
+// refusal both branch on this, so a change to the discriminator that broke the
+// partition would surface here. (The live refusal itself mirrors
+// TestQuitProcess_RejectsNonApp / TestTerminateProcess_HardcodesTERM, which
+// stage against the non-app test-binary PID.)
+func TestMutateProcess_PartitionByAppBundle(t *testing.T) {
+	const appPath = "/Applications/Safari.app/Contents/MacOS/Safari"
+	const binPath = "/usr/sbin/cupsd"
+	if appNameFromExePath(appPath) == "" {
+		t.Errorf("a .app path must be classified as a GUI app (quit_process accepts, terminate_process refuses)")
+	}
+	if appNameFromExePath(binPath) != "" {
+		t.Errorf("a plain binary path must NOT be classified as a GUI app (terminate_process accepts, quit_process refuses)")
+	}
+}
+
 // TestMutateProcess_RejectsLowPID confirms both mutators refuse the protected
 // low PIDs before any probing.
 func TestMutateProcess_RejectsLowPID(t *testing.T) {
