@@ -22,9 +22,9 @@ cmd := exec.CommandContext(ctx, "/usr/bin/native-tool", "flag", userText)
 
 Verbose native system utilities can return massive data outputs that saturate an LLM's context window. Implement custom truncation logic inside your stream extraction loop to enforce a maximum token safety threshold:
 
-* If standard output reads exceed 8,000 bytes, trim the text array.
-* Retain the initial 4,000 bytes and trailing 4,000 bytes cleanly.
-* Inject an explicit structural message indicating exactly how many lines were dropped during compilation processing.
+* If standard output reads exceed 32,000 bytes, trim the text array.
+* Retain the initial 16,000 bytes and trailing 16,000 bytes cleanly.
+* Inject an explicit structural message indicating exactly how many bytes were dropped during compilation processing.
 
 ## 3. Explicit Binary Suffix & Verification Checks
 
