@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "screenshot", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 16 {
-		t.Errorf("expected exactly 16 tools (filesystem, preferences, application, printer, system, network, screenshot, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 17 {
+		t.Errorf("expected exactly 17 tools (filesystem, preferences, application, printer, system, network, process, screenshot, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
@@ -115,6 +115,11 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, op := range []string{"current_network", "dns_servers", "ping_host", "dns_lookup", "listening_ports", "lan_devices", "scan_lan"} {
 		if !strings.Contains(descs["network"], op) {
 			t.Errorf("network tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_processes", "process_info", "cpu_load", "memory_stats", "gpu_stats", "startup_items", "quit_process", "terminate_process"} {
+		if !strings.Contains(descs["process"], op) {
+			t.Errorf("process tool description missing operation %q", op)
 		}
 	}
 	if !strings.Contains(descs["screenshot"], "capture_screen") {

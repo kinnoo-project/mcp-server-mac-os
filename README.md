@@ -28,7 +28,7 @@ Mac without you seeing exactly what will happen first.
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **11 domains, ~53 operations**, each invokable in plain
+the Mac you already use. **12 domains, ~61 operations**, each invokable in plain
 English. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -131,6 +131,24 @@ configuration.
 > ℹ️ Turning Bluetooth on/off has no command line on macOS, so the model hands you
 > off to System Settings for that — it can still tell you what's connected and paired.
 
+### 📊 Processes & resources
+
+See what's running and what it costs, find runaway or zombie processes, and stop a
+misbehaving one *gracefully* — never a force-kill.
+
+- *"What's eating my CPU / memory / battery right now?"* · *"Show the top memory hogs."*
+- *"How loaded is my Mac overall?"* *(load average, per-core)* · *"How much RAM is free?"*
+- *"How busy is the GPU?"* *(whole-device — per-process GPU isn't exposed without admin rights)*
+- *"Tell me everything about PID 1234."* *(command, the binary responsible, parent,
+  origin, start time, zombie state, whether launchd auto-starts it)*
+- *"What did I install that starts automatically?"* *(launchd agents & daemons)*
+- *"Quit Safari"* / *"stop that stuck process"* — a GUI app gets the normal **Quit**
+  command (so it can prompt to save); a daemon gets a polite **SIGTERM**. Both are
+  **staged for your confirmation** and never force-killed.
+
+> ℹ️ Stopping a process is staged → you approve → it runs. We deliberately never send
+> SIGKILL (force kill), which gives a program no chance to save or clean up.
+
 ### 🎛️ Preferences & accessibility
 
 Flip well-known Finder, Dock, keyboard, and accessibility toggles — a curated set
@@ -228,10 +246,10 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 13 domain tools (`filesystem`, `preferences`, `application`,
+You'll now have the 14 domain tools (`filesystem`, `preferences`, `application`,
 `application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`,
-`printer`, `system`, `network`, `screenshot`) plus the shared `execute`, `undo`,
-and `pipeline` tools. Try one of the prompts from
+`printer`, `system`, `network`, `process`, `screenshot`) plus the shared `execute`,
+`undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
 > **Note on permissions:** reading Messages needs **Full Disk Access**, taking
