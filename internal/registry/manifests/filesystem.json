@@ -432,5 +432,73 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "move",
+    "summary": "Move (or rename) a file or directory. Reversible: undo moves it back to its original location.",
+    "category": "filesystem",
+    "binary": "mv",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "move",
+    "params": [
+      {
+        "name": "source",
+        "type": "path",
+        "required": true,
+        "description": "Existing file or directory to move; supports a leading ~. Must not begin with '-' (prefix with ./ if needed).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "destination",
+        "type": "path",
+        "required": true,
+        "description": "Target path; supports a leading ~. If it is an existing directory the source is placed inside it under its own name; otherwise it is the new path. The computed destination must not already exist (no overwrite).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "copy",
+    "summary": "Copy a file or directory (recursive). Reversible: undo moves the new copy to the Trash.",
+    "category": "filesystem",
+    "binary": "cp",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "copy",
+    "params": [
+      {
+        "name": "source",
+        "type": "path",
+        "required": true,
+        "description": "Existing file or directory to copy; supports a leading ~. Must not begin with '-' (prefix with ./ if needed).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "destination",
+        "type": "path",
+        "required": true,
+        "description": "Target path; supports a leading ~. If it is an existing directory the copy is placed inside it under the source's name; otherwise it is the new path. The computed destination must not already exist (no overwrite).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "remove",
+    "summary": "Delete a file or directory by moving it to the Trash (never a hard delete). Reversible: undo restores it from the Trash.",
+    "category": "filesystem",
+    "binary": "mv",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "remove",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "Existing file or directory to send to the Trash; supports a leading ~. Must not begin with '-' (prefix with ./ if needed).",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]
