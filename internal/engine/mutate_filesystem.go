@@ -5,9 +5,11 @@ package engine
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"mcp-server-mac-os/internal/registry"
 )
@@ -93,13 +95,18 @@ func stageMove(_ context.Context, _ registry.Capability, in map[string]any) (*St
 // user's Trash, so undo is recoverable rather than destructive. Because staging
 // already proved finalDest did not exist beforehand, the inverse only ever
 // trashes the copy this operation produced — never pre-existing user data.
-func stageCopy(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+func stageCopy(ctx context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
 	src, dst, err := resolveSourceAndDest("copy", in)
 	if err != nil {
 		return nil, err
 	}
 	finalDest, err := resolveFinalDestination("copy", src, dst)
 	if err != nil {
+		return nil, err
+	}
+	// Refuse a copy that would not comfortably fit on the destination volume,
+	// so a recursive copy of a huge tree cannot fill the disk (a storage DoS).
+	if err := ensureCopyFits(ctx, src, finalDest); err != nil {
 		return nil, err
 	}
 	trashDest, err := trashPathFor(finalDest)
@@ -278,4 +285,80 @@ func trashPathFor(src string) (string, error) {
 func pathExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil || !os.IsNotExist(err)
+}
+
+// copyHeadroomBytes is the amount of free space a copy must leave behind on the
+// destination volume. Bringing a boot volume to (near) zero free destabilizes
+// macOS — apps can't save, logs stop — so we keep a comfortable reserve rather
+// than allowing a copy right up to the last byte.
+const copyHeadroomBytes = 256 << 20 // 256 MiB
+
+// ensureCopyFits refuses a copy whose source is too large to fit on the
+// destination volume while preserving copyHeadroomBytes of free space — the
+// guardrail against a recursive copy filling the disk.
+//
+// It fails OPEN: if the source size or the volume's free space cannot be
+// measured, the copy is allowed. A safety estimate must never become the reason
+// a legitimate copy is blocked; the worst case of failing open is that we fall
+// back to the pre-guard behavior, while the common case is caught.
+func ensureCopyFits(ctx context.Context, src, finalDest string) error {
+	size, err := treeSizeBytes(ctx, src)
+	if err != nil {
+		// A cancelled request should surface; an unmeasurable tree should not block.
+		if ctx.Err() != nil {
+			return err
+		}
+		return nil
+	}
+	avail, ok := availableBytesOnVolume(filepath.Dir(finalDest))
+	if !ok {
+		return nil // cannot determine free space: do not block the copy
+	}
+	if !copyFits(size, avail) {
+		return fmt.Errorf("copy: source is about %s but only %s is free on the destination volume; refusing to risk filling the disk",
+			formatBytes(size), formatBytes(avail))
+	}
+	return nil
+}
+
+// copyFits reports whether a source of sizeBytes can be copied onto a volume with
+// availBytes free while keeping copyHeadroomBytes in reserve.
+func copyFits(sizeBytes, availBytes int64) bool {
+	return sizeBytes+copyHeadroomBytes <= availBytes
+}
+
+// treeSizeBytes sums the apparent sizes of the regular files under root,
+// honoring ctx so a cancelled request stops the walk. Directories, symlinks, and
+// special files contribute nothing. Apparent size can exceed real disk usage for
+// sparse files or hard links — a deliberately conservative bias for a
+// "will it fit?" check (it errs toward refusing a borderline copy).
+func treeSizeBytes(ctx context.Context, root string) (int64, error) {
+	var total int64
+	err := filepath.WalkDir(root, func(_ string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if d.Type().IsRegular() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			total += info.Size()
+		}
+		return nil
+	})
+	return total, err
+}
+
+// availableBytesOnVolume returns the bytes available to an unprivileged user on
+// the volume containing path, and whether the figure could be determined.
+func availableBytesOnVolume(path string) (int64, bool) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(path, &st); err != nil {
+		return 0, false
+	}
+	return int64(st.Bavail) * int64(st.Bsize), true
 }
