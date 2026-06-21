@@ -97,6 +97,8 @@ var mutators = map[string]Mutator{
 	"print_file":        stagePrintFile,
 	"print_test_page":   stagePrintTestPage,
 	"open_settings":     stageOpenSettings,
+	"quit_process":      stageQuitProcess,
+	"terminate_process": stageTerminateProcess,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.
