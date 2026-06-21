@@ -20,7 +20,7 @@ func TestParseWifiDevice(t *testing.T) {
 }
 
 func TestRenderBluetoothStatus(t *testing.T) {
-	on := `{"SPBluetoothDataType":[{"controller_properties":{"controller_state":"attrib_on"},"device_connected":[{"Magic Keyboard":{}},{"AirPods Pro":{}}]}]}`
+	on := `{"SPBluetoothDataType":[{"controller_properties":{"controller_state":"attrib_on"},"device_connected":[{"Magic Keyboard":{}},{"AirPods Pro":{}}],"device_not_connected":[{"Old Mouse":{}}]}]}`
 	out, err := renderBluetoothStatus([]byte(on))
 	if err != nil {
 		t.Fatalf("renderBluetoothStatus: %v", err)
@@ -32,6 +32,10 @@ func TestRenderBluetoothStatus(t *testing.T) {
 		if !strings.Contains(out, dev) {
 			t.Errorf("expected connected device %q in: %s", dev, out)
 		}
+	}
+	// Paired-but-not-connected devices answer "what is paired to this Mac?".
+	if !strings.Contains(out, "Old Mouse") || !strings.Contains(out, "paired device(s) not currently connected") {
+		t.Errorf("expected paired-not-connected device listed, got: %s", out)
 	}
 
 	off := `{"SPBluetoothDataType":[{"controller_properties":{"controller_state":"attrib_off"}}]}`

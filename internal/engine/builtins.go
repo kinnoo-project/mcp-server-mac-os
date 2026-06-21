@@ -57,6 +57,14 @@ var builtins = map[string]BuiltinFunc{
 	"power_status":        runPowerStatus,
 
 	"capture_screen": runCaptureScreen,
+
+	"current_network": runCurrentNetwork,
+	"dns_servers":     runDNSServers,
+	"ping_host":       runPingHost,
+	"dns_lookup":      runDNSLookup,
+	"listening_ports": runListeningPorts,
+	"lan_devices":     runLanDevices,
+	"scan_lan":        runScanLan,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
