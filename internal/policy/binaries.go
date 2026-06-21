@@ -26,49 +26,47 @@ import (
 // These are the canonical locations of Darwin's first-party command-line tools.
 var allowedBinDirs = []string{"/bin", "/sbin", "/usr/bin", "/usr/sbin"}
 
-// ResolveBinary looks up a bare utility name and returns its absolute path only
-// if that path resides under one of the trusted system directories.
+// ResolveBinary looks up a bare utility name and returns the absolute path of
+// the genuine system tool under one of the trusted Darwin directories.
 //
 // Resolution order:
 //  1. Reject names containing path separators outright — callers must pass a
 //     bare name like "ls", never a path, so a caller can never point us at an
 //     arbitrary executable.
-//  2. Try exec.LookPath (honours $PATH).
-//  3. Fall back to scanning the trusted directories directly, which keeps the
-//     server working even when $PATH is empty — common when the process is
-//     spawned as a child by an MCP client.
+//  2. Try exec.LookPath (honours $PATH), but ACCEPT its result only when it
+//     already lives under a trusted directory. A PATH hit outside the trusted
+//     set — a rogue "grep" planted in the working directory, or a foreign
+//     "sqlite3" from an SDK earlier on $PATH — is deliberately IGNORED rather
+//     than treated as an error, so we then...
+//  3. ...fall back to scanning the trusted directories directly for the real
+//     system binary. This both blocks rogue substitution AND keeps the server
+//     working when $PATH is empty or unusual (common when the process is spawned
+//     as a child by an MCP client, or on a CI runner whose PATH front-loads a
+//     non-system toolchain).
 //
-// The final path is always re-checked against allowedBinDirs, so even a
-// LookPath hit outside the trusted set is rejected.
+// The untrusted PATH hit is never executed in any case; the only question is
+// whether we can still find the legitimate tool, which step 3 answers.
 func ResolveBinary(name string) (string, error) {
 	if strings.ContainsAny(name, "/\\") {
 		return "", fmt.Errorf("policy: binary name %q must not contain path separators", name)
 	}
 
-	abs, err := exec.LookPath(name)
-	if err != nil {
-		// PATH lookup failed; scan the trusted directories directly.
-		for _, d := range allowedBinDirs {
-			candidate := filepath.Join(d, name)
-			if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
-				abs = candidate
-				err = nil
-				break
-			}
-		}
-		if err != nil {
-			return "", fmt.Errorf("policy: could not locate %q in trusted system directories: %w", name, err)
+	// Honour a PATH hit only if it is itself trusted; otherwise ignore it and
+	// fall through to the trusted-directory scan below.
+	if p, err := exec.LookPath(name); err == nil {
+		if abs, aerr := filepath.Abs(p); aerr == nil && underTrustedDir(abs, name) {
+			return abs, nil
 		}
 	}
 
-	abs, err = filepath.Abs(abs)
-	if err != nil {
-		return "", err
+	// Scan the trusted directories directly for the genuine system binary.
+	for _, d := range allowedBinDirs {
+		candidate := filepath.Join(d, name) // d is absolute, so candidate is too
+		if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
+			return candidate, nil
+		}
 	}
-	if !underTrustedDir(abs, name) {
-		return "", fmt.Errorf("policy: resolved binary %q is outside trusted Darwin directories %v", abs, allowedBinDirs)
-	}
-	return abs, nil
+	return "", fmt.Errorf("policy: could not locate %q in trusted system directories %v", name, allowedBinDirs)
 }
 
 // underTrustedDir reports whether abs sits directly within one of the trusted

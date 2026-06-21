@@ -192,6 +192,18 @@ that trust is earned structurally, not just promised:
   Messages, Desktop/Documents/Downloads…), macOS prompts you to grant access —
   once.
 
+- **The guardrails are enforced by a security test gate.** These properties
+  aren't just promised in prose — a cross-cutting security suite proves them and
+  **must pass before every release** (CI runs it on every push). A registry-wide
+  check fails the build if the surface ever grows to reference a destructive
+  binary (`rm`, `diskutil`, `csrutil`, …) or lets an irrecoverable action skip the
+  confirmation gate; a registry-driven injection sweep proves every
+  model-controlled value lands as inert data; an end-to-end test fires SQL
+  injection at a throwaway Messages database; and token-abuse tests prove a
+  mutation can't be replayed or run unstaged. Adversarial live-model evals
+  (refusing to wipe the disk, ignoring instructions injected into files it reads)
+  round out the picture. See **[docs/TESTS.md](docs/TESTS.md)**.
+
 The complete, line-by-line threat model is in
 **[Why this server is safe to expose](docs/architecture.md#why-this-server-is-safe-to-expose)**.
 
