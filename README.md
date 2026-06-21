@@ -43,6 +43,8 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 - *"How big is my Downloads folder?"*
 - *"How many lines are in `/var/log/system.log`?"*
 - **"Create a folder called `drafts` in my Documents."** *(previewed; undoable)*
+- **"Move `test.txt` from Downloads to the Desktop."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
+- **"Delete `old-draft.txt`."** *(moved to the Trash, never hard-deleted — previewed; undoable)*
 
 ### ✉️ Mail
 
@@ -285,8 +287,9 @@ What's next:
   harness runs 18 cases against `claude-sonnet-4-6` today).
 - **More capabilities** — more curated `preferences` settings, more `application-*`
   depth, and mutating capabilities in new domains (e.g. networking).
-- **Irreversible *file* operations** — a Trash / `/tmp/mcp-fallback/` recovery path
-  so destructive file ops get a practical undo even without a true inverse.
+- **More file operations** — `move`, `copy`, and `remove` now ship (deletes recycle
+  to the Trash, so every one is reversible); next is widening coverage (e.g.
+  overwrite-with-backup) while keeping the Trash recovery guarantee.
 - **Multi-step *mutation* plans** — stage and commit several changes with a
   best-effort + report failure policy.
 - **Force mode** — an explicit opt-in to skip the confirmation step for low-risk
