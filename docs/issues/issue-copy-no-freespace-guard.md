@@ -21,3 +21,17 @@ comfortably fit. Keep the estimate bounded so the guard itself cannot become a
 slow walk over a huge tree.
 
 **fixed**
+`stageCopy` now calls `ensureCopyFits`, which sums the source's regular-file
+sizes (`treeSizeBytes`, a ctx-honoring `filepath.WalkDir`) and compares it
+against the destination volume's available space (`availableBytesOnVolume` via
+`syscall.Statfs`), refusing the copy when it would not leave at least
+`copyHeadroomBytes` (256 MiB) free. The guard fails OPEN — if the source size or
+free space cannot be measured it allows the copy, so a measurement limitation
+never blocks a legitimate operation. The size sum uses apparent file sizes, a
+conservative bias (it can overestimate for sparse files / hard links, erring
+toward refusing a borderline copy). The walk runs at stage time and is bounded by
+the request context (and now also by the executor's wall-clock timeout once the
+copy itself runs). Tests: `TestBounds_CopyFits` (the pure fit decision) and
+`TestBounds_TreeSizeBytes` (the size estimate) in
+`internal/engine/bounds_test.go`; the existing `TestStageCopy_PlanAndRoundTrip`
+now also exercises the guard's happy path.

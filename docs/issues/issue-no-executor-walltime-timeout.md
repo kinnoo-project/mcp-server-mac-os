@@ -25,3 +25,12 @@ possibly a per-capability override, so a runaway read is terminated even if the
 client never cancels.
 
 **fixed**
+`execCommand` now derives a `context.WithTimeout` from the request context with a
+generous default ceiling (`commandTimeout`, 2 minutes — ample for a large scan,
+yet a hard cap on a runaway). A deadline hit is detected before the ExitError
+branch so it surfaces as a clear "timed out after …" error rather than a
+confusing signal-kill exit code. The ceiling is a package var so tests can lower
+it; `TestBounds_ExecutorWallClockTimeout` (`internal/engine/bounds_test.go`)
+lowers it and asserts a `sleep 10` is killed near the budget. A per-capability
+override was not added (not needed yet); the single shared ceiling covers every
+subprocess, including each pipeline stage and the read builtins.

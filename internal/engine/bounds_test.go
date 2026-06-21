@@ -13,9 +13,14 @@
 package engine
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"mcp-server-mac-os/internal/policy"
 	"mcp-server-mac-os/internal/registry"
 )
 
@@ -108,11 +113,73 @@ func TestBounds_OutputIsTruncated(t *testing.T) {
 	}
 }
 
-// TestBounds_ExecutorWallClockTimeout is a placeholder for the deferred hardening
-// fix: the shared subprocess path (execCommand) currently binds only to the
-// request context, so a long-running read is not independently time-bounded. When
-// the timeout is added (see docs/issues/issue-no-executor-walltime-timeout.md),
-// un-skip this test and assert a command exceeding the budget is killed.
+// TestBounds_CopyFits checks the pure fit decision: a source fits only when it
+// plus the reserved headroom stays within the available space.
+func TestBounds_CopyFits(t *testing.T) {
+	cases := []struct {
+		name       string
+		size, free int64
+		want       bool
+	}{
+		{"tiny on huge", 1 << 10, 100 << 30, true},
+		{"exactly fits with headroom", 1 << 30, (1 << 30) + copyHeadroomBytes, true},
+		{"one byte over", (1 << 30) + 1, (1 << 30) + copyHeadroomBytes, false},
+		{"no room for headroom", 10, copyHeadroomBytes, false},
+		{"empty source still needs headroom", 0, copyHeadroomBytes - 1, false},
+	}
+	for _, tc := range cases {
+		if got := copyFits(tc.size, tc.free); got != tc.want {
+			t.Errorf("%s: copyFits(%d, %d) = %v, want %v", tc.name, tc.size, tc.free, got, tc.want)
+		}
+	}
+}
+
+// TestBounds_TreeSizeBytes confirms the source-size estimate sums regular-file
+// sizes across a tree and ignores directories.
+func TestBounds_TreeSizeBytes(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFileForTest(t, filepath.Join(dir, "a.bin"), strings.Repeat("x", 1000))
+	writeFileForTest(t, filepath.Join(sub, "b.bin"), strings.Repeat("y", 2500))
+
+	got, err := treeSizeBytes(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("treeSizeBytes: %v", err)
+	}
+	if got != 3500 {
+		t.Errorf("treeSizeBytes = %d, want 3500 (1000 + 2500)", got)
+	}
+}
+
+// TestBounds_ExecutorWallClockTimeout confirms the shared subprocess path kills a
+// command that overruns the wall-clock budget, turning a would-be time/CPU DoS
+// into a prompt, clearly-labeled error. The budget is lowered for the duration of
+// the test so it finishes in a fraction of a second rather than the production
+// two-minute ceiling.
 func TestBounds_ExecutorWallClockTimeout(t *testing.T) {
-	t.Skip("deferred to hardening PR: execCommand has no wall-clock timeout yet (docs/issues/issue-no-executor-walltime-timeout.md)")
+	original := commandTimeout
+	commandTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { commandTimeout = original })
+
+	bin, err := policy.ResolveBinary("sleep")
+	if err != nil {
+		t.Fatalf("resolving sleep: %v", err)
+	}
+
+	start := time.Now()
+	_, err = runCommand(context.Background(), bin, "10")
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("expected a timeout error for a command exceeding the budget, got nil")
+	}
+	if !strings.Contains(err.Error(), "timed out") {
+		t.Errorf("error should report a timeout, got: %v", err)
+	}
+	if elapsed > 5*time.Second {
+		t.Errorf("command ran for %s; the timeout should have killed it near 200ms", elapsed)
+	}
 }
