@@ -74,11 +74,12 @@ func stageQuitProcess(ctx context.Context, _ registry.Capability, in map[string]
 	}, nil
 }
 
-// stageTerminateProcess stages sending SIGTERM to a process by PID. Staging
-// confirms the process exists (PIDs are recycled, so we name the current
-// occupant in the preview to avoid signalling the wrong one) and builds a
-// `kill -TERM <pid>` command with the signal hardcoded. There is no inverse: a
-// terminated process cannot be restored.
+// stageTerminateProcess stages sending SIGTERM to a non-GUI process by PID.
+// Staging confirms the process exists (PIDs are recycled, so we name the current
+// occupant in the preview to avoid signalling the wrong one), refuses a PID that
+// belongs to a GUI app (those must go through quit_process so they can prompt to
+// save), and builds a `kill -TERM <pid>` command with the signal hardcoded.
+// There is no inverse: a terminated process cannot be restored.
 func stageTerminateProcess(ctx context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
 	pid, err := requirePID("terminate_process", in)
 	if err != nil {
@@ -88,6 +89,13 @@ func stageTerminateProcess(ctx context.Context, _ registry.Capability, in map[st
 	exePath, ok := processExePath(ctx, pid)
 	if !ok {
 		return nil, fmt.Errorf("terminate_process: no process with PID %d is currently running", pid)
+	}
+	// A GUI app must go through quit_process so it receives the Quit Apple Event
+	// and can prompt to save; SIGTERM would bypass that. This is the mirror image
+	// of stageQuitProcess refusing a non-app PID, so the two operations cleanly
+	// partition the space (GUI apps -> quit_process, everything else here).
+	if appName := appNameFromExePath(exePath); appName != "" {
+		return nil, fmt.Errorf("terminate_process: PID %d belongs to the GUI application %q; use quit_process to quit it gracefully (so it can prompt to save) instead of sending SIGTERM", pid, appName)
 	}
 
 	return &StagedPlan{

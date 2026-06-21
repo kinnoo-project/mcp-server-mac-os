@@ -149,7 +149,7 @@
   },
   {
     "name": "terminate_process",
-    "summary": "Ask a background/daemon process to exit by sending it the polite termination signal SIGTERM (the default 'please shut down' signal), letting a well-behaved process clean up before exiting. STAGED for confirmation; it is not undoable. This deliberately never sends SIGKILL (force kill), which would give the process no chance to clean up. For GUI applications prefer quit_process.",
+    "summary": "Ask a background/daemon process to exit by sending it the polite termination signal SIGTERM (the default 'please shut down' signal), letting a well-behaved process clean up before exiting. STAGED for confirmation; it is not undoable. This deliberately never sends SIGKILL (force kill), which would give the process no chance to clean up. GUI applications are refused here — use quit_process for those, so they can prompt to save.",
     "category": "process",
     "binary": "kill",
     "reversibility": "irreversible",
