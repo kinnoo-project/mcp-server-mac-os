@@ -133,12 +133,17 @@ func TestSecurity_TerminateProcessTakesNoSignalParam(t *testing.T) {
 	if !ok {
 		t.Fatal("terminate_process capability not found")
 	}
-	for _, p := range c.Params {
-		if p.Name != "pid" {
-			t.Errorf("terminate_process has unexpected parameter %q: it must take only the target pid, never a signal selector", p.Name)
-		}
-		if p.Type != TypeInt {
-			t.Errorf("terminate_process parameter %q has type %q, want int", p.Name, p.Type)
-		}
+	// Assert the EXACT shape, not just "no bad param": the contract is a single
+	// pid integer. A loop alone would pass vacuously if the params were ever
+	// emptied, so pin the count and the one param explicitly.
+	if len(c.Params) != 1 {
+		t.Fatalf("terminate_process must take exactly one parameter (pid), got %d: %+v", len(c.Params), c.Params)
+	}
+	p := c.Params[0]
+	if p.Name != "pid" {
+		t.Errorf("terminate_process parameter is %q, want \"pid\" (never a signal selector)", p.Name)
+	}
+	if p.Type != TypeInt {
+		t.Errorf("terminate_process parameter %q has type %q, want int", p.Name, p.Type)
 	}
 }
