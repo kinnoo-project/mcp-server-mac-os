@@ -1,0 +1,54 @@
+# ci.yml is the production security gate (see docs/TESTS.md §"Security gate").
+#
+# It runs on macOS — the only platform where the Darwin system binaries the
+# capabilities resolve (osascript, sqlite3, defaults, ...) actually exist, so the
+# policy-resolution and end-to-end tests run against the real tools rather than
+# being skipped. Every job here MUST pass before a change merges:
+#
+#   - formatting and vet keep the tree consistent and catch obvious mistakes,
+#   - `go test ./...` is the hard security gate: it includes the cross-cutting
+#     injection sweep, the registry blast-radius invariants, the transaction
+#     token-abuse tests, and the SQL-injection integration test, alongside the
+#     rest of the suite,
+#   - the eval dry-run validates that every advisory eval case still loads and
+#     resolves its tools, WITHOUT spending any API budget (the live model evals
+#     are run manually before a release; see docs/TESTS.md).
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt-clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test (security gate)
+        run: go test ./...
+
+      - name: Validate eval cases (dry-run, no API calls)
+        run: go run ./cmd/runevals -dry-run
