@@ -28,7 +28,7 @@ Mac without you seeing exactly what will happen first.
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **12 domains, ~61 operations**, each invokable in plain
+the Mac you already use. **14 domains, ~70 operations**, each invokable in plain
 English. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -275,7 +275,7 @@ PR conventions.
 
 ## 🗺️ Roadmap
 
-The read-only foundation, the 10-domain tool surface, the
+The read-only foundation, the 14-domain tool surface, the
 stage → execute → undo mutation gate, and read-only composition (`pipeline`) are
 all in place, with mutation proved across every undo shape the design anticipated
 (fixed inverse, prior-state-dependent inverse, and genuinely irreversible).

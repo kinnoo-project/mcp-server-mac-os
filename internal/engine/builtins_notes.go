@@ -75,15 +75,29 @@ const listNotesScript = asDateHelpers + `on run argv
 end run`
 
 // searchNotesScript emits the same metadata rows as listNotesScript, but only for
-// notes whose title OR plain-text body contains the query. argv: query. The
-// plain-text read is wrapped in `try` so a locked note is simply matched on its
-// (still-readable) title instead of erroring. AppleScript text comparison ignores
-// case by default, so the match is case-insensitive without lowercasing.
+// notes whose title OR plain-text body contains the query. argv: query,
+// folderFilter. The plain-text read is wrapped in `try` so a locked note is
+// simply matched on its (still-readable) title instead of erroring. AppleScript
+// text comparison ignores case by default, so the match is case-insensitive
+// without lowercasing.
+//
+// An empty folderFilter searches every note; a non-empty one confines the search
+// to that one folder. The scoping matters for cost, not just convenience: the
+// match reads each candidate note's full `plaintext`, so the work scales with the
+// number of notes scanned. Restricting to a folder bounds that to the folder's
+// size instead of the whole library — the resource-conscious path on a large
+// Notes store.
 const searchNotesScript = asDateHelpers + `on run argv
 	set q to item 1 of argv
+	set folderFilter to item 2 of argv
 	set out to ""
 	tell application "Notes"
-		repeat with n in every note
+		if folderFilter is "" then
+			set theNotes to every note
+		else
+			set theNotes to every note of (first folder whose name is folderFilter)
+		end if
+		repeat with n in theNotes
 			set hay to (name of n)
 			try
 				set hay to hay & " " & (plaintext of n)
@@ -152,13 +166,16 @@ func runListNotes(ctx context.Context, _ registry.Capability, in map[string]any)
 	return renderNoteList(fmt.Sprintf("%d note(s), most recently modified first:", len(notes)), notes), nil
 }
 
-// runSearchNotes lists notes whose title or body contains the query, newest first.
+// runSearchNotes lists notes whose title or body contains the query, newest
+// first. An optional folder confines the search (and so the per-note body reads)
+// to a single folder, the lighter path on a large library.
 func runSearchNotes(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
 	query, _ := getString(in, "query")
 	if strings.TrimSpace(query) == "" {
 		return "", fmt.Errorf("search_notes: 'query' is required")
 	}
-	res, err := runOsascript(ctx, searchNotesScript, query)
+	folder, _ := getString(in, "folder")
+	res, err := runOsascript(ctx, searchNotesScript, query, folder)
 	if err != nil {
 		return "", err
 	}
@@ -167,10 +184,17 @@ func runSearchNotes(ctx context.Context, _ registry.Capability, in map[string]an
 	}
 	notes := parseNoteRows(res.Stdout)
 	if len(notes) == 0 {
+		if folder != "" {
+			return fmt.Sprintf("No notes in folder %q match %q.", folder, query), nil
+		}
 		return fmt.Sprintf("No notes found matching %q.", query), nil
 	}
 	notes = sortAndCapNotes(notes, cappedNoteLimit(in))
-	return renderNoteList(fmt.Sprintf("%d note(s) matching %q, most recently modified first:", len(notes), query), notes), nil
+	heading := fmt.Sprintf("%d note(s) matching %q, most recently modified first:", len(notes), query)
+	if folder != "" {
+		heading = fmt.Sprintf("%d note(s) in folder %q matching %q, most recently modified first:", len(notes), folder, query)
+	}
+	return renderNoteList(heading, notes), nil
 }
 
 // runReadNote returns one note's full plain-text body (bounded by the shared

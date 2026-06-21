@@ -51,7 +51,8 @@ func TestValidateNetworkHost(t *testing.T) {
 		"8.8.8.8",
 		"17.253.144.10",
 		"2606:4700:4700::1111",
-		"a", // single-label hosts are legal
+		"::1", // IPv6 loopback — bare IPv6 literals keep their colons
+		"a",   // single-label hosts are legal
 	}
 	for _, h := range accept {
 		if err := validateNetworkHost(h); err != nil {
@@ -70,6 +71,8 @@ func TestValidateNetworkHost(t *testing.T) {
 		"a/b",                    // slash / path metacharacter
 		";rm -rf",                // shell metacharacters
 		"host\nname",             // embedded newline
+		"apple.com:443",          // host:port — ':' is only valid inside an IPv6 literal
+		"8.8.8.8:53",             // IP:port — also rejected (not a bare host)
 		strings.Repeat("a", 254), // over the length cap
 	}
 	for _, h := range reject {
