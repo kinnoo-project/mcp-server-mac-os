@@ -35,7 +35,9 @@ import (
 // letters, digits, dot, hyphen, and colon only. That covers hostnames, IPv4
 // dotted-quads, and IPv6 colon-hex while excluding spaces, slashes, '@', '+',
 // and every shell/dig metacharacter. A leading hyphen is rejected separately so
-// the value can never be read as a command-line option.
+// the value can never be read as a command-line option, and a ':' that is not
+// part of an IPv6 literal (i.e. a host:port pair) is rejected too — see
+// validateNetworkHost.
 var hostPattern = regexp.MustCompile(`^[A-Za-z0-9.:-]+$`)
 
 // validateNetworkHost is the single input guardrail shared by ping_host and
@@ -56,6 +58,15 @@ func validateNetworkHost(host string) error {
 	}
 	if !hostPattern.MatchString(host) {
 		return fmt.Errorf("host %q contains disallowed characters; only letters, digits, '.', '-', and ':' are permitted", host)
+	}
+	// A ':' is only legitimate as part of an IPv6 literal. In any other value it
+	// means a host:port pair (e.g. "apple.com:443"), which ping/dig do NOT accept
+	// — they would treat the whole string as a hostname and fail confusingly — and
+	// it contradicts the documented "bare host" contract. So allow ':' only when
+	// the value parses as an IP literal; reject host:port up front with a clear
+	// message instead of letting it become a baffling resolution failure.
+	if strings.Contains(host, ":") && net.ParseIP(host) == nil {
+		return fmt.Errorf("host %q must be a bare host without a port; give just the hostname or IP (a ':' is only allowed inside an IPv6 address)", host)
 	}
 	return nil
 }

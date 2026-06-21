@@ -27,7 +27,7 @@
   },
   {
     "name": "search_notes",
-    "summary": "Search notes in Notes.app whose title or body contains a term (case-insensitive), most recently modified first. Returns each match's id. Drives Notes via AppleScript; the first use may prompt for Automation access to Notes.",
+    "summary": "Search notes in Notes.app whose title or body contains a term (case-insensitive), most recently modified first. Returns each match's id. Optionally restrict to one folder, which is recommended on a large Notes library: the search reads each scanned note's full body, so scoping to a folder bounds that work. Drives Notes via AppleScript; the first use may prompt for Automation access to Notes.",
     "category": "application-notes",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -39,6 +39,13 @@
         "type": "string",
         "required": true,
         "description": "Text to search for within a note's title or body (case-insensitive substring).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "folder",
+        "type": "string",
+        "required": false,
+        "description": "Restrict the search to a single folder by exact name (see list_folders). Omit to search across all folders. Recommended on large libraries to bound how many note bodies are read.",
         "arg": { "kind": "none" }
       },
       {
