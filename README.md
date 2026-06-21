@@ -20,9 +20,13 @@ place to drive your whole Mac in ordinary language. Ask —
 > *"Turn on Reduce Motion."*
 
 — and the model answers by calling **real, audited macOS tools**. Every action
-that *reads* runs instantly; every action that *changes something* is previewed
-and gated behind an explicit confirmation you approve. Nothing happens to your
-Mac without you seeing exactly what will happen first.
+that is *read-only* runs instantly; every action that *changes something* gives you a preview first,
+and is gated behind an explicit confirmation you approve. Nothing happens to your
+Mac without you seeing exactly what will happen first and approving the action.
+
+With a client like **Claude Desktop** or **Claude Code** that allows secure remote session access, 
+you can control your Mac device remotely from your phone or from another machine. This enables you
+to monitor and control your Mac on the go!
 
 ---
 
@@ -275,7 +279,7 @@ You'll now have the 14 domain tools (`filesystem`, `preferences`, `application`,
 
 ---
 
-## 📱 Remote control from your phone
+## 📱 Remote control your Mac from your phone
 
 Here's where the command center gets genuinely powerful: you don't have to be
 sitting at the Mac. Claude Code's built-in **Remote Control** lets you drive a
