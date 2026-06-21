@@ -118,6 +118,13 @@ func TestStageMove_Rejects(t *testing.T) {
 		"overwrite refused":   {"source": existing, "destination": occupied},
 		"dash source":         {"source": "-rf", "destination": filepath.Join(dir, "new.txt")},
 		"dash destination":    {"source": existing, "destination": "-x"},
+		// mv/cp do not create intermediate directories, so a destination whose
+		// parent does not exist must be rejected at stage time (not surface later
+		// as a failed forward command).
+		"missing dest parent": {"source": existing, "destination": filepath.Join(dir, "no_such_dir", "new.txt")},
+		// A destination parent that exists but is a regular file (not a directory)
+		// is equally doomed and must be rejected.
+		"dest parent not dir": {"source": existing, "destination": filepath.Join(occupied, "new.txt")},
 	}
 	for name, in := range cases {
 		if _, err := stageMove(context.Background(), registry.Capability{}, in); err == nil {

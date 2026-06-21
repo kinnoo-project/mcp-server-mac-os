@@ -20,9 +20,10 @@ import (
 // created — it can never destroy files the user added afterwards.
 //
 // Two guardrails run before a plan is produced:
-//   - a leading "-" in the path is rejected (mkdir/rmdir would parse it as a
-//     flag despite the "--" terminator's protection of later operands), steering
-//     the caller to disambiguate with "./", mirroring the find builder;
+//   - a leading "-" in the path is rejected. The argv places a "--" terminator
+//     before the path, so mkdir/rmdir already treat a dash-leading value as data;
+//     rejecting it anyway is a deliberate guardrail that steers the caller to
+//     disambiguate with "./" (mirroring the find builder), not a "--" limitation;
 //   - the target must not already exist, which keeps the create meaningful and
 //     guarantees the rmdir inverse is safe (we never adopt — and then delete — a
 //     directory we did not create).
@@ -57,8 +58,12 @@ func stageMkdir(_ context.Context, _ registry.Capability, in map[string]any) (*S
 // the server's working directory when undo eventually runs.
 //
 // Guardrails (mirroring stageMkdir's conservative stance):
-//   - source and destination must be non-empty and must not begin with "-"
-//     (mv would parse a leading dash as a flag despite the "--" terminator);
+//   - source and destination must be non-empty and must not begin with "-".
+//     The argv always carries a "--" terminator before these operands, so mv
+//     would already treat a dash-leading value as data; rejecting it is a
+//     deliberate project guardrail (consistent across the mutators) that returns
+//     a clear "prefix with ./" error rather than acting on a surprising "-x"
+//     filename — not a workaround for any "--" limitation;
 //   - source must exist;
 //   - the COMPUTED destination must not already exist, which prevents silently
 //     clobbering a file and guarantees the inverse can restore the original
@@ -170,6 +175,12 @@ func resolveSourceAndDest(op string, in map[string]any) (src, dst string, err er
 // ~/Desktop/test.txt). Refusing a pre-existing final destination is what keeps
 // the operation non-clobbering and lets the inverse restore the prior state
 // exactly.
+//
+// The final destination's PARENT directory must exist and be a directory. mv/cp
+// do not create intermediate directories, so without this check a plan could
+// stage cleanly yet be guaranteed to fail when its forward command runs — which
+// would violate the "a staged plan is executable exactly as built" contract the
+// rest of the engine relies on (cf. trashPathFor's ~/.Trash fail-fast).
 func resolveFinalDestination(op, src, dst string) (string, error) {
 	finalDest := dst
 	if info, err := os.Stat(dst); err == nil && info.IsDir() {
@@ -180,14 +191,26 @@ func resolveFinalDestination(op, src, dst string) (string, error) {
 	} else if !os.IsNotExist(err) {
 		return "", fmt.Errorf("%s: cannot inspect destination %q: %w", op, finalDest, err)
 	}
+	parent := filepath.Dir(finalDest)
+	if info, err := os.Stat(parent); err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("%s: destination parent directory %q does not exist (mv/cp will not create it)", op, parent)
+		}
+		return "", fmt.Errorf("%s: cannot inspect destination parent %q: %w", op, parent, err)
+	} else if !info.IsDir() {
+		return "", fmt.Errorf("%s: destination parent %q is not a directory", op, parent)
+	}
 	return finalDest, nil
 }
 
 // validateExistingOperand applies the standard operand guardrails to a single
 // user-supplied path that must already exist on disk: it rejects an empty value
-// and a leading dash (which mv/cp/rm could read as a flag despite the "--"
-// terminator), then returns the path in absolute form so any inverse command
-// built from it is stable regardless of the working directory at undo time.
+// and a leading dash. Every argv built from these operands already places a "--"
+// terminator before them, so the dash rejection is not needed for safety — it is
+// a conservative project guardrail (consistent across the mutators) that turns a
+// confusing "-x" filename into a clear "prefix with ./" error. It then returns
+// the path in absolute form so any inverse command built from it is stable
+// regardless of the working directory at undo time.
 func validateExistingOperand(op, field, raw string) (string, error) {
 	if raw == "" {
 		return "", fmt.Errorf("%s: '%s' is required", op, field)

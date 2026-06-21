@@ -453,7 +453,7 @@
         "name": "destination",
         "type": "path",
         "required": true,
-        "description": "Target path; supports a leading ~. If it is an existing directory the source is placed inside it under its own name; otherwise it is the new path. The computed destination must not already exist (no overwrite).",
+        "description": "Target path; supports a leading ~. If it is an existing directory the source is placed inside it under its own name; otherwise it is the new path. The computed destination must not already exist (no overwrite) and its parent directory must already exist (mv does not create intermediate directories).",
         "arg": { "kind": "none" }
       }
     ]
@@ -478,7 +478,7 @@
         "name": "destination",
         "type": "path",
         "required": true,
-        "description": "Target path; supports a leading ~. If it is an existing directory the copy is placed inside it under the source's name; otherwise it is the new path. The computed destination must not already exist (no overwrite).",
+        "description": "Target path; supports a leading ~. If it is an existing directory the copy is placed inside it under the source's name; otherwise it is the new path. The computed destination must not already exist (no overwrite) and its parent directory must already exist (cp does not create intermediate directories).",
         "arg": { "kind": "none" }
       }
     ]
