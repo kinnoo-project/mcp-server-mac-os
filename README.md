@@ -112,8 +112,24 @@ pane for anything that needs admin rights.
 - *"What printers do I have, and are they on?"* · *"What's in the print queue?"*
 - **"Print this PDF."** · **"Print a test page on the office laser."**
 - *"Is Wi-Fi on, and what am I joined to?"* · *"Battery level? Is Low Power Mode on?"*
-- *"Is Bluetooth on? What's connected?"*
+- *"Is Bluetooth on? What's connected, and what's paired?"*
 - **"Open System Settings to Wi-Fi."** *(opens the pane for you to finish)*
+
+### 🌐 Network & diagnostics
+
+Answer everyday network questions and let the model diagnose connectivity issues
+by composing these probes. All read-only — nothing here changes your network
+configuration.
+
+- *"What's my IP, router, and MAC address? How many devices fit on this network?"*
+- *"What DNS servers am I using?"* · *"What other devices are on my network?"*
+- *"Can you ping the router? Can you reach 8.8.8.8?"* · *"Does apple.com resolve?"*
+- *"What ports am I listening on, and which apps own them?"*
+- *"I can't reach the internet — can you diagnose it?"* *(checks the gateway, then a
+  public IP, then DNS — and tells you where it breaks)*
+
+> ℹ️ Turning Bluetooth on/off has no command line on macOS, so the model hands you
+> off to System Settings for that — it can still tell you what's connected and paired.
 
 ### 🎛️ Preferences & accessibility
 
@@ -212,10 +228,10 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 12 domain tools (`filesystem`, `preferences`, `application`,
+You'll now have the 13 domain tools (`filesystem`, `preferences`, `application`,
 `application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`,
-`printer`, `system`, `screenshot`) plus the shared `execute`, `undo`, and
-`pipeline` tools. Try one of the prompts from
+`printer`, `system`, `network`, `screenshot`) plus the shared `execute`, `undo`,
+and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
 > **Note on permissions:** reading Messages needs **Full Disk Access**, taking

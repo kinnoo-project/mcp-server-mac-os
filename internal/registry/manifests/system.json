@@ -21,7 +21,7 @@
   },
   {
     "name": "bluetooth_status",
-    "summary": "Report whether Bluetooth is powered on and which devices are currently connected.",
+    "summary": "Report whether Bluetooth is powered on, which devices are currently connected, and which devices are paired but not connected. Turning Bluetooth on or off has no first-party command line on macOS — use open_settings (pane 'bluetooth') for that.",
     "category": "system",
     "binary": "system_profiler",
     "reversibility": "read_only",
