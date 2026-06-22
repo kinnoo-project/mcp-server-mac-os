@@ -313,20 +313,23 @@ func TestNormalizeWebsiteURL(t *testing.T) {
 	}
 
 	bad := []string{
-		"file:///etc/passwd",  // local-file scheme must never reach `open`
-		"tel:911",             // would place a call
-		"mailto:a@b.com",      // would open Mail
-		"javascript:alert(1)", // script scheme
-		"ftp://host/x",        // non-web scheme
-		"sms:911",             // messaging scheme
-		"-e",                  // leading dash (option-injection shape)
-		"-https://x.com",      // dash-leading even with a web scheme inside
-		"http://has space",    // embedded space
-		"http:example.com",    // web scheme missing its "//" — malformed, not rewritten
-		"https:example.com",   // same, https
-		"myapp:foo",           // unrecognised scheme, non-port opaque
-		"",                    // empty
-		"   ",                 // whitespace only
+		"file:///etc/passwd",           // local-file scheme must never reach `open`
+		"tel:911",                      // would place a call
+		"mailto:a@b.com",               // would open Mail
+		"javascript:alert(1)",          // script scheme
+		"ftp://host/x",                 // non-web scheme
+		"sms:911",                      // messaging scheme
+		"https://user:pass@host.com",   // embedded credentials (leaks + phishing)
+		"https://trusted.com@evil.com", // userinfo disguise — real host is evil.com
+		"user@example.com",             // bare userinfo@host, no scheme
+		"-e",                           // leading dash (option-injection shape)
+		"-https://x.com",               // dash-leading even with a web scheme inside
+		"http://has space",             // embedded space
+		"http:example.com",             // web scheme missing its "//" — malformed, not rewritten
+		"https:example.com",            // same, https
+		"myapp:foo",                    // unrecognised scheme, non-port opaque
+		"",                             // empty
+		"   ",                          // whitespace only
 	}
 	for _, in := range bad {
 		if got, err := normalizeWebsiteURL(in); err == nil {
