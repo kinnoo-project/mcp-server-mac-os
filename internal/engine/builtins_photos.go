@@ -173,22 +173,24 @@ const selectionScript = photoRowHelpers + `on run argv
 end run`
 
 // listAlbumsScript emits one row per user album: id \t name \t itemCount.
-const listAlbumsScript = `on run argv
+const listAlbumsScript = asDateHelpers + `on run argv
 	set out to ""
 	tell application "Photos"
 		repeat with a in albums
-			set out to out & (id of a) & tab & (name of a) & tab & ((count of media items of a) as string) & linefeed
+			set out to out & (id of a) & tab & my _clean(my _str(name of a)) & tab & ((count of media items of a) as string) & linefeed
 		end repeat
 	end tell
 	return out
 end run`
 
-// listFoldersScript emits one row per folder: id \t name.
-const photoFoldersScript = `on run argv
+// listFoldersScript emits one row per folder: id \t name. The name is run through
+// _clean/_str so a folder name containing a tab/newline cannot corrupt the
+// one-row-per-line, tab-delimited contract parsePhotoRows' callers rely on.
+const photoFoldersScript = asDateHelpers + `on run argv
 	set out to ""
 	tell application "Photos"
 		repeat with f in folders
-			set out to out & (id of f) & tab & (name of f) & linefeed
+			set out to out & (id of f) & tab & my _clean(my _str(name of f)) & linefeed
 		end repeat
 	end tell
 	return out
