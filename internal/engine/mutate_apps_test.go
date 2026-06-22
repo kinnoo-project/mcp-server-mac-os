@@ -295,6 +295,11 @@ func TestNormalizeWebsiteURL(t *testing.T) {
 		{"https://example.com/path?q=1", "https://example.com/path?q=1"},
 		{"http://example.com", "http://example.com"},
 		{"  youtube.com  ", "https://youtube.com"}, // surrounding whitespace trimmed
+		// Bare host:port — url.Parse misreads these as scheme:opaque, but an
+		// all-digit opaque (the port) marks them as a host:port to default to https.
+		{"localhost:8080", "https://localhost:8080"},     // no dot in the host
+		{"example.com:8080", "https://example.com:8080"}, // dotted host with a port
+		{"127.0.0.1:3000", "https://127.0.0.1:3000"},     // IPv4 host:port
 	}
 	for _, c := range ok {
 		got, err := normalizeWebsiteURL(c.in)
@@ -313,9 +318,13 @@ func TestNormalizeWebsiteURL(t *testing.T) {
 		"mailto:a@b.com",      // would open Mail
 		"javascript:alert(1)", // script scheme
 		"ftp://host/x",        // non-web scheme
+		"sms:911",             // messaging scheme
 		"-e",                  // leading dash (option-injection shape)
 		"-https://x.com",      // dash-leading even with a web scheme inside
 		"http://has space",    // embedded space
+		"http:example.com",    // web scheme missing its "//" — malformed, not rewritten
+		"https:example.com",   // same, https
+		"myapp:foo",           // unrecognised scheme, non-port opaque
 		"",                    // empty
 		"   ",                 // whitespace only
 	}

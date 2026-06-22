@@ -23,12 +23,20 @@ Design decisions:
   through verbatim. `normalizeWebsiteURL` upgrades a bare domain (`youtube.com`) to
   `https://`, and rejects every non-web scheme. This mirrors the "the scheme is
   chosen by our code, never by the model" discipline already used by `call`
-  (`mutate_phone.go`) and `open_settings` (`mutate_system.go`). A subtlety worth
-  recording: a scheme-only value with no `://` (e.g. `tel:911`) had to be rejected
-  *before* the bare-domain default, otherwise it would have been silently turned
-  into the valid-but-wrong `https://tel:911`. `url.Parse` also misreads a bare
-  `host:port` (`example.com:8080`) as a scheme, so a "scheme" containing `.` is
-  treated as a host:port (a bare domain), not a real scheme.
+  (`mutate_phone.go`) and `open_settings` (`mutate_system.go`). The net guarantee
+  is that whatever is returned is an http/https URL with a host, so `open` is only
+  ever handed a web address.
+
+  The fiddly part is telling a `scheme:opaque` value apart from a bare `host:port`,
+  because `url.Parse` reports a "scheme" for both `tel:911` (a real scheme, reject)
+  and `localhost:8080` (a host:port, accept). The resolution (PR #24, Copilot
+  feedback): for a no-`://` value carrying a scheme prefix, reject http/https
+  without `//` as malformed (`http:example.com` is not silently rewritten), reject
+  known non-web schemes (`tel`, `sms`, `mailto`, `file`, `ftp`, `javascript`, …),
+  accept it as a host:port only when the opaque part is an all-digit port (so
+  `localhost:8080`, `example.com:8080`, `127.0.0.1:3000` work), and reject anything
+  else. An earlier version keyed this off whether the "scheme" contained a `.`,
+  which wrongly rejected dotless dev hosts like `localhost:8080`.
 
 - **Staged, no undo.** Unlike `open_application` (auto-commit), `open_website` is
   staged behind the execute confirmation gate (the user chose this over

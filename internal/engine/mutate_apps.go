@@ -319,6 +319,19 @@ func stageOpenWebsite(_ context.Context, _ registry.Capability, in map[string]an
 	}, nil
 }
 
+// nonWebSchemes are URL schemes a website-opening tool must never act on. They
+// are listed so a value like "tel:911" or "mailto:x" yields a clear "only http
+// and https" error rather than being misread as a host:port (see
+// normalizeWebsiteURL). The set is not exhaustive — anything that is neither a
+// recognised host:port nor an http(s) URL is rejected regardless — but naming the
+// common phone/file/mail schemes makes the error message specific.
+var nonWebSchemes = map[string]bool{
+	"tel": true, "sms": true, "mailto": true, "facetime": true,
+	"facetime-audio": true, "file": true, "ftp": true, "ftps": true,
+	"javascript": true, "data": true, "smb": true, "afp": true,
+	"vnc": true, "ssh": true,
+}
+
 // normalizeWebsiteURL turns a model-supplied address into a safe, fully-qualified
 // http(s) URL or returns an error. It is pure (no I/O) so the normalization and
 // every rejection can be unit-tested directly.
@@ -329,13 +342,24 @@ func stageOpenWebsite(_ context.Context, _ registry.Capability, in map[string]an
 //     the guard obvious and local (matches open_file's path check).
 //   - Control characters and whitespace are rejected — a real web address has
 //     none, and they are exactly what a smuggled second argument would rely on.
-//   - A value with no scheme (no "://") is treated as a bare domain and upgraded to
-//     "https://<value>".
-//   - The result must parse and have scheme http or https AND a non-empty host.
-//     Every other scheme (file:, tel:, mailto:, javascript:, ftp:, custom://) is
-//     rejected so `open` is only ever handed a web address.
+//   - A full "scheme://…" value must be http or https with a host; every other
+//     scheme (file://, ftp://, …) is rejected.
+//   - A value with no "://" is treated as a bare domain or host:port and upgraded
+//     to "https://<value>" — UNLESS it carries a non-web scheme prefix. The tricky
+//     part is that url.Parse reports a "scheme" for both "tel:911" (a real scheme,
+//     reject) and "localhost:8080" (a host:port, accept): they are distinguished
+//     by the opaque part being an all-digit port and the scheme not being a known
+//     non-web scheme. A bare "http:example.com" (a web scheme missing its "//") is
+//     rejected as malformed rather than silently rewritten.
+//
+// The net guarantee is unchanged: whatever is returned is an http/https URL with a
+// host, so `open` is only ever handed a web address — never a file:, tel:, or
+// custom-scheme value it would dispatch to another handler.
 func normalizeWebsiteURL(raw string) (string, error) {
 	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "", fmt.Errorf("open_website: url is required")
+	}
 	if strings.HasPrefix(v, "-") {
 		return "", fmt.Errorf("open_website: url %q must not begin with '-'", raw)
 	}
@@ -345,34 +369,67 @@ func normalizeWebsiteURL(raw string) (string, error) {
 		}
 	}
 
-	// Reject an explicit non-web scheme (tel:, mailto:, file:, javascript:, ftp:…)
-	// BEFORE defaulting a bare domain to https — otherwise "tel:911" (which has no
-	// "://") would be silently turned into "https://tel:911". url.Parse misreads a
-	// bare "host:port" like "example.com:8080" as a scheme, so a scheme that
-	// contains "." is treated as a host:port (a bare domain), not a real scheme.
-	if u, err := url.Parse(v); err == nil && u.Scheme != "" && !strings.Contains(u.Scheme, ".") {
-		if s := strings.ToLower(u.Scheme); s != "http" && s != "https" {
+	// A full URL carries its scheme explicitly; validate it as-is.
+	if strings.Contains(v, "://") {
+		return validateWebURL(v, raw)
+	}
+
+	// No "://": the value is a bare domain ("youtube.com"), a bare host:port
+	// ("localhost:8080"), or a "scheme:opaque" the model should not be sending
+	// ("tel:911", "http:example.com"). url.Parse reports a Scheme only for the
+	// "word:" shapes, which is how we tell a host:port apart from a real scheme.
+	if u, err := url.Parse(v); err == nil && u.Scheme != "" {
+		scheme := strings.ToLower(u.Scheme)
+		switch {
+		case scheme == "http" || scheme == "https":
+			// e.g. "http:example.com" — a web scheme but missing its "//". Don't
+			// silently rewrite it into a bogus URL; treat it as malformed input.
+			return "", fmt.Errorf("open_website: %q is missing %q after the scheme; write it as %s://…", raw, "//", scheme)
+		case nonWebSchemes[scheme]:
+			return "", fmt.Errorf("open_website: only http and https web addresses are allowed, got scheme %q", u.Scheme)
+		case isAllDigits(u.Opaque):
+			// host:port — the "scheme" is really the host and the all-digit opaque
+			// is the port (e.g. "localhost:8080", "example.com:8080"). Fall through
+			// and default it to https below.
+		default:
+			// An unrecognised scheme with a non-port opaque: not a web address.
 			return "", fmt.Errorf("open_website: only http and https web addresses are allowed, got scheme %q", u.Scheme)
 		}
 	}
 
-	// No scheme present → treat as a bare domain and default to https.
-	if !strings.Contains(v, "://") {
-		v = "https://" + v
-	}
+	return validateWebURL("https://"+v, raw)
+}
 
-	u, err := url.Parse(v)
+// validateWebURL parses an already-assembled candidate URL and confirms it is an
+// http/https address with a host, returning the canonical form. raw is the
+// caller's original input, used only for clearer error messages.
+func validateWebURL(candidate, raw string) (string, error) {
+	u, err := url.Parse(candidate)
 	if err != nil {
 		return "", fmt.Errorf("open_website: %q is not a valid URL: %w", raw, err)
 	}
-	scheme := strings.ToLower(u.Scheme)
-	if scheme != "http" && scheme != "https" {
+	if scheme := strings.ToLower(u.Scheme); scheme != "http" && scheme != "https" {
 		return "", fmt.Errorf("open_website: only http and https web addresses are allowed, got scheme %q", u.Scheme)
 	}
 	if u.Host == "" {
 		return "", fmt.Errorf("open_website: %q has no host", raw)
 	}
 	return u.String(), nil
+}
+
+// isAllDigits reports whether s is non-empty and made up solely of ASCII digits —
+// the test for whether a "scheme:opaque" value's opaque part is really a port
+// (and the whole value therefore a host:port, not a custom scheme).
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // stageFocusApplication stages (for immediate auto-commit) bringing an app to the
