@@ -7,7 +7,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
 ### 🖥️ **Talk to your Mac**
-No more memorizing Terminal commands, no more digging through System Preferences, no more Googling on how to navigate and do things on your Mac.
+No more memorizing Terminal commands, no more digging through System Settings, no more Googling on how to navigate and do things on your Mac.
 
 > This is a Model Context Protocol (MCP) server that turns plain-language requests
 > into safe, native macOS actions — your files, Mail, Calendar, Reminders, 
