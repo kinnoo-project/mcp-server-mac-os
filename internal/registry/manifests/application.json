@@ -118,7 +118,7 @@
         "name": "url",
         "type": "string",
         "required": true,
-        "description": "The website address: a bare domain like 'youtube.com' or 'cnn.com', or a full 'https://...' URL. Must be a web address (http or https) — not a file path, 'tel:', 'mailto:', or any other scheme.",
+        "description": "The website address: a bare domain like 'youtube.com' or 'cnn.com', a bare host:port like 'localhost:8080', or a full 'https://...' URL. Must be a web address (http or https) — not a file path, 'tel:', 'mailto:', or any other scheme.",
         "arg": { "kind": "none" }
       },
       {
