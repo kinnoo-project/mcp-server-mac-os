@@ -79,22 +79,27 @@ func runExportPhoto(ctx context.Context, _ registry.Capability, in map[string]an
 		return "", fmt.Errorf("export_photo: could not create export directory under %s: %w", base, err)
 	}
 
+	// On ANY failure after the directory is created, remove it (and anything
+	// Photos may have partially written into it) so a failed export never leaves
+	// litter behind. os.RemoveAll — not os.Remove — because a partial export can
+	// leave the directory non-empty, which os.Remove refuses to delete.
 	res, err := runOsascript(ctx, exportPhotoScript, id, outDir, boolText(useOriginals))
 	if err != nil {
+		_ = os.RemoveAll(outDir)
 		return "", err
 	}
 	if res.ExitCode != 0 {
-		// Clean up the empty dir we made so a failed export leaves no litter.
-		_ = os.Remove(outDir)
+		_ = os.RemoveAll(outDir)
 		return "", photosScriptError("export_photo", res.Stderr)
 	}
 
 	written, err := exportedFiles(outDir)
 	if err != nil {
+		_ = os.RemoveAll(outDir)
 		return "", fmt.Errorf("export_photo: export reported success but the output could not be read: %w", err)
 	}
 	if len(written) == 0 {
-		_ = os.Remove(outDir)
+		_ = os.RemoveAll(outDir)
 		return "", fmt.Errorf("export_photo: Photos wrote no file for id %q (the item may be unavailable, e.g. still in iCloud and not downloaded)", id)
 	}
 	return reportExport(outDir, written), nil
