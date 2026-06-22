@@ -8,6 +8,12 @@
 // "--"-terminated `on run argv` data (osascriptCommand); the script body is a
 // fixed constant.
 //
+// ATTACHMENTS: Messages.app is sandboxed and cannot read files from arbitrary
+// locations handed to it by AppleScript, so an attachment sent straight from its
+// original path (e.g. ~/Downloads) fails to transmit. Each attachment is first
+// copied into Messages' own sandbox so the app can read it; the staged copies
+// are what the send references. See messages_sandbox.go for the full rationale.
+//
 // NOTE on the AppleScript: Messages' scripting `send` has varied in reliability
 // across macOS releases — it is the one genuinely version-sensitive piece here
 // and is verified by manual smoke test, not automated execution (sending a real
@@ -99,12 +105,25 @@ func stageSendMessage(ctx context.Context, _ registry.Capability, in map[string]
 		target = fmt.Sprintf("%s (%s)", display, handle)
 	}
 
+	// Copy attachments into Messages' sandbox so the app can actually read them
+	// at send time (see this file's header and messages_sandbox.go). The send
+	// references these staged copies; the preview below still shows the originals.
+	// Text-only sends skip this entirely — there is no file for Messages to read.
+	sendPaths := attachments
+	if len(attachments) > 0 {
+		sendPaths, err = stageAttachmentsIntoSandbox(attachments)
+		if err != nil {
+			return nil, fmt.Errorf("send_message: %w", err)
+		}
+	}
+
 	// Data arguments bound to the script's `on run argv`: handle, text, the
-	// attachment count, then the attachment paths. osascriptCommand inserts the
-	// "--" end-of-options terminator ahead of these, so a value like text="-e"
-	// reaches the script as data, never as an osascript flag (the
-	// option-injection guard documented in applescript.go and CLAUDE.md §4).
-	dataArgs := append([]string{handle, text, strconv.Itoa(len(attachments))}, attachments...)
+	// attachment count, then the (sandbox-staged) attachment paths.
+	// osascriptCommand inserts the "--" end-of-options terminator ahead of these,
+	// so a value like text="-e" reaches the script as data, never as an osascript
+	// flag (the option-injection guard documented in applescript.go and
+	// CLAUDE.md §4).
+	dataArgs := append([]string{handle, text, strconv.Itoa(len(sendPaths))}, sendPaths...)
 
 	return &StagedPlan{
 		Preview: messageSendPreview(target, text, attachments),

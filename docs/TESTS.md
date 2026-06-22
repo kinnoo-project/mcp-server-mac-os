@@ -69,12 +69,35 @@ decoding, validation, rendering, and the staged `send_message` plan's fields
 only — including the optional `attachments` path(s): the count-prefixed argv
 layout (`["-e", script, "--", handle, text, attachmentCount, paths...]`), the
 text-or-attachment requirement, an attachments-only (no text) send, the
-missing-file and directory-path rejections, and the attachment-naming preview.
-Manual smoke-test: grant Full Disk Access, run `check_messages` to confirm
-the read path and the friendly permission error, then `send_message` *stage* →
-`execute` to your **own** number/Apple ID (try it with an `attachments` image
-path, too). See
-`docs/issues/note-imessage-applescript-send.md` and `docs/issues/note-messages-read-fda.md`.
+missing-file and directory-path rejections, the attachment-naming preview, and —
+for the sandbox-copy fix — that an attachment's argv path is a copy STAGED INTO
+THE SANDBOX (basename and bytes preserved, same-basename files isolated), that an
+absent sandbox container is refused up front, and that the stale-copy sweep
+reclaims old staging dirs while sparing fresh ones (the staging dir is redirected
+to a temp dir, so no test touches the real Messages container).
+
+Manual smoke-test: grant Full Disk Access, run `check_messages` to confirm the
+read path and the friendly permission error, then `send_message` *stage* →
+`execute` to your **own** number/Apple ID. **Test an `attachments` image from an
+ordinary location like `~/Downloads`** — that is exactly what failed before the
+sandbox-copy fix. To verify *delivery* (not just that the send was issued),
+sending to your own number gives no normal receipt, so confirm the upload
+instead: the attachment's row in chat.db should reach `transfer_state = 5`
+(success), not `6` (failed). For example:
+
+```sh
+sqlite3 ~/Library/Messages/chat.db \
+ "SELECT a.transfer_state, m.error, m.is_sent, a.filename
+  FROM message m
+  JOIN message_attachment_join maj ON maj.message_id = m.rowid
+  JOIN attachment a ON a.rowid = maj.attachment_id
+  WHERE m.is_from_me = 1 ORDER BY m.date DESC LIMIT 3;"
+```
+
+See `docs/issues/bug-imessage-attachment-send-fails.md`,
+`docs/issues/note-imessage-attachments-design.md`,
+`docs/issues/note-imessage-applescript-send.md`, and
+`docs/issues/note-messages-read-fda.md`.
 
 ### Safety note: phone tests never place a real call
 
