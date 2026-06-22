@@ -177,9 +177,16 @@ func copyRegularFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
+	// On the copy-failure path the close error is not discarded: closing a
+	// writable file can itself report a deferred write/flush failure, so if both
+	// fail we surface both rather than hiding the close error behind the copy
+	// error. On success the close error is the only signal that the bytes were
+	// durably written, so it is returned directly.
+	if _, copyErr := io.Copy(out, in); copyErr != nil {
+		if closeErr := out.Close(); closeErr != nil {
+			return fmt.Errorf("%w (and closing destination failed: %v)", copyErr, closeErr)
+		}
+		return copyErr
 	}
 	return out.Close()
 }
