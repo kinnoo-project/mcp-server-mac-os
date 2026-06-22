@@ -21,7 +21,7 @@ place to drive your whole Mac in ordinary language. Ask —
 > *"Text Bob Jones that I'm running 10 minutes late."* ·
 > *"Put a dentist appointment for Thursday at 2pm."* · *"Find my tax return and
 > email it to Jim Smith."* · *"Go to my Wi-Fi settings."* ·
-> *"Turn on Bluetooth."* · *"Print invoice.pdf in my Downloads folder."*
+> *"Open my Bluetooth settings."* · *"Print invoice.pdf in my Downloads folder."*
 
 — and the model answers by calling **real, audited macOS tools**. Most actions give you a preview first, and ask you to confirm and approve before execution. **Nothing** changes on your Mac without you seeing exactly what will happen first and without you giving explicit approval.
 
@@ -97,7 +97,7 @@ assistant can actually look at it — plus light, previewed organizing.
 - *"Find my photos from the beach."* · *"Search my photos for 'dog'."* *(uses Photos' own search — scenes, places, dates, text)*
 - *"Show me my favorites."* · *"What albums do I have?"* · *"How many photos are in my library?"*
 - *"Export that photo so you can see it."* *(writes a copy to a fresh folder and hands back the path — your library is untouched; GPS coordinates are shown only when you ask about one specific photo)*
-- **"Mark this as a favorite."** · **"Rename this photo to 'Sunset at Ocean Beach'."** · **"Tag these with 'vacation'."** *(previewed; undo restores the prior value)*
+- **"Mark this as a favorite."** · **"Rename this photo to 'Sunset at Ocean Beach'."** · **"Set this photo's keywords to 'vacation, beach'."** *(replaces that photo's keyword list; previewed; undo restores the prior value)*
 - **"Make an album called 'Trip 2024'."** · **"Add these to my 'Best of' album."** · **"Import these pictures."** *(previewed; these have no automatic undo — the preview says exactly how to reverse them by hand)*
 - **Photos never deletes.** The assistant cannot delete a photo or video — Photos' automation simply doesn't allow it — so your pictures are never at risk.
 

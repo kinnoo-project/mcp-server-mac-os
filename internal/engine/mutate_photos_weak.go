@@ -152,8 +152,11 @@ func stageImportPhotos(_ context.Context, _ registry.Capability, in map[string]a
 		if strings.TrimSpace(f) == "" {
 			return nil, fmt.Errorf("import_photos: 'files' must not contain an empty path")
 		}
-		if info, err := os.Stat(f); err != nil || info.IsDir() {
-			return nil, fmt.Errorf("import_photos: %q is not an existing file", f)
+		// Require a regular file: reject not just directories but also special
+		// files (devices, sockets, fifos), matching how send_message validates its
+		// attachments — Photos can only import an actual image/video file.
+		if info, err := os.Stat(f); err != nil || !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("import_photos: %q is not an existing regular file", f)
 		}
 	}
 	album, _ := getString(in, "album")

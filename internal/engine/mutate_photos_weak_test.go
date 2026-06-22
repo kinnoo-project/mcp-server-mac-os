@@ -109,6 +109,13 @@ func TestStageImportPhotos_ExistingFiles(t *testing.T) {
 		map[string]any{"files": []string{filepath.Join(dir, "missing.jpg")}}); err == nil {
 		t.Error("expected a missing file to be rejected")
 	}
+
+	// A non-regular file (here a directory) is refused: import requires a real
+	// image/video file, not a directory or special file.
+	if _, err := stageImportPhotos(context.Background(), lookupCapability(t, "import_photos"),
+		map[string]any{"files": []string{dir}}); err == nil {
+		t.Error("expected a non-regular file (directory) to be rejected")
+	}
 }
 
 // TestStageCreateFolder_TopLevel verifies an omitted parent stages as an empty
