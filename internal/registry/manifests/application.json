@@ -63,7 +63,7 @@
   },
   {
     "name": "open_application",
-    "summary": "Launch an application by name (or bring it to the front if already running). Runs immediately. If the app was not already running, undo will quit it again.",
+    "summary": "Launch an INSTALLED application by name (or bring it to the front if already running), e.g. 'Notes', 'Safari'. Runs immediately. If the app was not already running, undo will quit it again. For a web address (e.g. 'open YouTube', 'cnn.com') use open_website instead; for a file on disk use open_file.",
     "category": "application",
     "binary": "open",
     "reversibility": "reversible",
@@ -101,6 +101,31 @@
         "type": "string",
         "required": false,
         "description": "The application to open the file with, e.g. 'Preview', 'TextEdit', 'Visual Studio Code'. Omit to use the file's default application.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "open_website",
+    "summary": "Open a WEBSITE in a browser, e.g. 'open YouTube' -> url 'youtube.com', 'open CNN.com', or 'open YouTube on Chrome'. Use this when the subject is a web address rather than an installed app (open_application) or a file on disk (open_file). The address must be a web URL (http/https); a bare domain like 'youtube.com' is accepted and opened over https. Omit 'browser' to use the default browser. STAGED for confirmation.",
+    "category": "application",
+    "binary": "open",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "open_website",
+    "params": [
+      {
+        "name": "url",
+        "type": "string",
+        "required": true,
+        "description": "The website address: a bare domain like 'youtube.com' or 'cnn.com', a bare host:port like 'localhost:8080', or a full 'https://...' URL. Must be a web address (http or https) — not a file path, 'tel:', 'mailto:', or any other scheme.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "browser",
+        "type": "string",
+        "required": false,
+        "description": "The browser application to open it in, e.g. 'Safari', 'Google Chrome', 'Firefox'. Omit to use the system default browser.",
         "arg": { "kind": "none" }
       }
     ]

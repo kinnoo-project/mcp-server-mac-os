@@ -1,14 +1,18 @@
-# 🖥️ mcp-server-mac-os
 
-> **Talk to your Mac.** A Model Context Protocol (MCP) server that turns
-> plain-language requests into safe, native macOS actions — your files, Mail,
-> Calendar, Reminders, Messages, Notes, Contacts & calls, apps, printers, and
-> system settings — from any MCP-aware client like **Claude Code** or **Claude Desktop**.
+# Mac OS MCP Server
 
 [![Platform: macOS 13+](https://img.shields.io/badge/platform-macOS%2013%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![MCP](https://img.shields.io/badge/MCP-go--sdk%20v1.4.1-6E56CF)](https://modelcontextprotocol.io/)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+
+### 🖥️ **Talk to your Mac**
+No more memorizing Terminal commands, no more digging through System Settings, no more Googling on how to navigate and do things on your Mac.
+
+> This is a Model Context Protocol (MCP) server that turns plain-language requests
+> into safe, native macOS actions — your files, Mail, Calendar, Reminders, 
+> Messages, Notes, Contacts & calls, apps, printers, and system settings — 
+> from any MCP-aware client like **Claude Code** or **Claude Desktop**.
 
 Pair this server with an MCP-aware client like **Claude Code** or **Claude
 Desktop** and the two together become a genuine **macOS command center** — one
@@ -98,6 +102,7 @@ See what's installed and what's open, and drive your apps.
 - **"Open Notes."** · **"Bring Safari to the front."** *(run immediately)*
 - **"Open Leah.png in Preview."** *(previewed first — and it warns if the app may not handle that file type)*
 - **"Open this PDF."** *(no app named — opens in your default app for that type)*
+- **"Open YouTube."** · **"Open CNN.com."** · **"Open YouTube on Chrome."** *(opens a website in your browser — previewed first; uses the default browser unless you name one)*
 - **"Quit Mail."** *(previewed first — unsaved work matters)*
 
 ### 📸 Screenshots
