@@ -98,6 +98,7 @@ See what's installed and what's open, and drive your apps.
 - **"Open Notes."** · **"Bring Safari to the front."** *(run immediately)*
 - **"Open Leah.png in Preview."** *(previewed first — and it warns if the app may not handle that file type)*
 - **"Open this PDF."** *(no app named — opens in your default app for that type)*
+- **"Open YouTube."** · **"Open CNN.com."** · **"Open YouTube on Chrome."** *(opens a website in your browser — previewed first; uses the default browser unless you name one)*
 - **"Quit Mail."** *(previewed first — unsaved work matters)*
 
 ### 📸 Screenshots

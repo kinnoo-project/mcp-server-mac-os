@@ -283,6 +283,111 @@ func TestComposeOpenFilePreview(t *testing.T) {
 	}
 }
 
+// --- open_website ------------------------------------------------------------
+
+// TestNormalizeWebsiteURL covers the pure normalization/validation helper: bare
+// domains gain an https scheme, full http(s) URLs pass through, and every
+// non-web scheme (or malformed input) is rejected.
+func TestNormalizeWebsiteURL(t *testing.T) {
+	ok := []struct{ in, want string }{
+		{"youtube.com", "https://youtube.com"},
+		{"CNN.com", "https://CNN.com"}, // host case is preserved; scheme defaulted
+		{"https://example.com/path?q=1", "https://example.com/path?q=1"},
+		{"http://example.com", "http://example.com"},
+		{"  youtube.com  ", "https://youtube.com"}, // surrounding whitespace trimmed
+		// Bare host:port — url.Parse misreads these as scheme:opaque, but an
+		// all-digit opaque (the port) marks them as a host:port to default to https.
+		{"localhost:8080", "https://localhost:8080"},     // no dot in the host
+		{"example.com:8080", "https://example.com:8080"}, // dotted host with a port
+		{"127.0.0.1:3000", "https://127.0.0.1:3000"},     // IPv4 host:port
+	}
+	for _, c := range ok {
+		got, err := normalizeWebsiteURL(c.in)
+		if err != nil {
+			t.Errorf("normalizeWebsiteURL(%q) unexpected error: %v", c.in, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("normalizeWebsiteURL(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+
+	bad := []string{
+		"file:///etc/passwd",  // local-file scheme must never reach `open`
+		"tel:911",             // would place a call
+		"mailto:a@b.com",      // would open Mail
+		"javascript:alert(1)", // script scheme
+		"ftp://host/x",        // non-web scheme
+		"sms:911",             // messaging scheme
+		"-e",                  // leading dash (option-injection shape)
+		"-https://x.com",      // dash-leading even with a web scheme inside
+		"http://has space",    // embedded space
+		"http:example.com",    // web scheme missing its "//" — malformed, not rewritten
+		"https:example.com",   // same, https
+		"myapp:foo",           // unrecognised scheme, non-port opaque
+		"",                    // empty
+		"   ",                 // whitespace only
+	}
+	for _, in := range bad {
+		if got, err := normalizeWebsiteURL(in); err == nil {
+			t.Errorf("normalizeWebsiteURL(%q) = %q, want error", in, got)
+		}
+	}
+}
+
+// TestStageOpenWebsite_DefaultBrowser asserts the default-browser shape: the
+// command is `open -- <https url>`, with the (normalized) address landing AFTER
+// the "--" terminator so `open` can never read it as a flag, and no undo offered.
+func TestStageOpenWebsite_DefaultBrowser(t *testing.T) {
+	plan, err := stageOpenWebsite(context.Background(), registry.Capability{}, map[string]any{"url": "youtube.com"})
+	if err != nil {
+		t.Fatalf("stageOpenWebsite: %v", err)
+	}
+	want := Command{Binary: "open", Args: []string{"--", "https://youtube.com"}}
+	if !reflect.DeepEqual(plan.Forward, want) {
+		t.Errorf("forward = %+v, want %+v", plan.Forward, want)
+	}
+	if plan.Inverse != nil {
+		t.Errorf("open_website must be irreversible (no inverse), got %+v", plan.Inverse)
+	}
+	if !strings.Contains(plan.Preview, "https://youtube.com") {
+		t.Errorf("preview should name the normalized URL: %q", plan.Preview)
+	}
+}
+
+// TestStageOpenWebsite_NamedBrowser asserts the named-browser shape:
+// `open -a <browser> -- <https url>`, the address again after the terminator.
+func TestStageOpenWebsite_NamedBrowser(t *testing.T) {
+	plan, err := stageOpenWebsite(context.Background(), registry.Capability{},
+		map[string]any{"url": "cnn.com", "browser": "Google Chrome"})
+	if err != nil {
+		t.Fatalf("stageOpenWebsite: %v", err)
+	}
+	want := Command{Binary: "open", Args: []string{"-a", "Google Chrome", "--", "https://cnn.com"}}
+	if !reflect.DeepEqual(plan.Forward, want) {
+		t.Errorf("forward = %+v, want %+v", plan.Forward, want)
+	}
+}
+
+// TestStageOpenWebsite_Rejects is the option-injection + scheme regression: a
+// flag-like url or browser, and a non-web scheme, must all be refused at stage
+// time so nothing crafted ever reaches `open`.
+func TestStageOpenWebsite_Rejects(t *testing.T) {
+	cases := []map[string]any{
+		{"url": "-e foo"},                               // flag-like url
+		{"url": "file:///etc/passwd"},                   // local-file scheme
+		{"url": "tel:911"},                              // call scheme
+		{"url": "youtube.com", "browser": "-FlagName"},  // flag-like browser
+		{"url": "youtube.com", "browser": "Goo\x00gle"}, // control char in browser
+		{}, // missing url
+	}
+	for _, in := range cases {
+		if plan, err := stageOpenWebsite(context.Background(), registry.Capability{}, in); err == nil {
+			t.Errorf("stageOpenWebsite(%v) should error, got plan %+v", in, plan)
+		}
+	}
+}
+
 func focusCapability(t *testing.T) registry.Capability {
 	return lookupCapability(t, "focus_application")
 }

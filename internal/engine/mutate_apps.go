@@ -1,5 +1,5 @@
 // mutate_apps.go implements the mutating Application operations: launching,
-// focusing, and quitting an app.
+// focusing, and quitting an app, opening a file, and opening a website.
 //
 // # Lanes
 //
@@ -25,6 +25,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -256,6 +257,179 @@ func composeOpenFilePreview(file, app, undoNote string, s fileSupport) string {
 	default: // supportSupported
 		return action
 	}
+}
+
+// stageOpenWebsite stages opening a web address in a browser — the third member
+// of the "open …" family alongside open_application (installed apps) and
+// open_file (files on disk). Like open_file it is NOT auto-commit: it waits behind
+// the execute confirmation gate, and it offers no undo (closing exactly the tab
+// that was opened is not something `open` can reliably reverse).
+//
+// # Why the URL is validated, not trusted
+//
+// `open` will launch WHATEVER scheme it is handed — `file://…` reads a local file,
+// `tel:`/`facetime:` place a call, a custom scheme triggers its registered handler.
+// So a model-supplied address cannot be passed through verbatim. normalizeWebsiteURL
+// constrains it to http/https (rejecting every other scheme) and upgrades a bare
+// domain like "youtube.com" to "https://youtube.com" — the same "the scheme is
+// chosen by this code, never by the model" discipline that mutate_phone.go and
+// mutate_system.go apply to their URLs.
+//
+// The forward command places the (now guaranteed http/https) URL after a "--"
+// terminator so `open` can never read it as one of its own options, mirroring
+// openFileForward.
+func stageOpenWebsite(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	raw, _ := getString(in, "url")
+	if strings.TrimSpace(raw) == "" {
+		return nil, fmt.Errorf("open_website: 'url' is required")
+	}
+
+	normalized, err := normalizeWebsiteURL(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	// Optional browser: validated like any other app name (non-empty after trim,
+	// no leading dash, no control characters). Omitted → system default browser.
+	browserRaw, _ := getString(in, "browser")
+	var browser string
+	if strings.TrimSpace(browserRaw) != "" {
+		browser, err = validateAppNameValue("open_website", "browser", browserRaw)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var (
+		forward Command
+		preview string
+	)
+	if browser == "" {
+		forward = Command{Binary: "open", Args: []string{"--", normalized}}
+		preview = fmt.Sprintf("Open %s in your default browser. Proceed?", normalized)
+	} else {
+		forward = Command{Binary: "open", Args: []string{"-a", browser, "--", normalized}}
+		preview = fmt.Sprintf("Open %s in %q. Proceed?", normalized, browser)
+	}
+
+	return &StagedPlan{
+		Preview: preview,
+		Forward: forward,
+		Inverse: nil, // no reliable way to close just the tab/window that opened
+	}, nil
+}
+
+// nonWebSchemes are URL schemes a website-opening tool must never act on. They
+// are listed so a value like "tel:911" or "mailto:x" yields a clear "only http
+// and https" error rather than being misread as a host:port (see
+// normalizeWebsiteURL). The set is not exhaustive — anything that is neither a
+// recognised host:port nor an http(s) URL is rejected regardless — but naming the
+// common phone/file/mail schemes makes the error message specific.
+var nonWebSchemes = map[string]bool{
+	"tel": true, "sms": true, "mailto": true, "facetime": true,
+	"facetime-audio": true, "file": true, "ftp": true, "ftps": true,
+	"javascript": true, "data": true, "smb": true, "afp": true,
+	"vnc": true, "ssh": true,
+}
+
+// normalizeWebsiteURL turns a model-supplied address into a safe, fully-qualified
+// http(s) URL or returns an error. It is pure (no I/O) so the normalization and
+// every rejection can be unit-tested directly.
+//
+// Rules:
+//   - A leading "-" is rejected up front: even though the forward command uses a
+//     "--" terminator, an address should never look like an option, and this keeps
+//     the guard obvious and local (matches open_file's path check).
+//   - Control characters and whitespace are rejected — a real web address has
+//     none, and they are exactly what a smuggled second argument would rely on.
+//   - A full "scheme://…" value must be http or https with a host; every other
+//     scheme (file://, ftp://, …) is rejected.
+//   - A value with no "://" is treated as a bare domain or host:port and upgraded
+//     to "https://<value>" — UNLESS it carries a non-web scheme prefix. The tricky
+//     part is that url.Parse reports a "scheme" for both "tel:911" (a real scheme,
+//     reject) and "localhost:8080" (a host:port, accept): they are distinguished
+//     by the opaque part being an all-digit port and the scheme not being a known
+//     non-web scheme. A bare "http:example.com" (a web scheme missing its "//") is
+//     rejected as malformed rather than silently rewritten.
+//
+// The net guarantee is unchanged: whatever is returned is an http/https URL with a
+// host, so `open` is only ever handed a web address — never a file:, tel:, or
+// custom-scheme value it would dispatch to another handler.
+func normalizeWebsiteURL(raw string) (string, error) {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "", fmt.Errorf("open_website: url is required")
+	}
+	if strings.HasPrefix(v, "-") {
+		return "", fmt.Errorf("open_website: url %q must not begin with '-'", raw)
+	}
+	for _, r := range v {
+		if r < 0x20 || r == 0x7f || r == ' ' {
+			return "", fmt.Errorf("open_website: url must not contain spaces or control characters")
+		}
+	}
+
+	// A full URL carries its scheme explicitly; validate it as-is.
+	if strings.Contains(v, "://") {
+		return validateWebURL(v, raw)
+	}
+
+	// No "://": the value is a bare domain ("youtube.com"), a bare host:port
+	// ("localhost:8080"), or a "scheme:opaque" the model should not be sending
+	// ("tel:911", "http:example.com"). url.Parse reports a Scheme only for the
+	// "word:" shapes, which is how we tell a host:port apart from a real scheme.
+	if u, err := url.Parse(v); err == nil && u.Scheme != "" {
+		scheme := strings.ToLower(u.Scheme)
+		switch {
+		case scheme == "http" || scheme == "https":
+			// e.g. "http:example.com" — a web scheme but missing its "//". Don't
+			// silently rewrite it into a bogus URL; treat it as malformed input.
+			return "", fmt.Errorf("open_website: %q is missing %q after the scheme; write it as %s://…", raw, "//", scheme)
+		case nonWebSchemes[scheme]:
+			return "", fmt.Errorf("open_website: only http and https web addresses are allowed, got scheme %q", u.Scheme)
+		case isAllDigits(u.Opaque):
+			// host:port — the "scheme" is really the host and the all-digit opaque
+			// is the port (e.g. "localhost:8080", "example.com:8080"). Fall through
+			// and default it to https below.
+		default:
+			// An unrecognised scheme with a non-port opaque: not a web address.
+			return "", fmt.Errorf("open_website: only http and https web addresses are allowed, got scheme %q", u.Scheme)
+		}
+	}
+
+	return validateWebURL("https://"+v, raw)
+}
+
+// validateWebURL parses an already-assembled candidate URL and confirms it is an
+// http/https address with a host, returning the canonical form. raw is the
+// caller's original input, used only for clearer error messages.
+func validateWebURL(candidate, raw string) (string, error) {
+	u, err := url.Parse(candidate)
+	if err != nil {
+		return "", fmt.Errorf("open_website: %q is not a valid URL: %w", raw, err)
+	}
+	if scheme := strings.ToLower(u.Scheme); scheme != "http" && scheme != "https" {
+		return "", fmt.Errorf("open_website: only http and https web addresses are allowed, got scheme %q", u.Scheme)
+	}
+	if u.Host == "" {
+		return "", fmt.Errorf("open_website: %q has no host", raw)
+	}
+	return u.String(), nil
+}
+
+// isAllDigits reports whether s is non-empty and made up solely of ASCII digits —
+// the test for whether a "scheme:opaque" value's opaque part is really a port
+// (and the whole value therefore a host:port, not a custom scheme).
+func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // stageFocusApplication stages (for immediate auto-commit) bringing an app to the
