@@ -89,6 +89,18 @@ Find and read your notes, and jot new ones down — changes previewed and undoab
 - **"Make a note titled 'Trip ideas' with these three places."** *(previewed; undo deletes it)*
 - **"Add 'buy sunscreen' to my packing-list note."** *(previewed; undo restores the prior contents)*
 
+### 📷 Photos
+
+Search your photo library, read a picture's details, and pull a photo out so the
+assistant can actually look at it — plus light, previewed organizing.
+
+- *"Find my photos from the beach."* · *"Search my photos for 'dog'."* *(uses Photos' own search — scenes, places, dates, text)*
+- *"Show me my favorites."* · *"What albums do I have?"* · *"How many photos are in my library?"*
+- *"Export that photo so you can see it."* *(writes a copy to a fresh folder and hands back the path — your library is untouched; GPS coordinates are shown only when you ask about one specific photo)*
+- **"Mark this as a favorite."** · **"Rename this photo to 'Sunset at Ocean Beach'."** · **"Tag these with 'vacation'."** *(previewed; undo restores the prior value)*
+- **"Make an album called 'Trip 2024'."** · **"Add these to my 'Best of' album."** · **"Import these pictures."** *(previewed; these have no automatic undo — the preview says exactly how to reverse them by hand)*
+- **Photos never deletes.** The assistant cannot delete a photo or video — Photos' automation simply doesn't allow it — so your pictures are never at risk.
+
 ### 🚀 Apps
 
 See what's installed and what's open, and drive your apps.
@@ -265,15 +277,15 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 14 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`,
+You'll now have the 15 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`,
 `printer`, `system`, `network`, `process`, `screenshot`) plus the shared `execute`,
 `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
 > **Note on permissions:** reading Messages needs **Full Disk Access**, taking
 > screenshots needs **Screen Recording**, and automating
-> Mail/Calendar/Reminders/Contacts/Messages/Notes needs a one-time **Automation**
+> Mail/Calendar/Reminders/Contacts/Messages/Notes/Photos needs a one-time **Automation**
 > grant — all prompted by macOS the first time, under *System Settings → Privacy &
 > Security*. Granting once is enough.
 
@@ -370,7 +382,7 @@ is privilege: capabilities that **strictly require admin or root** are out of sc
 (see [Contributing](#-contributing)). The server widens toward everything a normal
 user can do, and stops there.
 
-The read-only foundation, the 14-domain tool surface, the
+The read-only foundation, the 15-domain tool surface, the
 stage → execute → undo mutation gate, and read-only composition (`pipeline`) are
 all in place, with mutation proved across every undo shape the design anticipated
 (fixed inverse, prior-state-dependent inverse, and genuinely irreversible).
