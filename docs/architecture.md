@@ -326,6 +326,7 @@ Access requirement and the read-only, injection-safe query posture).
 | `list_running_applications` | `/usr/bin/osascript` | read-only        | "What's open right now?"                          |
 | `open_application`          | `/usr/bin/open`      | reversible *     | "Open Notes." (runs immediately)                 |
 | `open_file`                 | `/usr/bin/open`      | reversible       | "Open Leah.png in Preview." / "Open this PDF." (staged) |
+| `open_website`              | `/usr/bin/open`      | irreversible     | "Open YouTube." / "Open CNN.com on Chrome." (staged) |
 | `focus_application`         | `/usr/bin/osascript` | irreversible     | "Bring Safari to the front." (runs immediately)  |
 | `quit_application`          | `/usr/bin/osascript` | irreversible     | "Quit Mail." (staged — confirm first)            |
 
@@ -360,6 +361,22 @@ not be supported. The verdict only shapes the preview text — the staged
 forward/undo commands are identical regardless — so the confirmation gate is the
 single place the open is allowed or abandoned. Reversibility mirrors
 `open_application`: undo quits the app only if it wasn't already running.
+
+`open_website` is the third member of the "open …" family: it opens a **web
+address** in a browser ("Open YouTube", "Open CNN.com", "Open YouTube on Chrome"),
+where `open_application` opens an installed app and `open_file` opens a file. Which
+of the three to use is the model's call — it already knows YouTube is a website and
+resolves it to `youtube.com`; the server's job is to validate hard. The key
+guardrail is the **scheme constraint**: `open` will launch *any* scheme it is
+handed (`file://` reads a local file, `tel:` places a call, a custom scheme
+triggers its registered handler), so a model-supplied address is normalized and
+checked before use — a bare domain like `youtube.com` is upgraded to
+`https://youtube.com`, and any scheme other than `http`/`https` is rejected. This
+is the same "the scheme is chosen by our code, never by the model" discipline that
+`call` and `open_settings` apply. The (now guaranteed web) URL is placed after a
+`--` terminator (`open -- <url>`, or `open -a <browser> -- <url>` when a browser is
+named) so it can never be read as an option. It is **always staged** and offers no
+undo — there is no reliable way to close exactly the tab that opened.
 
 ### `printer`
 
