@@ -21,7 +21,7 @@ place to drive your whole Mac in ordinary language. Ask —
 > *"Text Bob Jones that I'm running 10 minutes late."* ·
 > *"Put a dentist appointment for Thursday at 2pm."* · *"Find my tax return and
 > email it to Jim Smith."* · *"Go to my Wi-Fi settings."* ·
-> *"Turn on Bluetooth."* · *Print invoice.pdf in my Downloads folder* 
+> *"Turn on Bluetooth."* · *"Print invoice.pdf in my Downloads folder."*
 
 — and the model answers by calling **real, audited macOS tools**. Most actions give you a preview first, and ask you to confirm and approve before execution. **Nothing** changes on your Mac without you seeing exactly what will happen first and without you giving explicit approval.
 
