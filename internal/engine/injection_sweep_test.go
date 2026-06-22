@@ -74,6 +74,10 @@ var reviewedFreeTextBuiltins = map[string]string{
 	"dns_lookup":          "validateNetworkHost rejects dash-leading and metacharacters; see builtins_network_test.go",
 	"list_processes":      "ps with a fixed argv; filter applied in-process as a substring, never passed to the binary; see builtins_process_test.go",
 	"list_reminders":      "in-process Reminders read; list name passed as osascript argv data after '--'; see builtins_reminders.go",
+	"search_photos":       "osascript via runOsascript: query passed as argv data after '--' (Photos' own search); see builtins_photos_test.go",
+	"get_photo":           "osascript via runOsascript: id passed as argv data after '--'; see builtins_photos_test.go",
+	"get_album_photos":    "osascript via runOsascript: album name passed as argv data after '--'; see builtins_photos_test.go",
+	"export_photo":        "osascript via runOsascript: id/destination passed as argv data after '--'; dash-leading destination rejected; exports only into a fresh empty dir (never overwrites); see builtins_photos_export_test.go",
 }
 
 // hasFreeTextParam reports whether a capability takes any parameter whose value
