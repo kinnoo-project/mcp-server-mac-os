@@ -18,19 +18,14 @@ Pair this server with an MCP-aware client like **Claude Code** or **Claude
 Desktop** and the two together become a genuine **macOS command center** — one
 place to drive your whole Mac in ordinary language. Ask —
 
-> *"What are my 10 biggest files?"* · *"Text Bob I'm running 10 minutes late."* ·
-> *"Put a dentist appointment on Thursday at 2pm."* · *"Find my tax return and
-> email it to my accountant."* · *"Open System Settings to Wi-Fi."* ·
-> *"Turn on Reduce Motion."*
+> *"Text Bob Jones that I'm running 10 minutes late."* ·
+> *"Put a dentist appointment for Thursday at 2pm."* · *"Find my tax return and
+> email it to Jim Smith."* · *"Go to my Wi-Fi settings."* ·
+> *"Turn on Bluetooth."* · *Print invoice.pdf in my Downloads folder* 
 
-— and the model answers by calling **real, audited macOS tools**. Every action
-that is *read-only* runs instantly; every action that *changes something* gives you a preview first,
-and is gated behind an explicit confirmation you approve. Nothing happens to your
-Mac without you seeing exactly what will happen first and approving the action.
+— and the model answers by calling **real, audited macOS tools**. Most actions give you a preview first, and ask you to confirm and approve before execution. **Nothing** changes on your Mac without you seeing exactly what will happen first and without you giving explicit approval.
 
-With a client like **Claude Desktop** or **Claude Code** that allows secure remote session access, 
-you can control your Mac device remotely from your phone or from another machine. This enables you
-to monitor and control your Mac on the go!
+With a client like **Claude Desktop** or **Claude Code** that allows secure remote session access,  you can control your Mac device remotely from your phone or from another machine. This enables you to monitor and control your Mac on the go!
 
 ---
 
@@ -38,7 +33,7 @@ to monitor and control your Mac on the go!
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
 the Mac you already use. **14 domains, ~70 operations**, each invokable in plain
-English. Read operations return immediately; **bold** ones change system state
+language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
 ### 📁 Files & disk
