@@ -25,14 +25,14 @@ place to drive your whole Mac in ordinary language. Ask —
 
 — and the model answers by calling **real, audited macOS tools**. Most actions give you a preview first, and ask you to confirm and approve before execution. **Nothing** changes on your Mac without you seeing exactly what will happen first and without you giving explicit approval.
 
-With a client like **Claude Desktop** or **Claude Code** that allows secure remote session access,  you can control your Mac device remotely from your phone or from another machine. This enables you to monitor and control your Mac on the go!
+With a client like **Claude Desktop** or **Claude Code** that allows secure remote session access, you can control your Mac device remotely from your phone or from another machine. This enables you to monitor and control your Mac on the go!
 
 ---
 
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **14 domains, ~70 operations**, each invokable in plain
+the Mac you already use. **15 domains, ~90 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 

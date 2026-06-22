@@ -407,8 +407,10 @@ func runGetPhoto(ctx context.Context, _ registry.Capability, in map[string]any) 
 	if res.ExitCode != 0 {
 		return "", photosScriptError("get_photo", res.Stderr)
 	}
-	// 13 fields joined by asFieldSep; strip exactly the single trailing newline
-	// osascript appends so a description ending in blank lines is not truncated.
+	// 13 fields joined by asFieldSep. Strip the single trailing newline osascript
+	// appends after the returned string so it does not bleed into the last field
+	// (keywords); the script already runs every text field through _clean, so no
+	// field contains an embedded newline of its own.
 	f := strings.Split(strings.TrimSuffix(res.Stdout, "\n"), asFieldSep)
 	if len(f) != 13 {
 		return "", fmt.Errorf("get_photo: unexpected metadata for id %q", id)
