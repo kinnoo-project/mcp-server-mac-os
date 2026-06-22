@@ -95,6 +95,7 @@ var mutators = map[string]Mutator{
 	"append_to_note":    stageAppendToNote,
 	"open_application":  stageOpenApplication,
 	"open_file":         stageOpenFile,
+	"open_website":      stageOpenWebsite,
 	"focus_application": stageFocusApplication,
 	"quit_application":  stageQuitApplication,
 	"print_file":        stagePrintFile,
