@@ -45,3 +45,16 @@ Messages.
    scripting `send` has varied in reliability across macOS releases; the
    `(POSIX file path) as alias` → `send … to targetBuddy` form is the attachment
    analogue and carries the same "confirm on real hardware" expectation.
+
+6. **UPDATE — the real failure mechanism was found, and it is NOT the `send`
+   verb.** On macOS 14/15 attachments sent straight from an external path
+   (`~/Downloads`, `/tmp`) reliably FAIL to transmit, because Messages.app is
+   sandboxed and cannot read a file outside its sandbox that AppleScript hands
+   it (the upload dies at `transfer_state = 6`, `error = 3`; text is unaffected).
+   The point-4 stat probe still validates the *original* path, but the send no
+   longer references it directly: each attachment is first copied into Messages'
+   own sandbox container and the send references that readable copy. See
+   `bug-imessage-attachment-send-fails.md` for the full diagnosis (the
+   `transfer_state` evidence table) and `internal/engine/messages_sandbox.go`
+   for the implementation and the hardcoded `com.apple.MobileSMS` container-id
+   assumption.
