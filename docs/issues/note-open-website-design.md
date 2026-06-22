@@ -38,6 +38,14 @@ Design decisions:
   else. An earlier version keyed this off whether the "scheme" contained a `.`,
   which wrongly rejected dotless dev hosts like `localhost:8080`.
 
+  Embedded userinfo is also rejected (PR #25, Copilot feedback): a URL like
+  `https://user:pass@host` or `https://trusted.com@evil.com` is refused. The
+  second form is the classic phishing disguise — the host the user reads
+  (`trusted.com`) is only userinfo, and the browser actually navigates to the host
+  after the `@` (`evil.com`) — and the first form would hand credentials to
+  `open`. An ordinary website never needs userinfo, so `validateWebURL` returns an
+  error whenever `url.URL.User` is set.
+
 - **Staged, no undo.** Unlike `open_application` (auto-commit), `open_website` is
   staged behind the execute confirmation gate (the user chose this over
   auto-commit). It offers no undo: there is no reliable way to close exactly the

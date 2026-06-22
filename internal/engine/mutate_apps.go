@@ -414,6 +414,14 @@ func validateWebURL(candidate, raw string) (string, error) {
 	if u.Host == "" {
 		return "", fmt.Errorf("open_website: %q has no host", raw)
 	}
+	// Reject embedded userinfo ("user:pass@host" / "name@host"). A real website to
+	// open never needs it, and it is the classic phishing disguise — the host the
+	// user thinks they're visiting ("trusted.com" in "trusted.com@evil.com") is
+	// actually only userinfo, and the browser navigates to the host AFTER the "@"
+	// ("evil.com"). Refusing it also avoids handing credentials to `open`.
+	if u.User != nil {
+		return "", fmt.Errorf("open_website: %q must not contain embedded credentials or an '@' before the host", raw)
+	}
 	return u.String(), nil
 }
 
