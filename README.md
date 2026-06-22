@@ -18,27 +18,22 @@ Pair this server with an MCP-aware client like **Claude Code** or **Claude
 Desktop** and the two together become a genuine **macOS command center** — one
 place to drive your whole Mac in ordinary language. Ask —
 
-> *"What are my 10 biggest files?"* · *"Text Bob I'm running 10 minutes late."* ·
-> *"Put a dentist appointment on Thursday at 2pm."* · *"Find my tax return and
-> email it to my accountant."* · *"Open System Settings to Wi-Fi."* ·
-> *"Turn on Reduce Motion."*
+> *"Text Bob Jones that I'm running 10 minutes late."* ·
+> *"Put a dentist appointment for Thursday at 2pm."* · *"Find my tax return and
+> email it to Jim Smith."* · *"Go to my Wi-Fi settings."* ·
+> *"Open my Bluetooth settings."* · *"Print invoice.pdf in my Downloads folder."*
 
-— and the model answers by calling **real, audited macOS tools**. Every action
-that is *read-only* runs instantly; every action that *changes something* gives you a preview first,
-and is gated behind an explicit confirmation you approve. Nothing happens to your
-Mac without you seeing exactly what will happen first and approving the action.
+— and the model answers by calling **real, audited macOS tools**. Most actions give you a preview first, and ask you to confirm and approve before execution. **Nothing** changes on your Mac without you seeing exactly what will happen first and without you giving explicit approval.
 
-With a client like **Claude Desktop** or **Claude Code** that allows secure remote session access, 
-you can control your Mac device remotely from your phone or from another machine. This enables you
-to monitor and control your Mac on the go!
+With a client like **Claude Desktop** or **Claude Code** that allows secure remote session access, you can control your Mac device remotely from your phone or from another machine. This enables you to monitor and control your Mac on the go!
 
 ---
 
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **14 domains, ~70 operations**, each invokable in plain
-English. Read operations return immediately; **bold** ones change system state
+the Mac you already use. **15 domains, ~90 operations**, each invokable in plain
+language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
 ### 📁 Files & disk
@@ -93,6 +88,18 @@ Find and read your notes, and jot new ones down — changes previewed and undoab
 - *"Find my note about the wifi password."* · *"Read the note titled 'Packing list'."*
 - **"Make a note titled 'Trip ideas' with these three places."** *(previewed; undo deletes it)*
 - **"Add 'buy sunscreen' to my packing-list note."** *(previewed; undo restores the prior contents)*
+
+### 📷 Photos
+
+Search your photo library, read a picture's details, and pull a photo out so the
+assistant can actually look at it — plus light, previewed organizing.
+
+- *"Find my photos from the beach."* · *"Search my photos for 'dog'."* *(uses Photos' own search — scenes, places, dates, text)*
+- *"Show me my favorites."* · *"What albums do I have?"* · *"How many photos are in my library?"*
+- *"Export that photo so you can see it."* *(writes a copy to a fresh folder and hands back the path — your library is untouched; GPS coordinates are shown only when you ask about one specific photo)*
+- **"Mark this as a favorite."** · **"Rename this photo to 'Sunset at Ocean Beach'."** · **"Set this photo's keywords to 'vacation, beach'."** *(replaces that photo's keyword list; previewed; undo restores the prior value)*
+- **"Make an album called 'Trip 2024'."** · **"Add these to my 'Best of' album."** · **"Import these pictures."** *(previewed; these have no automatic undo — the preview says exactly how to reverse them by hand)*
+- **Photos never deletes.** The assistant cannot delete a photo or video — Photos' automation simply doesn't allow it — so your pictures are never at risk.
 
 ### 🚀 Apps
 
@@ -270,15 +277,15 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 14 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`,
+You'll now have the 15 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`,
 `printer`, `system`, `network`, `process`, `screenshot`) plus the shared `execute`,
 `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
 > **Note on permissions:** reading Messages needs **Full Disk Access**, taking
 > screenshots needs **Screen Recording**, and automating
-> Mail/Calendar/Reminders/Contacts/Messages/Notes needs a one-time **Automation**
+> Mail/Calendar/Reminders/Contacts/Messages/Notes/Photos needs a one-time **Automation**
 > grant — all prompted by macOS the first time, under *System Settings → Privacy &
 > Security*. Granting once is enough.
 
@@ -375,7 +382,7 @@ is privilege: capabilities that **strictly require admin or root** are out of sc
 (see [Contributing](#-contributing)). The server widens toward everything a normal
 user can do, and stops there.
 
-The read-only foundation, the 14-domain tool surface, the
+The read-only foundation, the 15-domain tool surface, the
 stage → execute → undo mutation gate, and read-only composition (`pipeline`) are
 all in place, with mutation proved across every undo shape the design anticipated
 (fixed inverse, prior-state-dependent inverse, and genuinely irreversible).

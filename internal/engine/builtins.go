@@ -44,6 +44,18 @@ var builtins = map[string]BuiltinFunc{
 	"read_note":    runReadNote,
 	"list_folders": runListFolders,
 
+	"search_photos":         runSearchPhotos,
+	"list_photos":           runListPhotos,
+	"get_photo":             runGetPhoto,
+	"export_photo":          runExportPhoto,
+	"list_albums":           runListAlbums,
+	"list_photo_folders":    runListPhotoFolders,
+	"get_album_photos":      runGetAlbumPhotos,
+	"list_favorites":        runListFavorites,
+	"list_recently_deleted": runListRecentlyDeleted,
+	"get_selection":         runGetSelection,
+	"library_stats":         runLibraryStats,
+
 	"list_applications":         runListApplications,
 	"search_applications":       runSearchApplications,
 	"list_running_applications": runListRunningApplications,
