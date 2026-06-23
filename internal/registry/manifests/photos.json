@@ -1,7 +1,7 @@
 [
   {
     "name": "search_photos",
-    "summary": "Search the Photos library using Photos' own search (the same engine as the in-app Search field), returning matching photos and videos. The query can name scenes, objects, places, dates, people, or text Photos has indexed (e.g. \"beach\", \"dog\", \"Paris\", \"2023\") — far broader than a filename match. Returns each item's id; pass that id to get_photo or export_photo. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Search the library like Photos' own Search field (scenes, places, dates, people, text); returns matching items with ids for get_photo/export_photo.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -12,7 +12,7 @@
         "name": "query",
         "type": "string",
         "required": true,
-        "description": "Text to search for, exactly as you would type it into the Photos Search field (e.g. \"beach\", \"birthday\", \"Paris\", \"receipt\").",
+        "description": "Search text, as typed into Photos' Search field (e.g. \"beach\", \"Paris\", \"receipt\").",
         "arg": { "kind": "none" }
       },
       {
@@ -20,14 +20,14 @@
         "type": "int",
         "required": false,
         "default": 25,
-        "description": "Maximum number of items to return (default 25, maximum 100).",
+        "description": "Max items to return (default 25, max 100).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "list_photos",
-    "summary": "List photos and videos from the Photos library in the library's native order, capped at a small number. Returns each item's id, title, filename, date, favorite flag, and pixel dimensions; pass an id to get_photo for full metadata (including GPS) or to export_photo. This is a bounded preview, not the whole library — use search_photos to find specific items. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "List recent library items in native order — a bounded preview, not the whole library (use search_photos to find specific items). Returns ids + basic metadata.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -39,14 +39,14 @@
         "type": "int",
         "required": false,
         "default": 25,
-        "description": "Maximum number of items to return (default 25, maximum 100).",
+        "description": "Max items to return (default 25, max 100).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "get_photo",
-    "summary": "Read one photo or video's full metadata by its id (from search_photos/list_photos): title, description, filename, date, favorite, dimensions, file size, keywords, and — unlike the bulk listings — its precise GPS location and altitude when present. GPS coordinates are sensitive; they are returned only here, never in bulk listings. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Read one item's full metadata by id, including precise GPS location/altitude when present (returned only here, never in bulk listings).",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -57,14 +57,14 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The media item's id, as returned by search_photos, list_photos, or get_album_photos.",
+        "description": "Media item id from search_photos, list_photos, or get_album_photos.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "export_photo",
-    "summary": "Export one photo or video OUT of the Photos library to a file on disk by its id (from search_photos/list_photos), so it can be opened and viewed. Writes into a fresh, empty directory (never overwriting anything) and returns the file path(s) and size; open the path to view the image. By default exports a rendered JPEG; set use_originals to export the untouched original file. This copies pixels out of the library — only ever called explicitly. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Export one item out of the library to a file on disk by id so it can be viewed. Writes to a fresh dir (never overwrites); returns the path(s) and size. Defaults to a rendered JPEG.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -75,14 +75,14 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The media item's id, as returned by search_photos, list_photos, or get_album_photos.",
+        "description": "Media item id from search_photos, list_photos, or get_album_photos.",
         "arg": { "kind": "none" }
       },
       {
         "name": "destination",
         "type": "path",
         "required": false,
-        "description": "Directory to export into. A fresh, uniquely-named subfolder is created inside it for this export, so nothing is ever overwritten. Supports a leading ~. Omit to export to a temporary folder.",
+        "description": "Directory to export into; a fresh subfolder is made inside it (nothing is overwritten). Leading ~ ok. Omit for a temp folder.",
         "arg": { "kind": "none" }
       },
       {
@@ -90,14 +90,14 @@
         "type": "bool",
         "required": false,
         "default": false,
-        "description": "Export the untouched original file (true) instead of a rendered JPEG (false, the default).",
+        "description": "Export the untouched original instead of a rendered JPEG (default false).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "list_albums",
-    "summary": "List the user-created albums in the Photos library by name, each with its id and the number of items it holds. Pass an album name to get_album_photos. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "List user-created albums with id and item count; pass a name to get_album_photos.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -107,7 +107,7 @@
   },
   {
     "name": "list_photo_folders",
-    "summary": "List the folders in the Photos library by name (folders group albums and other folders). Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "List folders in the library (folders group albums and other folders).",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -117,7 +117,7 @@
   },
   {
     "name": "get_album_photos",
-    "summary": "List the photos and videos inside a named album, capped at a small number, returning each item's id and basic metadata. Use list_albums to find a valid album name. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "List items in a named album (bounded), with ids and basic metadata. Use list_albums for valid names.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -128,7 +128,7 @@
         "name": "album",
         "type": "string",
         "required": true,
-        "description": "Exact name of the album to read (see list_albums).",
+        "description": "Exact album name (see list_albums).",
         "arg": { "kind": "none" }
       },
       {
@@ -136,14 +136,14 @@
         "type": "int",
         "required": false,
         "default": 25,
-        "description": "Maximum number of items to return (default 25, maximum 100).",
+        "description": "Max items to return (default 25, max 100).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "list_favorites",
-    "summary": "List the photos and videos in the Photos Favorites album, capped at a small number, returning each item's id and basic metadata. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "List items in the Favorites album (bounded), with ids and basic metadata.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -155,14 +155,14 @@
         "type": "int",
         "required": false,
         "default": 25,
-        "description": "Maximum number of items to return (default 25, maximum 100).",
+        "description": "Max items to return (default 25, max 100).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "list_recently_deleted",
-    "summary": "List the photos and videos currently in the Photos Recently Deleted album (items pending permanent deletion, recoverable for 30 days), capped at a small number. Useful to see what is staged for deletion. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "List items in Recently Deleted — pending permanent deletion, recoverable for 30 days (bounded).",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -174,14 +174,14 @@
         "type": "int",
         "required": false,
         "default": 25,
-        "description": "Maximum number of items to return (default 25, maximum 100).",
+        "description": "Max items to return (default 25, max 100).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "get_selection",
-    "summary": "List the photos and videos currently selected in the Photos app window, returning each item's id and basic metadata — a bridge to \"act on what I'm looking at\". Returns nothing if Photos has no selection. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "List items currently selected in the Photos window — a bridge to \"act on what I'm looking at\". Empty if nothing is selected.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -191,7 +191,7 @@
   },
   {
     "name": "library_stats",
-    "summary": "Report Photos library totals: the number of media items (photos and videos), albums, and folders. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Report library totals: number of media items, albums, and folders.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -201,7 +201,7 @@
   },
   {
     "name": "set_favorite",
-    "summary": "Mark a photo or video as a favorite, or remove the favorite mark, by its id (from search_photos/list_photos). STAGED for confirmation; undo restores the previous favorite state. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Mark an item as favorite, or remove the mark, by id. Undo restores the prior state.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -212,21 +212,21 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The media item's id, as returned by search_photos, list_photos, or get_album_photos.",
+        "description": "Media item id from search_photos, list_photos, or get_album_photos.",
         "arg": { "kind": "none" }
       },
       {
         "name": "favorite",
         "type": "bool",
         "required": true,
-        "description": "true to mark as a favorite, false to remove the favorite mark.",
+        "description": "true to favorite, false to remove the favorite mark.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "set_title",
-    "summary": "Set (or clear) a photo or video's title by its id (from search_photos/list_photos). STAGED for confirmation; undo restores the previous title. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Set or clear an item's title by id. Undo restores the prior title.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -237,21 +237,21 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The media item's id, as returned by search_photos, list_photos, or get_album_photos.",
+        "description": "Media item id from search_photos, list_photos, or get_album_photos.",
         "arg": { "kind": "none" }
       },
       {
         "name": "title",
         "type": "string",
         "required": true,
-        "description": "The new title. Pass an empty string to clear the title.",
+        "description": "New title; empty string clears it.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "set_description",
-    "summary": "Set (or clear) a photo or video's description (caption) by its id (from search_photos/list_photos). STAGED for confirmation; undo restores the previous description. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Set or clear an item's description/caption by id. Undo restores the prior value.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -262,21 +262,21 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The media item's id, as returned by search_photos, list_photos, or get_album_photos.",
+        "description": "Media item id from search_photos, list_photos, or get_album_photos.",
         "arg": { "kind": "none" }
       },
       {
         "name": "description",
         "type": "string",
         "required": true,
-        "description": "The new description (caption). Pass an empty string to clear it.",
+        "description": "New caption; empty string clears it.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "set_date",
-    "summary": "Change a photo or video's date/time by its id (from search_photos/list_photos). STAGED for confirmation; undo restores the previous date. The item must already have a date (so undo can restore it). Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Change an item's date/time by id (item must already have a date, so undo can restore it). Undo restores the prior date.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -287,14 +287,14 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The media item's id, as returned by search_photos, list_photos, or get_album_photos.",
+        "description": "Media item id from search_photos, list_photos, or get_album_photos.",
         "arg": { "kind": "none" }
       },
       {
         "name": "date",
         "type": "string",
         "required": true,
-        "description": "The new date in YYYY-MM-DD form (e.g. 2024-07-04).",
+        "description": "New date as YYYY-MM-DD (e.g. 2024-07-04).",
         "arg": { "kind": "none" }
       },
       {
@@ -302,14 +302,14 @@
         "type": "string",
         "required": false,
         "default": "00:00",
-        "description": "The new time of day in 24-hour HH:MM form (default 00:00).",
+        "description": "New time as 24-hour HH:MM (default 00:00).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "set_keywords",
-    "summary": "Replace a photo or video's entire keyword list by its id (from search_photos/list_photos). STAGED for confirmation; undo restores the previous keywords. Pass an empty list to clear all keywords. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Replace an item's entire keyword list by id. Undo restores the prior keywords.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -320,21 +320,21 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The media item's id, as returned by search_photos, list_photos, or get_album_photos.",
+        "description": "Media item id from search_photos, list_photos, or get_album_photos.",
         "arg": { "kind": "none" }
       },
       {
         "name": "keywords",
         "type": "string_list",
         "required": true,
-        "description": "The complete new list of keywords (this REPLACES the existing keywords). Pass an empty list to remove all keywords.",
+        "description": "Complete new keyword list (REPLACES existing); empty list clears all.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "create_album",
-    "summary": "Create a new, empty album in the Photos library, optionally inside a folder. STAGED for confirmation. NO automatic undo: Photos provides no scripted album deletion, so to reverse this you must delete the album yourself in Photos (the photos themselves are never affected). Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Create a new empty album, optionally inside a folder. No auto-undo — to reverse, delete the album by hand in Photos (photos unaffected).",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "irreversible",
@@ -345,21 +345,21 @@
         "name": "name",
         "type": "string",
         "required": true,
-        "description": "The name of the new album.",
+        "description": "Name of the new album.",
         "arg": { "kind": "none" }
       },
       {
         "name": "parent_folder",
         "type": "string",
         "required": false,
-        "description": "Exact name of an existing folder to create the album inside (see list_photo_folders). Omit to create it at the top level.",
+        "description": "Existing folder to create it inside (see list_photo_folders). Omit for top level.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "create_folder",
-    "summary": "Create a new, empty folder in the Photos library, optionally inside another folder. Folders group albums and other folders. STAGED for confirmation. NO automatic undo: Photos provides no scripted folder deletion, so to reverse this you must delete the folder yourself in Photos. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Create a new empty folder (folders group albums and other folders), optionally inside another. No auto-undo — to reverse, delete the folder by hand in Photos.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "irreversible",
@@ -370,21 +370,21 @@
         "name": "name",
         "type": "string",
         "required": true,
-        "description": "The name of the new folder.",
+        "description": "Name of the new folder.",
         "arg": { "kind": "none" }
       },
       {
         "name": "parent_folder",
         "type": "string",
         "required": false,
-        "description": "Exact name of an existing folder to create the new folder inside (see list_photo_folders). Omit to create it at the top level.",
+        "description": "Existing folder to create it inside (see list_photo_folders). Omit for top level.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "add_to_album",
-    "summary": "Add one or more existing photos/videos (by id, from search_photos/list_photos) to an existing album. This only changes album membership; it never copies or moves the underlying photo. STAGED for confirmation. NO automatic undo: Photos provides no scripted way to remove an item from an album, so to reverse this you must remove the items yourself in Photos. Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Add existing items (by id) to an existing album; only changes membership, never copies the photo. No auto-undo — to reverse, remove the items by hand in Photos.",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "irreversible",
@@ -395,21 +395,21 @@
         "name": "album",
         "type": "string",
         "required": true,
-        "description": "Exact name of the existing album to add to (see list_albums).",
+        "description": "Exact name of the existing album (see list_albums).",
         "arg": { "kind": "none" }
       },
       {
         "name": "ids",
         "type": "string_list",
         "required": true,
-        "description": "One or more media item ids to add (from search_photos, list_photos, or get_album_photos).",
+        "description": "Media item ids to add (from search_photos, list_photos, or get_album_photos).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "import_photos",
-    "summary": "Import image/video files from disk into the Photos library, optionally adding them to an album. STAGED for confirmation. NO automatic undo: Photos provides no scripted way to delete imported media items, so to reverse this you must delete the imported items yourself in Photos (they then sit in Recently Deleted, recoverable for 30 days). Drives Photos via AppleScript; the first use may prompt for Automation access to Photos.",
+    "summary": "Import image/video files from disk into the library, optionally into an album. No auto-undo — to reverse, delete the imports by hand in Photos (then in Recently Deleted, 30 days).",
     "category": "application-photos",
     "binary": "osascript",
     "reversibility": "irreversible",
@@ -420,14 +420,14 @@
         "name": "files",
         "type": "path_list",
         "required": true,
-        "description": "One or more paths to image/video files to import. Supports a leading ~.",
+        "description": "Paths to image/video files to import. Leading ~ ok.",
         "arg": { "kind": "none" }
       },
       {
         "name": "album",
         "type": "string",
         "required": false,
-        "description": "Exact name of an existing album to add the imported items to (see list_albums). Omit to import without adding to an album.",
+        "description": "Existing album to add imports to (see list_albums). Omit to skip.",
         "arg": { "kind": "none" }
       }
     ]

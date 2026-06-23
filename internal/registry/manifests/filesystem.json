@@ -13,43 +13,43 @@
         "type": "path",
         "required": false,
         "default": ".",
-        "description": "Directory or file to list. Defaults to the working directory; supports a leading ~.",
+        "description": "Directory or file to list (default: working dir). Leading ~ ok.",
         "arg": { "kind": "positional" }
       },
       {
         "name": "all",
         "type": "bool",
-        "description": "Include entries starting with a dot (passes -A).",
+        "description": "Include entries starting with a dot.",
         "arg": { "kind": "flag", "flag": "-A" }
       },
       {
         "name": "long",
         "type": "bool",
-        "description": "Long format with permissions, owner, size, and mtime (passes -l).",
+        "description": "Long format: permissions, owner, size, mtime.",
         "arg": { "kind": "flag", "flag": "-l" }
       },
       {
         "name": "human_readable",
         "type": "bool",
-        "description": "Human-readable sizes when combined with long (passes -h).",
+        "description": "Human-readable sizes (with long).",
         "arg": { "kind": "flag", "flag": "-h" }
       },
       {
         "name": "recursive",
         "type": "bool",
-        "description": "Recursively list subdirectories (passes -R). Use sparingly on deep trees.",
+        "description": "Recurse into subdirectories. Use sparingly on deep trees.",
         "arg": { "kind": "flag", "flag": "-R" }
       },
       {
         "name": "sort_by_size",
         "type": "bool",
-        "description": "Sort by file size, largest first (passes -S).",
+        "description": "Sort by size, largest first.",
         "arg": { "kind": "flag", "flag": "-S" }
       },
       {
         "name": "sort_by_time",
         "type": "bool",
-        "description": "Sort by modification time, newest first (passes -t).",
+        "description": "Sort by mtime, newest first.",
         "arg": { "kind": "flag", "flag": "-t" }
       }
     ]
@@ -66,7 +66,7 @@
   },
   {
     "name": "largest_files",
-    "summary": "List the largest files under a directory, ranked by size. Returns only the top N (default 10), so use this instead of find for 'biggest files' questions.",
+    "summary": "List the largest files under a directory, ranked by size (top N only). Use this instead of find for 'biggest files' questions.",
     "category": "filesystem",
     "binary": "",
     "reversibility": "read_only",
@@ -78,7 +78,7 @@
         "type": "path",
         "required": false,
         "default": ".",
-        "description": "Directory to scan recursively. Defaults to the working directory; supports a leading ~.",
+        "description": "Directory to scan recursively (default: working dir). Leading ~ ok.",
         "arg": { "kind": "none" }
       },
       {
@@ -86,7 +86,7 @@
         "type": "int",
         "required": false,
         "default": 10,
-        "description": "How many of the largest files to return (default 10, maximum 100).",
+        "description": "How many largest files to return (default 10, max 100).",
         "arg": { "kind": "none" }
       }
     ]
@@ -104,7 +104,7 @@
         "name": "paths",
         "type": "path_list",
         "required": true,
-        "description": "One or more files to identify; supports a leading ~.",
+        "description": "One or more files to identify. Leading ~ ok.",
         "arg": { "kind": "positional" }
       }
     ]
@@ -122,7 +122,7 @@
         "name": "paths",
         "type": "path_list",
         "required": true,
-        "description": "One or more paths to stat; supports a leading ~.",
+        "description": "One or more paths to stat. Leading ~ ok.",
         "arg": { "kind": "positional" }
       }
     ]
@@ -140,32 +140,32 @@
       {
         "name": "lines",
         "type": "bool",
-        "description": "Count lines (passes -l).",
+        "description": "Count lines.",
         "arg": { "kind": "flag", "flag": "-l" }
       },
       {
         "name": "words",
         "type": "bool",
-        "description": "Count words (passes -w).",
+        "description": "Count words.",
         "arg": { "kind": "flag", "flag": "-w" }
       },
       {
         "name": "bytes",
         "type": "bool",
-        "description": "Count bytes (passes -c).",
+        "description": "Count bytes.",
         "arg": { "kind": "flag", "flag": "-c" }
       },
       {
         "name": "chars",
         "type": "bool",
-        "description": "Count characters (passes -m).",
+        "description": "Count characters.",
         "arg": { "kind": "flag", "flag": "-m" }
       },
       {
         "name": "paths",
         "type": "path_list",
         "required": false,
-        "description": "Files to count; supports a leading ~. Required when calling wc directly; omit only when this is a non-first pipeline stage.",
+        "description": "Files to count. Leading ~ ok. Omit only as a non-first pipeline stage.",
         "arg": { "kind": "positional" }
       }
     ]
@@ -182,26 +182,26 @@
       {
         "name": "human_readable",
         "type": "bool",
-        "description": "Human-readable sizes like 1.2K, 47M, 3G (passes -h).",
+        "description": "Human-readable sizes (1.2K, 47M, 3G).",
         "arg": { "kind": "flag", "flag": "-h" }
       },
       {
         "name": "total",
         "type": "bool",
-        "description": "Produce a grand total across all arguments (passes -c).",
+        "description": "Add a grand total across all arguments.",
         "arg": { "kind": "flag", "flag": "-c" }
       },
       {
         "name": "max_depth",
         "type": "int",
-        "description": "Report entries at most N directory levels deep (passes -d N). Use 0 to get only the total of each argument (the summary view).",
+        "description": "Report entries at most N levels deep. Use 0 for just each argument's total.",
         "arg": { "kind": "valued_flag", "flag": "-d" }
       },
       {
         "name": "paths",
         "type": "path_list",
         "required": true,
-        "description": "Directories or files to measure; supports a leading ~.",
+        "description": "Directories or files to measure. Leading ~ ok.",
         "arg": { "kind": "positional" }
       }
     ]
@@ -219,44 +219,44 @@
         "name": "path",
         "type": "path",
         "required": true,
-        "description": "Root directory to search under; supports a leading ~.",
+        "description": "Root directory to search under. Leading ~ ok.",
         "arg": { "kind": "none" }
       },
       {
         "name": "name_pattern",
         "type": "string",
-        "description": "Glob to match the base file name, e.g. *.png (passes -name).",
+        "description": "Glob matching the base file name, e.g. *.png.",
         "arg": { "kind": "none" }
       },
       {
         "name": "iname_pattern",
         "type": "string",
-        "description": "Case-insensitive variant of name_pattern (passes -iname).",
+        "description": "Case-insensitive name_pattern.",
         "arg": { "kind": "none" }
       },
       {
         "name": "type",
         "type": "enum",
         "enum": ["f", "d", "l"],
-        "description": "Restrict to f (regular file), d (directory), or l (symlink).",
+        "description": "Restrict to f (file), d (directory), or l (symlink).",
         "arg": { "kind": "none" }
       },
       {
         "name": "max_depth",
         "type": "int",
-        "description": "Maximum directory depth to descend (passes -maxdepth).",
+        "description": "Maximum directory depth to descend.",
         "arg": { "kind": "none" }
       },
       {
         "name": "min_depth",
         "type": "int",
-        "description": "Minimum directory depth before matching begins (passes -mindepth).",
+        "description": "Minimum depth before matching begins.",
         "arg": { "kind": "none" }
       },
       {
         "name": "extensions",
         "type": "string_list",
-        "description": "File extensions without the leading dot, e.g. [\"png\",\"jpg\"]. OR-combined and matched case-insensitively.",
+        "description": "Extensions without the dot, e.g. [\"png\",\"jpg\"]; OR-combined, case-insensitive.",
         "arg": { "kind": "none" }
       }
     ]
@@ -282,55 +282,55 @@
         "name": "paths",
         "type": "path_list",
         "required": false,
-        "description": "Files or directories to search; supports a leading ~. Required when calling grep directly; omit only when this is a non-first pipeline stage.",
+        "description": "Files or directories to search. Leading ~ ok. Omit only as a non-first pipeline stage.",
         "arg": { "kind": "positional" }
       },
       {
         "name": "recursive",
         "type": "bool",
-        "description": "Recurse into directories (passes -r).",
+        "description": "Recurse into directories.",
         "arg": { "kind": "none" }
       },
       {
         "name": "ignore_case",
         "type": "bool",
-        "description": "Case-insensitive match (passes -i).",
+        "description": "Case-insensitive match.",
         "arg": { "kind": "none" }
       },
       {
         "name": "line_numbers",
         "type": "bool",
-        "description": "Prefix matches with line numbers (passes -n). On by default unless a summary mode (files_with_matches or count) is selected.",
+        "description": "Prefix matches with line numbers. On by default unless a summary mode (files_with_matches/count) is set.",
         "arg": { "kind": "none" }
       },
       {
         "name": "files_with_matches",
         "type": "bool",
-        "description": "List only the names of files containing matches (passes -l).",
+        "description": "List only the names of files containing matches.",
         "arg": { "kind": "none" }
       },
       {
         "name": "count",
         "type": "bool",
-        "description": "Print only a count of matching lines per file (passes -c).",
+        "description": "Print only a count of matching lines per file.",
         "arg": { "kind": "none" }
       },
       {
         "name": "max_count",
         "type": "int",
-        "description": "Stop after this many matches per file (passes -m).",
+        "description": "Stop after this many matches per file.",
         "arg": { "kind": "none" }
       },
       {
         "name": "context",
         "type": "int",
-        "description": "Print N lines of leading and trailing context around each match (passes -C N).",
+        "description": "Print N lines of context around each match.",
         "arg": { "kind": "none" }
       },
       {
         "name": "include",
         "type": "string",
-        "description": "Restrict a recursive search to files matching this glob (passes --include=).",
+        "description": "Restrict a recursive search to files matching this glob.",
         "arg": { "kind": "none" }
       }
     ]
@@ -348,38 +348,38 @@
       {
         "name": "numeric",
         "type": "bool",
-        "description": "Sort numerically rather than lexicographically (passes -n).",
+        "description": "Sort numerically, not lexicographically.",
         "arg": { "kind": "flag", "flag": "-n" }
       },
       {
         "name": "human_numeric",
         "type": "bool",
-        "description": "Sort by human-readable numeric value, understanding suffixes like 1K, 2M, 3G (passes -h). Use this to rank du -h output by size.",
+        "description": "Sort by human-readable size (1K, 2M, 3G); use to rank du -h output.",
         "arg": { "kind": "flag", "flag": "-h" }
       },
       {
         "name": "reverse",
         "type": "bool",
-        "description": "Reverse the sort order, e.g. largest first when combined with numeric or human_numeric (passes -r).",
+        "description": "Reverse order (largest first with numeric/human_numeric).",
         "arg": { "kind": "flag", "flag": "-r" }
       },
       {
         "name": "unique",
         "type": "bool",
-        "description": "Output only the first of each set of equal lines (passes -u).",
+        "description": "Output only the first of each set of equal lines.",
         "arg": { "kind": "flag", "flag": "-u" }
       },
       {
         "name": "key",
         "type": "string",
-        "description": "Sort key field specification, e.g. \"2,2\" to sort by the second whitespace-separated field (passes -k).",
+        "description": "Sort key field, e.g. \"2,2\" for the second whitespace-separated field.",
         "arg": { "kind": "valued_flag", "flag": "-k" }
       },
       {
         "name": "paths",
         "type": "path_list",
         "required": false,
-        "description": "Files to sort; supports a leading ~. Required when calling sort directly; omit only when this is a non-first pipeline stage, in which case it sorts the previous stage's output.",
+        "description": "Files to sort. Leading ~ ok. Omit only as a non-first pipeline stage (sorts the prior stage's output).",
         "arg": { "kind": "positional" }
       }
     ]
@@ -397,20 +397,20 @@
       {
         "name": "count",
         "type": "int",
-        "description": "Number of lines to print (passes -n). Defaults to 10 if neither count nor bytes is set.",
+        "description": "Number of lines to print (default 10 if neither count nor bytes is set).",
         "arg": { "kind": "valued_flag", "flag": "-n" }
       },
       {
         "name": "bytes",
         "type": "int",
-        "description": "Number of bytes to print instead of lines (passes -c). Set at most one of count/bytes.",
+        "description": "Number of bytes to print instead of lines. Set at most one of count/bytes.",
         "arg": { "kind": "valued_flag", "flag": "-c" }
       },
       {
         "name": "paths",
         "type": "path_list",
         "required": false,
-        "description": "Files to read; supports a leading ~. Required when calling head directly; omit only when this is a non-first pipeline stage, in which case it trims the previous stage's output.",
+        "description": "Files to read. Leading ~ ok. Omit only as a non-first pipeline stage (trims the prior stage's output).",
         "arg": { "kind": "positional" }
       }
     ]
@@ -428,7 +428,7 @@
         "name": "path",
         "type": "path",
         "required": true,
-        "description": "Directory to create; supports a leading ~. The parent must already exist and the target must not already exist.",
+        "description": "Directory to create. Leading ~ ok. Parent must exist; target must not.",
         "arg": { "kind": "none" }
       }
     ]
@@ -446,14 +446,14 @@
         "name": "source",
         "type": "path",
         "required": true,
-        "description": "Existing file or directory to move; supports a leading ~. Must not begin with '-' (prefix with ./ if needed).",
+        "description": "Existing file or directory to move. Leading ~ ok; must not start with '-' (use ./).",
         "arg": { "kind": "none" }
       },
       {
         "name": "destination",
         "type": "path",
         "required": true,
-        "description": "Target path; supports a leading ~. If it is an existing directory the source is placed inside it under its own name; otherwise it is the new path. The computed destination must not already exist (no overwrite) and its parent directory must already exist (mv does not create intermediate directories).",
+        "description": "Target path. Leading ~ ok. Into an existing dir → placed inside under its name; else it is the new path. Must not already exist (no overwrite); parent dir must exist.",
         "arg": { "kind": "none" }
       }
     ]
@@ -471,14 +471,14 @@
         "name": "source",
         "type": "path",
         "required": true,
-        "description": "Existing file or directory to copy; supports a leading ~. Must not begin with '-' (prefix with ./ if needed).",
+        "description": "Existing file or directory to copy. Leading ~ ok; must not start with '-' (use ./).",
         "arg": { "kind": "none" }
       },
       {
         "name": "destination",
         "type": "path",
         "required": true,
-        "description": "Target path; supports a leading ~. If it is an existing directory the copy is placed inside it under the source's name; otherwise it is the new path. The computed destination must not already exist (no overwrite) and its parent directory must already exist (cp does not create intermediate directories).",
+        "description": "Target path. Leading ~ ok. Into an existing dir → placed inside under the source's name; else it is the new path. Must not already exist (no overwrite); parent dir must exist.",
         "arg": { "kind": "none" }
       }
     ]
@@ -496,7 +496,7 @@
         "name": "path",
         "type": "path",
         "required": true,
-        "description": "Existing file or directory to send to the Trash; supports a leading ~. Must not begin with '-' (prefix with ./ if needed).",
+        "description": "Existing file or directory to send to the Trash. Leading ~ ok; must not start with '-' (use ./).",
         "arg": { "kind": "none" }
       }
     ]

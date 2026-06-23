@@ -1,7 +1,7 @@
 [
   {
     "name": "list_calendars",
-    "summary": "List the names of the calendars configured in Calendar.app. Use this first to discover the exact calendar name to target when adding or querying events.",
+    "summary": "List the names of the calendars in Calendar.app. Use first to discover the exact calendar name to target when adding or querying events.",
     "category": "application-calendar",
     "binary": "",
     "reversibility": "read_only",
@@ -11,7 +11,7 @@
   },
   {
     "name": "query_events",
-    "summary": "List events across your calendars within a date range (e.g. what's coming up this week). Returns each event's uid — pass that uid to modify_event or delete_event. Note: querying Calendar.app can take a few seconds when you have many events.",
+    "summary": "List events across calendars in a date range (e.g. what's coming up this week). Returns each event's uid for modify_event/delete_event. Can take a few seconds with many events.",
     "category": "application-calendar",
     "binary": "",
     "reversibility": "read_only",
@@ -22,21 +22,21 @@
         "name": "start_date",
         "type": "string",
         "required": true,
-        "description": "First day of the range to search, in YYYY-MM-DD form (inclusive).",
+        "description": "First day of the range, YYYY-MM-DD (inclusive).",
         "arg": { "kind": "none" }
       },
       {
         "name": "end_date",
         "type": "string",
         "required": false,
-        "description": "Last day of the range to search, in YYYY-MM-DD form (inclusive, whole day). Defaults to start_date (a single-day query).",
+        "description": "Last day, YYYY-MM-DD (inclusive, whole day). Defaults to start_date (single day).",
         "arg": { "kind": "none" }
       },
       {
         "name": "calendar",
         "type": "string",
         "required": false,
-        "description": "Restrict the search to a single calendar by exact name (from list_calendars). Omit to search all calendars.",
+        "description": "Restrict to one calendar by exact name (from list_calendars). Omit for all.",
         "arg": { "kind": "none" }
       },
       {
@@ -44,14 +44,14 @@
         "type": "int",
         "required": false,
         "default": 25,
-        "description": "Maximum number of events to return (default 25, maximum 100).",
+        "description": "Max events to return (default 25, max 100).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "add_event",
-    "summary": "Create a calendar event. STAGED for confirmation before it is created; undo deletes the created event.",
+    "summary": "Create a calendar event. STAGED; undo deletes the created event.",
     "category": "application-calendar",
     "binary": "osascript",
     "reversibility": "compensatable",
@@ -62,56 +62,56 @@
         "name": "calendar",
         "type": "string",
         "required": true,
-        "description": "Exact name of the calendar to add the event to (from list_calendars).",
+        "description": "Exact name of the calendar to add to (from list_calendars).",
         "arg": { "kind": "none" }
       },
       {
         "name": "title",
         "type": "string",
         "required": true,
-        "description": "Event title / summary.",
+        "description": "Event title.",
         "arg": { "kind": "none" }
       },
       {
         "name": "date",
         "type": "string",
         "required": true,
-        "description": "Day of the event, in YYYY-MM-DD form.",
+        "description": "Event day, YYYY-MM-DD.",
         "arg": { "kind": "none" }
       },
       {
         "name": "start_time",
         "type": "string",
         "required": true,
-        "description": "Start time on that day, in 24-hour HH:MM form.",
+        "description": "Start time, 24-hour HH:MM.",
         "arg": { "kind": "none" }
       },
       {
         "name": "end_time",
         "type": "string",
         "required": true,
-        "description": "End time on that day, in 24-hour HH:MM form; must be later than start_time.",
+        "description": "End time, 24-hour HH:MM; must be after start_time.",
         "arg": { "kind": "none" }
       },
       {
         "name": "location",
         "type": "string",
         "required": false,
-        "description": "Optional location for the event.",
+        "description": "Optional location.",
         "arg": { "kind": "none" }
       },
       {
         "name": "notes",
         "type": "string",
         "required": false,
-        "description": "Optional notes / description for the event.",
+        "description": "Optional notes/description.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "modify_event",
-    "summary": "Change an existing event identified by its uid (from query_events). Supply the full new title/date/start_time/end_time (the event is rescheduled to exactly these); location and notes are changed only if provided. STAGED for confirmation; undo restores the prior values.",
+    "summary": "Reschedule an event by uid (from query_events) to exactly the supplied title/date/start_time/end_time; location and notes change only if provided. STAGED; undo restores the prior values.",
     "category": "application-calendar",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -129,56 +129,56 @@
         "name": "uid",
         "type": "string",
         "required": true,
-        "description": "The event's uid, as returned by query_events.",
+        "description": "Event uid from query_events.",
         "arg": { "kind": "none" }
       },
       {
         "name": "title",
         "type": "string",
         "required": true,
-        "description": "New event title / summary (supply the current one unchanged if you only mean to change the time).",
+        "description": "New title (pass the current one unchanged if only changing the time).",
         "arg": { "kind": "none" }
       },
       {
         "name": "date",
         "type": "string",
         "required": true,
-        "description": "New day for the event, in YYYY-MM-DD form.",
+        "description": "New day, YYYY-MM-DD.",
         "arg": { "kind": "none" }
       },
       {
         "name": "start_time",
         "type": "string",
         "required": true,
-        "description": "New start time, in 24-hour HH:MM form.",
+        "description": "New start time, 24-hour HH:MM.",
         "arg": { "kind": "none" }
       },
       {
         "name": "end_time",
         "type": "string",
         "required": true,
-        "description": "New end time, in 24-hour HH:MM form; must be later than start_time.",
+        "description": "New end time, 24-hour HH:MM; must be after start_time.",
         "arg": { "kind": "none" }
       },
       {
         "name": "location",
         "type": "string",
         "required": false,
-        "description": "If provided, replaces the event's location. If omitted, the existing location is left unchanged.",
+        "description": "If given, replaces the location; if omitted, left unchanged.",
         "arg": { "kind": "none" }
       },
       {
         "name": "notes",
         "type": "string",
         "required": false,
-        "description": "If provided, replaces the event's notes/description. If omitted, the existing notes are left unchanged.",
+        "description": "If given, replaces the notes; if omitted, left unchanged.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "delete_event",
-    "summary": "Delete an event identified by its uid (from query_events). STAGED for confirmation; undo re-creates the event from the details captured before deletion.",
+    "summary": "Delete an event by uid (from query_events). STAGED; undo re-creates it from details captured before deletion.",
     "category": "application-calendar",
     "binary": "osascript",
     "reversibility": "compensatable",
@@ -196,7 +196,7 @@
         "name": "uid",
         "type": "string",
         "required": true,
-        "description": "The event's uid, as returned by query_events.",
+        "description": "Event uid from query_events.",
         "arg": { "kind": "none" }
       }
     ]

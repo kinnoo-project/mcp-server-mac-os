@@ -1,7 +1,7 @@
 [
   {
     "name": "list_processes",
-    "summary": "List the running processes ranked by CPU or memory use. Each row shows the PID, whether the program is an Apple/system binary or a user-installed app, its %CPU and %MEM, the owning user, how long it has been running, and the command. Answers 'what's eating my CPU/battery/memory right now' and 'is anything stuck or long-running'. Use sort_by, limit, filter, and scope to narrow the list.",
+    "summary": "List running processes ranked by CPU or memory. Each row: PID, Apple/system vs user app, %CPU, %MEM, owner, run time, command. Answers 'what's eating my CPU/memory/battery' and 'is anything stuck'.",
     "category": "process",
     "binary": "ps",
     "reversibility": "read_only",
@@ -13,20 +13,20 @@
         "type": "enum",
         "enum": ["cpu", "memory"],
         "default": "cpu",
-        "description": "Rank by 'cpu' (most CPU-hungry first, the default) or 'memory' (largest resident footprint first).",
+        "description": "Rank by 'cpu' (default) or 'memory' (largest resident footprint first).",
         "arg": { "kind": "none" }
       },
       {
         "name": "limit",
         "type": "int",
         "default": 20,
-        "description": "How many processes to show (1–100). Defaults to 20.",
+        "description": "How many to show (1–100, default 20).",
         "arg": { "kind": "none" }
       },
       {
         "name": "filter",
         "type": "string",
-        "description": "Optional case-insensitive substring; only processes whose command or name contains it are shown (e.g. 'chrome', 'node'). Matched on this Mac, never passed to a shell.",
+        "description": "Case-insensitive substring; only matching commands/names are shown (e.g. 'chrome'). Matched locally, never via a shell.",
         "arg": { "kind": "none" }
       },
       {
@@ -34,14 +34,14 @@
         "type": "enum",
         "enum": ["all", "user"],
         "default": "all",
-        "description": "'all' lists every process (the default); 'user' lists only those owned by the current login user.",
+        "description": "'all' (default) or 'user' (only the current login user's processes).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "process_info",
-    "summary": "Show everything known about one process by PID: its full command line, the executable path (the binary responsible for it), the parent process that started it, the owning user, %CPU and %MEM, when it started and how long it has run, its state (including whether it is a zombie/defunct process), whether it is an Apple/system binary or a user-installed app, and whether macOS's launchd auto-starts it. Use list_processes first to find the PID.",
+    "summary": "Show everything about one process by PID: full command line, executable path, parent, owner, %CPU/%MEM, start time and run length, state (incl. zombie/defunct), Apple/system vs user app, and whether launchd auto-starts it. Use list_processes to find the PID.",
     "category": "process",
     "binary": "ps",
     "reversibility": "read_only",
@@ -52,14 +52,14 @@
         "name": "pid",
         "type": "int",
         "required": true,
-        "description": "The numeric process ID to inspect (from list_processes). Must be greater than 1.",
+        "description": "Process ID to inspect (from list_processes). Must be > 1.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "cpu_load",
-    "summary": "Report overall CPU pressure: the 1-, 5-, and 15-minute load averages both raw and per-core (load divided by core count, where ~1.0 per core means fully busy), the number of cores, and the top CPU-consuming processes. Use to judge whether the machine as a whole is overloaded, not just one app.",
+    "summary": "Report overall CPU pressure: 1/5/15-min load averages raw and per-core (~1.0 per core = fully busy), core count, and the top CPU processes. Judges whether the whole machine is overloaded, not just one app.",
     "category": "process",
     "binary": "sysctl",
     "reversibility": "read_only",
@@ -70,14 +70,14 @@
         "name": "limit",
         "type": "int",
         "default": 5,
-        "description": "How many top CPU processes to include (1–20). Defaults to 5.",
+        "description": "How many top CPU processes to include (1–20, default 5).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "memory_stats",
-    "summary": "Report system memory: total installed RAM, how much is used vs. free, and the breakdown into wired (unswappable kernel memory), active, inactive, and compressed pages, plus the top memory-consuming processes. Use to judge memory pressure and find what is holding the most RAM.",
+    "summary": "Report system memory: total RAM, used vs free, and the wired/active/inactive/compressed breakdown, plus the top memory processes. Judges memory pressure and what holds the most RAM.",
     "category": "process",
     "binary": "vm_stat",
     "reversibility": "read_only",
@@ -88,14 +88,14 @@
         "name": "limit",
         "type": "int",
         "default": 5,
-        "description": "How many top memory processes to include (1–20). Defaults to 5.",
+        "description": "How many top memory processes to include (1–20, default 5).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "gpu_stats",
-    "summary": "Report graphics (GPU) utilization for the built-in GPU: overall device utilization %, the renderer and tiler utilization %, and GPU memory in use. Note: macOS does not expose PER-PROCESS GPU usage without administrator rights, so this is a whole-device figure; to guess which app is driving the GPU, look for GPU-helper processes (e.g. WindowServer, *.WebKit.GPU) high in list_processes.",
+    "summary": "Report built-in GPU utilization: overall device %, renderer and tiler %, and GPU memory in use. Per-process GPU isn't available without admin rights, so this is whole-device; check GPU-helper processes (WindowServer, *.WebKit.GPU) in list_processes to guess the driver.",
     "category": "process",
     "binary": "ioreg",
     "reversibility": "read_only",
@@ -105,7 +105,7 @@
   },
   {
     "name": "startup_items",
-    "summary": "List programs that start automatically, as managed by macOS's launchd service manager (background agents and daemons), showing each one's label, current PID if running, and last exit status. Defaults to third-party items so you can see 'what did I install that auto-starts'. Note: classic Login Items are not included here (they require an Automation permission grant).",
+    "summary": "List programs that auto-start via macOS launchd (background agents/daemons), with each one's label, current PID if running, and last exit status. Defaults to third-party — 'what did I install that auto-starts'. Classic Login Items aren't included (they need an Automation grant).",
     "category": "process",
     "binary": "launchctl",
     "reversibility": "read_only",
@@ -117,21 +117,21 @@
         "type": "enum",
         "enum": ["third_party", "all"],
         "default": "third_party",
-        "description": "'third_party' hides Apple's own com.apple.* items so only software you installed is shown (the default); 'all' lists every launchd-managed item.",
+        "description": "'third_party' (default, hides Apple's com.apple.* items) or 'all' (every launchd item).",
         "arg": { "kind": "none" }
       },
       {
         "name": "limit",
         "type": "int",
         "default": 50,
-        "description": "How many items to show (1–200). Defaults to 50.",
+        "description": "How many items to show (1–200, default 50).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "quit_process",
-    "summary": "Gracefully quit the GUI application that owns a given PID by sending it the normal Quit command (the same as choosing Quit from its menu), so it can prompt to save and shut down cleanly. STAGED for confirmation; it can lose unsaved work and is not undoable. Only works for GUI apps — for background/daemon processes use terminate_process instead. This never force-kills.",
+    "summary": "Gracefully quit the GUI app that owns a PID via the normal Quit command, so it can prompt to save. STAGED; can lose unsaved work and is not undoable. GUI apps only — use terminate_process for background/daemon processes. Never force-kills.",
     "category": "process",
     "binary": "osascript",
     "reversibility": "irreversible",
@@ -142,14 +142,14 @@
         "name": "pid",
         "type": "int",
         "required": true,
-        "description": "The numeric process ID of the GUI application to quit (from list_processes). Must be greater than 1.",
+        "description": "Process ID of the GUI app to quit (from list_processes). Must be > 1.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "terminate_process",
-    "summary": "Ask a background/daemon process to exit by sending it the polite termination signal SIGTERM (the default 'please shut down' signal), letting a well-behaved process clean up before exiting. STAGED for confirmation; it is not undoable. This deliberately never sends SIGKILL (force kill), which would give the process no chance to clean up. GUI applications are refused here — use quit_process for those, so they can prompt to save.",
+    "summary": "Ask a background/daemon process to exit via SIGTERM (the polite 'please shut down' signal), letting it clean up first. STAGED; not undoable. Never sends SIGKILL (force kill). GUI apps are refused — use quit_process so they can prompt to save.",
     "category": "process",
     "binary": "kill",
     "reversibility": "irreversible",
@@ -160,7 +160,7 @@
         "name": "pid",
         "type": "int",
         "required": true,
-        "description": "The numeric process ID to send SIGTERM to (from list_processes). Must be greater than 1 (PID 1 and below are protected).",
+        "description": "Process ID to send SIGTERM to (from list_processes). Must be > 1 (PID 1 and below are protected).",
         "arg": { "kind": "none" }
       }
     ]

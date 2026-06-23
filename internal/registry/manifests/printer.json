@@ -1,7 +1,7 @@
 [
   {
     "name": "list_printers",
-    "summary": "List the printers configured on this Mac, each printer's state (idle / printing / disabled), and which is the system default. A disabled printer is the usual cause of jobs not coming out — use open_settings (pane 'printers') to re-enable or reconnect it.",
+    "summary": "List the printers on this Mac, each one's state (idle / printing / disabled), and which is the system default. A disabled printer is the usual cause of jobs not coming out — use open_settings (pane 'printers') to re-enable or reconnect it.",
     "category": "printer",
     "binary": "lpstat",
     "reversibility": "read_only",
@@ -21,7 +21,7 @@
   },
   {
     "name": "print_file",
-    "summary": "Send a file to a printer. STAGED for confirmation because printing consumes paper/ink and cannot be undone. Defaults to the system default printer unless 'printer' is given.",
+    "summary": "Send a file to a printer. STAGED; printing consumes paper/ink and cannot be undone. Defaults to the system default printer unless 'printer' is given.",
     "category": "printer",
     "binary": "lp",
     "reversibility": "irreversible",
@@ -32,14 +32,14 @@
         "name": "file",
         "type": "path",
         "required": true,
-        "description": "Path to the file to print (supports a leading ~). PDF, text, and image files print directly; other types depend on installed filters.",
+        "description": "Path to the file to print (leading ~ ok). PDF, text, and image files print directly; other types depend on installed filters.",
         "arg": { "kind": "none" }
       },
       {
         "name": "printer",
         "type": "string",
         "required": false,
-        "description": "Name of the printer to use (as shown by list_printers). Omit to use the system default printer.",
+        "description": "Printer to use (from list_printers). Omit for the system default.",
         "arg": { "kind": "none" }
       },
       {
@@ -47,14 +47,14 @@
         "type": "int",
         "required": false,
         "default": 1,
-        "description": "Number of copies to print (1–20).",
+        "description": "Number of copies (1–20).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "print_test_page",
-    "summary": "Print a short built-in test page to confirm a printer works. STAGED for confirmation because it consumes paper/ink and cannot be undone. Defaults to the system default printer unless 'printer' is given.",
+    "summary": "Print a short built-in test page to confirm a printer works. STAGED; consumes paper/ink and cannot be undone. Defaults to the system default printer unless 'printer' is given.",
     "category": "printer",
     "binary": "lp",
     "reversibility": "irreversible",
@@ -65,7 +65,7 @@
         "name": "printer",
         "type": "string",
         "required": false,
-        "description": "Name of the printer to test (as shown by list_printers). Omit to use the system default printer.",
+        "description": "Printer to test (from list_printers). Omit for the system default.",
         "arg": { "kind": "none" }
       }
     ]

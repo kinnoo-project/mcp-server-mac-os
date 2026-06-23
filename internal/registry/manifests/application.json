@@ -12,7 +12,7 @@
         "name": "name_contains",
         "type": "string",
         "required": false,
-        "description": "Optional case-insensitive substring to filter application names by (e.g. 'safari'). Omit to list everything.",
+        "description": "Case-insensitive substring to filter app names (e.g. 'safari'). Omit to list everything.",
         "arg": { "kind": "none" }
       },
       {
@@ -20,14 +20,14 @@
         "type": "int",
         "required": false,
         "default": 200,
-        "description": "Maximum number of applications to return (default 200, maximum 500).",
+        "description": "Max apps to return (default 200, max 500).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "search_applications",
-    "summary": "Search installed applications by a name substring and return the matches. A focused alternative to list_applications when you already know part of the name.",
+    "summary": "Search installed applications by a name substring. A focused alternative to list_applications when you already know part of the name.",
     "category": "application",
     "binary": "mdfind",
     "reversibility": "read_only",
@@ -38,7 +38,7 @@
         "name": "query",
         "type": "string",
         "required": true,
-        "description": "Case-insensitive substring to match against application names (e.g. 'note').",
+        "description": "Case-insensitive substring to match app names (e.g. 'note').",
         "arg": { "kind": "none" }
       },
       {
@@ -46,14 +46,14 @@
         "type": "int",
         "required": false,
         "default": 50,
-        "description": "Maximum number of matches to return (default 50, maximum 500).",
+        "description": "Max matches to return (default 50, max 500).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "list_running_applications",
-    "summary": "List the applications currently running with a visible presence (foreground apps, not background daemons). Requires permission to control System Events.",
+    "summary": "List applications currently running with a visible presence (foreground apps, not background daemons). Requires permission to control System Events.",
     "category": "application",
     "binary": "osascript",
     "reversibility": "read_only",
@@ -63,7 +63,7 @@
   },
   {
     "name": "open_application",
-    "summary": "Launch an INSTALLED application by name (or bring it to the front if already running), e.g. 'Notes', 'Safari'. Runs immediately. If the app was not already running, undo will quit it again. For a web address (e.g. 'open YouTube', 'cnn.com') use open_website instead; for a file on disk use open_file.",
+    "summary": "Launch an installed app by name (or front it if already running), e.g. 'Notes', 'Safari'. Runs immediately; if it wasn't running, undo quits it again. For a web address use open_website; for a file use open_file.",
     "category": "application",
     "binary": "open",
     "reversibility": "reversible",
@@ -75,14 +75,14 @@
         "name": "name",
         "type": "string",
         "required": true,
-        "description": "The application's name, e.g. 'Safari', 'Notes', 'Visual Studio Code'.",
+        "description": "App name, e.g. 'Safari', 'Notes', 'Visual Studio Code'.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "open_file",
-    "summary": "Open a file, optionally in a specific application (e.g. a PNG in Preview). With 'app' given, the preview says whether that app appears to support the file's type and warns when it may not, and undo quits the app if it wasn't already running. Omit 'app' to open the file in its default application. STAGED for confirmation either way.",
+    "summary": "Open a file, optionally in a specific app (e.g. a PNG in Preview). With 'app', the preview flags whether that app supports the type, and undo quits the app if it wasn't already running. Omit 'app' for the file's default app. STAGED either way.",
     "category": "application",
     "binary": "open",
     "reversibility": "reversible",
@@ -93,21 +93,21 @@
         "name": "file",
         "type": "path",
         "required": true,
-        "description": "Path to the file to open (a leading ~ is expanded), e.g. '~/Downloads/Leah.png'.",
+        "description": "Path to the file (leading ~ ok), e.g. '~/Downloads/Leah.png'.",
         "arg": { "kind": "none" }
       },
       {
         "name": "app",
         "type": "string",
         "required": false,
-        "description": "The application to open the file with, e.g. 'Preview', 'TextEdit', 'Visual Studio Code'. Omit to use the file's default application.",
+        "description": "App to open it with, e.g. 'Preview', 'TextEdit'. Omit for the file's default app.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "open_website",
-    "summary": "Open a WEBSITE in a browser, e.g. 'open YouTube' -> url 'youtube.com', 'open CNN.com', or 'open YouTube on Chrome'. Use this when the subject is a web address rather than an installed app (open_application) or a file on disk (open_file). The address must be a web URL (http/https); a bare domain like 'youtube.com' is accepted and opened over https. Omit 'browser' to use the default browser. STAGED for confirmation.",
+    "summary": "Open a website in a browser, e.g. 'open YouTube' -> 'youtube.com', or 'open YouTube on Chrome'. Use when the subject is a web address (vs open_application or open_file). Must be http/https; a bare domain is opened over https. Omit 'browser' for the default. STAGED.",
     "category": "application",
     "binary": "open",
     "reversibility": "irreversible",
@@ -118,21 +118,21 @@
         "name": "url",
         "type": "string",
         "required": true,
-        "description": "The website address: a bare domain like 'youtube.com' or 'cnn.com', a bare host:port like 'localhost:8080', or a full 'https://...' URL. Must be a web address (http or https) — not a file path, 'tel:', 'mailto:', or any other scheme.",
+        "description": "Web address: a bare domain ('youtube.com'), host:port ('localhost:8080'), or full 'https://...'. Must be http/https — not a file path, 'tel:', 'mailto:', etc.",
         "arg": { "kind": "none" }
       },
       {
         "name": "browser",
         "type": "string",
         "required": false,
-        "description": "The browser application to open it in, e.g. 'Safari', 'Google Chrome', 'Firefox'. Omit to use the system default browser.",
+        "description": "Browser to open it in, e.g. 'Safari', 'Google Chrome', 'Firefox'. Omit for the system default browser.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "focus_application",
-    "summary": "Bring an already-running (or launchable) application to the front and give it focus. Runs immediately; cannot be undone. Requires permission to control the target app.",
+    "summary": "Bring an already-running (or launchable) app to the front and give it focus. Runs immediately; cannot be undone. Requires permission to control the target app.",
     "category": "application",
     "binary": "osascript",
     "reversibility": "irreversible",
@@ -144,14 +144,14 @@
         "name": "name",
         "type": "string",
         "required": true,
-        "description": "The application's name to bring to the front, e.g. 'Safari'.",
+        "description": "App name to bring to the front, e.g. 'Safari'.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "quit_application",
-    "summary": "Quit a running application. STAGED for confirmation because unsaved work could be lost, and relaunching is not a true reversal. Requires permission to control the target app.",
+    "summary": "Quit a running application. STAGED — unsaved work could be lost and relaunching isn't a true reversal. Requires permission to control the target app.",
     "category": "application",
     "binary": "osascript",
     "reversibility": "irreversible",
@@ -162,7 +162,7 @@
         "name": "name",
         "type": "string",
         "required": true,
-        "description": "The application's name to quit, e.g. 'Safari'.",
+        "description": "App name to quit, e.g. 'Safari'.",
         "arg": { "kind": "none" }
       }
     ]
