@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"unicode"
 
 	"mcp-server-mac-os/internal/registry"
 )
@@ -71,6 +72,22 @@ func stageMkdir(_ context.Context, _ registry.Capability, in map[string]any) (*S
 //     clobbering a file and guarantees the inverse can restore the original
 //     layout exactly (we never overwrite something we cannot bring back).
 func stageMove(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	// A move addresses its source(s) one of two mutually-exclusive ways: a single
+	// literal "source", or a "source_glob" the server expands on disk. The glob
+	// path exists because the model cannot always reproduce an exact filename —
+	// macOS screenshot names embed a narrow no-break space (U+202F) that collapses
+	// to a plain space when retyped — so letting the SERVER resolve the names from
+	// a pattern is the only reliable way to address such files (and to move many at
+	// once).
+	glob, hasGlob := getString(in, "source_glob")
+	_, hasSource := getString(in, "source")
+	switch {
+	case hasGlob && glob != "" && hasSource:
+		return nil, fmt.Errorf("move: provide either 'source' or 'source_glob', not both")
+	case hasGlob && glob != "":
+		return stageMoveGlob(glob, in)
+	}
+
 	src, dst, err := resolveSourceAndDest("move", in)
 	if err != nil {
 		return nil, err
@@ -84,6 +101,132 @@ func stageMove(_ context.Context, _ registry.Capability, in map[string]any) (*St
 		Forward: Command{Binary: "mv", Args: []string{"--", src, finalDest}},
 		Inverse: &Command{Binary: "mv", Args: []string{"--", finalDest, src}},
 	}, nil
+}
+
+// maxGlobMatches caps how many files one source_glob move may touch. It keeps a
+// single staged operation bounded — both the argv length and the blast radius of
+// one human approval — and steers a caller with a runaway pattern toward
+// narrowing it rather than silently moving thousands of files at once.
+const maxGlobMatches = 1000
+
+// stageMoveGlob stages a reversible move of EVERY file a glob matches into one
+// destination directory, expanding the pattern server-side.
+//
+// The whole batch is staged as a SINGLE pair of commands so it commits and
+// reverses atomically from the engine's point of view:
+//
+//	Forward: mv -- <m1> <m2> ... <destDir>
+//	Inverse: mv -- <destDir>/<base1> ... <commonParent>
+//
+// `mv` with several sources and a trailing directory moves them all in one
+// process, and the inverse moves them all back in one process — so there is no
+// partial-completion state for the undo machinery to reason about. Three
+// invariants make that single inverse command correct and non-destructive:
+//
+//   - every match shares ONE parent directory (so a single "move back to
+//     commonParent" restores the original layout exactly). A glob whose matches
+//     span directories is rejected rather than mis-restored;
+//   - destination is an EXISTING directory distinct from that parent (a batch of
+//     N files has nowhere else to land, and moving into the same directory would
+//     be a no-op whose inverse could not be expressed);
+//   - no match's basename already exists at the destination (so nothing is
+//     clobbered and the inverse cannot collide on the way back).
+func stageMoveGlob(glob string, in map[string]any) (*StagedPlan, error) {
+	if strings.HasPrefix(glob, "-") {
+		return nil, fmt.Errorf("move: source_glob %q begins with '-' and is not allowed; prefix it with ./", glob)
+	}
+	// expandUserPath has already turned a leading ~ into the home directory during
+	// normalization; filepath.Glob handles the remaining pattern metacharacters
+	// and returns only paths that actually exist.
+	matches, err := filepath.Glob(glob)
+	if err != nil {
+		// The only error filepath.Glob returns is ErrBadPattern.
+		return nil, fmt.Errorf("move: source_glob %q is not a valid pattern: %w", glob, err)
+	}
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("move: source_glob %q matched no files", glob)
+	}
+	if len(matches) > maxGlobMatches {
+		return nil, fmt.Errorf("move: source_glob %q matched %d items, more than the limit of %d; narrow the pattern", glob, len(matches), maxGlobMatches)
+	}
+
+	destDir, err := resolveBatchDestinationDir("move", in)
+	if err != nil {
+		return nil, err
+	}
+
+	// Resolve every match to an absolute path, prove the shared-parent invariant,
+	// and prove no collision at the destination. commonParent anchors the inverse.
+	sources := make([]string, 0, len(matches))
+	var commonParent string
+	for i, m := range matches {
+		abs, err := filepath.Abs(m)
+		if err != nil {
+			return nil, fmt.Errorf("move: resolving match %q: %w", m, err)
+		}
+		parent := filepath.Dir(abs)
+		if i == 0 {
+			commonParent = parent
+		} else if parent != commonParent {
+			return nil, fmt.Errorf("move: source_glob %q spans multiple directories (%s and %s); a batch move requires every match to share one parent directory", glob, commonParent, parent)
+		}
+		finalDest := filepath.Join(destDir, filepath.Base(abs))
+		if pathExists(finalDest) {
+			return nil, fmt.Errorf("move: destination %q already exists; refusing to overwrite (undo could not restore the original)", finalDest)
+		}
+		sources = append(sources, abs)
+	}
+	if destDir == commonParent {
+		return nil, fmt.Errorf("move: destination %q is the directory the matched files are already in; nothing to move", destDir)
+	}
+
+	// Forward: move all matches into destDir. Inverse: move each back to the shared
+	// parent. Both are single mv invocations with a trailing target directory.
+	forwardArgs := append([]string{"--"}, sources...)
+	forwardArgs = append(forwardArgs, destDir)
+
+	inverseArgs := []string{"--"}
+	for _, s := range sources {
+		inverseArgs = append(inverseArgs, filepath.Join(destDir, filepath.Base(s)))
+	}
+	inverseArgs = append(inverseArgs, commonParent)
+
+	return &StagedPlan{
+		Preview: fmt.Sprintf("Move %d item(s) matching %s from %s into %s. Undo will move them back to %s.",
+			len(sources), glob, commonParent, destDir, commonParent),
+		Forward: Command{Binary: "mv", Args: forwardArgs},
+		Inverse: &Command{Binary: "mv", Args: inverseArgs},
+	}, nil
+}
+
+// resolveBatchDestinationDir validates the "destination" parameter for a batch
+// (glob) move and returns it as an absolute path. Unlike a single-file move —
+// where the destination may be a not-yet-existing target path — a batch of many
+// files can only land inside an EXISTING directory, so that is enforced here. The
+// usual presence and dash-leading guardrails apply.
+func resolveBatchDestinationDir(op string, in map[string]any) (string, error) {
+	raw, _ := getString(in, "destination")
+	if raw == "" {
+		return "", fmt.Errorf("%s: 'destination' is required", op)
+	}
+	if strings.HasPrefix(raw, "-") {
+		return "", fmt.Errorf("%s: destination %q begins with '-' and is not allowed; prefix it with ./", op, raw)
+	}
+	dst, err := filepath.Abs(raw)
+	if err != nil {
+		return "", fmt.Errorf("%s: resolving destination %q: %w", op, raw, err)
+	}
+	info, err := os.Stat(dst)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("%s: destination %q must be an existing directory when moving multiple files with source_glob (create it first with mkdir)", op, dst)
+		}
+		return "", fmt.Errorf("%s: cannot inspect destination %q: %w", op, dst, err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%s: destination %q is not a directory; a batch move needs a directory to move the files into", op, dst)
+	}
+	return dst, nil
 }
 
 // stageCopy stages a reversible file/directory copy.
@@ -231,11 +374,60 @@ func validateExistingOperand(op, field, raw string) (string, error) {
 	}
 	if _, err := os.Stat(abs); err != nil {
 		if os.IsNotExist(err) {
+			// A common dead-end: the caller typed a name that LOOKS right but
+			// differs from the real file only in whitespace — e.g. macOS screenshot
+			// names contain a narrow no-break space (U+202F) before AM/PM that
+			// collapses to an ordinary space when retyped. Point at the real file
+			// and steer toward source_glob, which the server expands on disk and so
+			// matches such names reliably.
+			if hint := suggestWhitespaceMatch(abs); hint != "" {
+				return "", fmt.Errorf("%s: %s %q does not exist, but a file whose name differs only in whitespace exists: %q "+
+					"(macOS screenshot names use a narrow no-break space, which collapses to a normal space when retyped). "+
+					"Use source_glob to match it reliably (e.g. the file's name with the variable part replaced by '*').", op, field, abs, hint)
+			}
 			return "", fmt.Errorf("%s: %s %q does not exist", op, field, abs)
 		}
 		return "", fmt.Errorf("%s: cannot inspect %s %q: %w", op, field, abs, err)
 	}
 	return abs, nil
+}
+
+// suggestWhitespaceMatch looks in the parent directory of a missing path for an
+// entry whose name matches the requested basename once every run of whitespace
+// is normalized to a single ASCII space. It returns the real absolute path of the
+// first such entry, or "" if none is found (or the directory cannot be read). It
+// is a diagnostic aid only — it never selects a file to act on, it just produces
+// a better error message when an exact-name lookup fails because of an
+// untypeable space character (notably U+202F in screenshot names).
+func suggestWhitespaceMatch(missing string) string {
+	dir := filepath.Dir(missing)
+	want := normalizeWhitespace(filepath.Base(missing))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if normalizeWhitespace(e.Name()) == want {
+			return filepath.Join(dir, e.Name())
+		}
+	}
+	return ""
+}
+
+// normalizeWhitespace collapses every Unicode whitespace rune (ordinary space,
+// tab, non-breaking space, narrow no-break space, ...) to a single ASCII space so
+// names that differ only in which kind of space they use compare equal.
+func normalizeWhitespace(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			b.WriteByte(' ')
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // trashPathFor returns a collision-free destination inside the current user's

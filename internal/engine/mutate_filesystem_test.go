@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"mcp-server-mac-os/internal/policy"
@@ -130,6 +131,139 @@ func TestStageMove_Rejects(t *testing.T) {
 		if _, err := stageMove(context.Background(), registry.Capability{}, in); err == nil {
 			t.Errorf("%s: expected error, got nil", name)
 		}
+	}
+}
+
+// TestStageMoveGlob_PlanAndRoundTrip exercises the batch (source_glob) move: many
+// files selected by a pattern, moved into one directory, then fully restored by
+// the single inverse command.
+func TestStageMoveGlob_PlanAndRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	names := []string{"shot-a.png", "shot-b.png", "shot-c.png", "notes.txt"}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	destDir := filepath.Join(dir, "screenshots")
+	if err := os.Mkdir(destDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := stageMove(context.Background(), registry.Capability{}, map[string]any{
+		"source_glob": filepath.Join(dir, "shot-*.png"),
+		"destination": destDir,
+	})
+	if err != nil {
+		t.Fatalf("stageMove (glob): %v", err)
+	}
+
+	// Forward must move exactly the three png matches (sorted) into destDir, with a
+	// single "--" terminator and the directory as the trailing argument.
+	wantFwd := Command{Binary: "mv", Args: []string{
+		"--",
+		filepath.Join(dir, "shot-a.png"),
+		filepath.Join(dir, "shot-b.png"),
+		filepath.Join(dir, "shot-c.png"),
+		destDir,
+	}}
+	if !reflect.DeepEqual(plan.Forward, wantFwd) {
+		t.Errorf("Forward = %+v, want %+v", plan.Forward, wantFwd)
+	}
+	wantInv := Command{Binary: "mv", Args: []string{
+		"--",
+		filepath.Join(destDir, "shot-a.png"),
+		filepath.Join(destDir, "shot-b.png"),
+		filepath.Join(destDir, "shot-c.png"),
+		dir,
+	}}
+	if plan.Inverse == nil || !reflect.DeepEqual(*plan.Inverse, wantInv) {
+		t.Errorf("Inverse = %+v, want %+v", plan.Inverse, wantInv)
+	}
+
+	// Round trip: forward moves the three pngs into destDir (notes.txt stays put),
+	// inverse restores them.
+	runPlanCommand(t, plan.Forward)
+	for _, n := range []string{"shot-a.png", "shot-b.png", "shot-c.png"} {
+		if pathExists(filepath.Join(dir, n)) || !pathExists(filepath.Join(destDir, n)) {
+			t.Fatalf("after forward, %s not moved into destDir", n)
+		}
+	}
+	if !pathExists(filepath.Join(dir, "notes.txt")) {
+		t.Fatalf("non-matching notes.txt should not have moved")
+	}
+	runPlanCommand(t, *plan.Inverse)
+	for _, n := range []string{"shot-a.png", "shot-b.png", "shot-c.png"} {
+		if !pathExists(filepath.Join(dir, n)) || pathExists(filepath.Join(destDir, n)) {
+			t.Fatalf("after undo, %s not restored to its parent", n)
+		}
+	}
+}
+
+// TestStageMoveGlob_Rejects covers the guardrails specific to a batch move.
+func TestStageMoveGlob_Rejects(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	destDir := filepath.Join(dir, "out")
+	if err := os.Mkdir(destDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A file occupying a destination name, to force a collision rejection.
+	if err := os.WriteFile(filepath.Join(destDir, "a.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// A second source directory, to force the shared-parent rejection.
+	other := t.TempDir()
+	if err := os.WriteFile(filepath.Join(other, "c.png"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]map[string]any{
+		"both source and glob": {"source": filepath.Join(dir, "a.png"), "source_glob": filepath.Join(dir, "*.png"), "destination": destDir},
+		"no matches":           {"source_glob": filepath.Join(dir, "nope-*.png"), "destination": destDir},
+		"dash glob":            {"source_glob": "-rf*", "destination": destDir},
+		"dest not existing":    {"source_glob": filepath.Join(dir, "*.png"), "destination": filepath.Join(dir, "ghost_dir")},
+		"dest is a file":       {"source_glob": filepath.Join(dir, "*.png"), "destination": filepath.Join(dir, "a.png")},
+		"dest equals parent":   {"source_glob": filepath.Join(dir, "*.png"), "destination": dir},
+		"collision at dest":    {"source_glob": filepath.Join(dir, "a.png"), "destination": destDir},
+	}
+	for name, in := range cases {
+		if _, err := stageMove(context.Background(), registry.Capability{}, in); err == nil {
+			t.Errorf("%s: expected error, got nil", name)
+		}
+	}
+}
+
+// TestStageMove_WhitespaceHint confirms the diagnostic that fires when a single
+// source path misses only because the typed name uses a different kind of space
+// than the real file (the macOS-screenshot U+202F problem). The error must point
+// at the real file and mention the narrow no-break space so the model knows to
+// reach for source_glob.
+func TestStageMove_WhitespaceHint(t *testing.T) {
+	dir := t.TempDir()
+	// Real file uses a narrow no-break space (U+202F) before "PM".
+	actual := filepath.Join(dir, "Screenshot 2026-06-23 at 1.00.00 PM.png")
+	if err := os.WriteFile(actual, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Caller supplies the same name but with an ordinary space.
+	typed := filepath.Join(dir, "Screenshot 2026-06-23 at 1.00.00 PM.png")
+
+	_, err := stageMove(context.Background(), registry.Capability{}, map[string]any{
+		"source":      typed,
+		"destination": filepath.Join(dir, "moved.png"),
+	})
+	if err == nil {
+		t.Fatal("expected an error for the mistyped name")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "narrow no-break space") || !strings.Contains(msg, "source_glob") {
+		t.Errorf("error message lacks the whitespace hint: %q", msg)
 	}
 }
 
