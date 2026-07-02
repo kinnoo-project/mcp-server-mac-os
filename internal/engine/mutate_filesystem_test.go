@@ -217,10 +217,18 @@ func TestStageMoveGlob_Rejects(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(destDir, "a.png"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// A second source directory, to force the shared-parent rejection.
-	other := t.TempDir()
-	if err := os.WriteFile(filepath.Join(other, "c.png"), []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
+	// Two files in sibling subdirectories under a shared ancestor, so a wildcard
+	// on the intermediate path segment matches across two different parents and
+	// forces the shared-parent rejection. (filepath.Glob has no brace syntax, so
+	// spanning parents requires an intermediate wildcard rather than two flat dirs.)
+	span := t.TempDir()
+	for _, sub := range []string{"d1", "d2"} {
+		if err := os.Mkdir(filepath.Join(span, sub), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(span, sub, "c.png"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	cases := map[string]map[string]any{
@@ -231,6 +239,7 @@ func TestStageMoveGlob_Rejects(t *testing.T) {
 		"dest is a file":       {"source_glob": filepath.Join(dir, "*.png"), "destination": filepath.Join(dir, "a.png")},
 		"dest equals parent":   {"source_glob": filepath.Join(dir, "*.png"), "destination": dir},
 		"collision at dest":    {"source_glob": filepath.Join(dir, "a.png"), "destination": destDir},
+		"spans directories":    {"source_glob": filepath.Join(span, "*", "*.png"), "destination": destDir},
 	}
 	for name, in := range cases {
 		if _, err := stageMove(context.Background(), registry.Capability{}, in); err == nil {
@@ -264,6 +273,27 @@ func TestStageMove_WhitespaceHint(t *testing.T) {
 	msg := err.Error()
 	if !strings.Contains(msg, "narrow no-break space") || !strings.Contains(msg, "source_glob") {
 		t.Errorf("error message lacks the whitespace hint: %q", msg)
+	}
+}
+
+// TestNormalizeWhitespace_CollapsesRuns guards the contract suggestWhitespaceMatch
+// depends on: any run of whitespace — regardless of how many runes or which kinds
+// — normalizes to exactly one ASCII space, so names differing only in their
+// separators (a tab vs. two spaces, U+202F vs. an ordinary space) compare equal.
+func TestNormalizeWhitespace_CollapsesRuns(t *testing.T) {
+	cases := map[string]struct{ in, want string }{
+		"single ordinary space":    {"a b", "a b"},
+		"tab equals one space":     {"a\tb", "a b"},
+		"run of spaces collapses":  {"a   b", "a b"},
+		"mixed run collapses":      {"a \t b", "a b"},
+		"narrow no-break space":    {"a\u202fb", "a b"},
+		"leading and trailing run": {"  a\tb  ", " a b "},
+		"no whitespace unchanged":  {"abc", "abc"},
+	}
+	for name, c := range cases {
+		if got := normalizeWhitespace(c.in); got != c.want {
+			t.Errorf("%s: normalizeWhitespace(%q) = %q, want %q", name, c.in, got, c.want)
+		}
 	}
 }
 

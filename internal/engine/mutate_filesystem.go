@@ -112,16 +112,21 @@ const maxGlobMatches = 1000
 // stageMoveGlob stages a reversible move of EVERY file a glob matches into one
 // destination directory, expanding the pattern server-side.
 //
-// The whole batch is staged as a SINGLE pair of commands so it commits and
-// reverses atomically from the engine's point of view:
+// The whole batch is staged as a SINGLE pair of commands — one `mv` with many
+// sources and a trailing directory forward, one `mv` back inverse:
 //
 //	Forward: mv -- <m1> <m2> ... <destDir>
 //	Inverse: mv -- <destDir>/<base1> ... <commonParent>
 //
-// `mv` with several sources and a trailing directory moves them all in one
-// process, and the inverse moves them all back in one process — so there is no
-// partial-completion state for the undo machinery to reason about. Three
-// invariants make that single inverse command correct and non-destructive:
+// This is NOT atomic: a single `mv` can still fail partway (a permission error
+// on one source, a cross-device rename falling back to copy+unlink, etc.), and
+// the engine runs Forward as one command with no automatic rollback of the
+// sources that already moved. What the single-command shape does buy is a
+// well-defined inverse: because every source shares one parent and lands in one
+// destination, "move everything in destDir back to commonParent" restores the
+// original layout for whatever actually moved. Re-running that inverse after a
+// partial forward is safe — it moves back exactly the files that made it across.
+// Three invariants make that single inverse command correct and non-destructive:
 //
 //   - every match shares ONE parent directory (so a single "move back to
 //     commonParent" restores the original layout exactly). A glob whose matches
@@ -414,17 +419,26 @@ func suggestWhitespaceMatch(missing string) string {
 	return ""
 }
 
-// normalizeWhitespace collapses every Unicode whitespace rune (ordinary space,
-// tab, non-breaking space, narrow no-break space, ...) to a single ASCII space so
-// names that differ only in which kind of space they use compare equal.
+// normalizeWhitespace collapses every run of Unicode whitespace runes (ordinary
+// space, tab, non-breaking space, narrow no-break space, ...) to a single ASCII
+// space so names that differ only in which kind — or how many — of space they use
+// compare equal. Collapsing runs (not just mapping each rune to a space) is what
+// suggestWhitespaceMatch relies on to treat, e.g., a tab and two spaces as the
+// same separator.
 func normalizeWhitespace(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
+	prevSpace := false
 	for _, r := range s {
 		if unicode.IsSpace(r) {
-			b.WriteByte(' ')
+			// Emit a single space for a whole run; skip until a non-space rune.
+			if !prevSpace {
+				b.WriteByte(' ')
+				prevSpace = true
+			}
 		} else {
 			b.WriteRune(r)
+			prevSpace = false
 		}
 	}
 	return b.String()
