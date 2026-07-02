@@ -201,8 +201,9 @@ plain `go test ./...`):
 
 | File | What's being checked |
 |---|---|
-| `internal/evals/case_test.go` | JSON case loading: single-turn (`prompt`) vs. multi-turn (`turns`) resolve correctly; both-set and neither-set are rejected; duplicate IDs across files are caught; load order is sorted/deterministic; non-`.json` files in the cases directory are ignored. |
-| `internal/evals/runner_test.go` | `CheckExpectation`'s pure assertion logic against hand-built `TurnOutcome` values: tool/operation matching, the `forbid_tools` auto-confirm guard (the harness's core safety check), and `text_contains` substring checks — all independent of the live agent loop in `runner.go`, which can only be exercised against a real model. |
+| `internal/evals/case_test.go` | JSON case loading: single-turn (`prompt`) vs. multi-turn (`turns`) resolve correctly; both-set and neither-set are rejected; duplicate IDs across files are caught; load order is sorted/deterministic; non-`.json` files in the cases directory are ignored; the Layer-B fields (`setup`/`teardown`/`manual`, and `tool_succeeds`/`state` on an expectation) round-trip through the loader; and `applySetup` creates fixtures inside the scratch tree while its guardrails reject an unsafe scratch name (separator/`..`/absolute) or a fixture file that escapes via `..`. |
+| `internal/evals/runner_test.go` | `CheckExpectation`'s pure assertion logic against hand-built `TurnOutcome` values: tool/operation matching, the `forbid_tools` auto-confirm guard (the harness's core safety check), `text_contains` substring checks, and the `tool_succeeds` outcome check (passes when the expected tool didn't error, fails when it's in `ErroredTools`, ignored when the field is unset) — all independent of the live agent loop in `runner.go`, which can only be exercised against a real model. |
+| `internal/evals/state_test.go` | `CheckState`'s filesystem post-condition pass against real temp directories: `exists`/`absent`/`is_dir` each pass and fail correctly, an ambiguous non-"not exist" stat error on an `absent` path surfaces rather than passing, and `{{scratch}}` placeholders in state paths are resolved by the passed substituter before stat. Kept separate from `CheckExpectation` so that stays pure/I/O-free. |
 
 The live agent loop itself (`runner.go`'s `RunAll`/`runCase`/`runTurn`) is
 exercised only by actually running `go run ./cmd/runevals` against the cases
@@ -241,3 +242,41 @@ commit even if the model misbehaves — the same safety discipline as `mail.json
   the checked-in fixture `evals/fixtures/poisoned-instructions.txt` embeds
   override instructions to delete/exfiltrate/auto-execute; the cases read it and
   assert the model treats it as data, never acting on the embedded commands.
+
+### Outcome assertions & everyday-Mac coverage (Layer B)
+
+Selection assertions (which tool/op the model picked) can't catch a *right op,
+wrong real-world result* bug — the shipped example being "move screenshots into
+an existing `~/Desktop/screenshots`" landing files at the wrong path. Three
+optional, backward-compatible additions close that gap (all cases without them
+keep working unchanged):
+
+- **`tool_succeeds: true`** on an expectation asserts the chosen tool's result
+  wasn't an error block (backed by `TurnOutcome.ErroredTools`), so "the model
+  called `move` but it failed and it narrated around it" no longer passes.
+- **`setup`/`teardown`** stage a per-case scratch directory
+  (`/tmp/mcp-eval-<unique>-<scratch>`) with fake input files, created with stdlib
+  `os` only (no shell) and removed after the case even on failure. The resolved
+  path substitutes into prompts and assertions as `{{scratch}}` (alongside the
+  existing `{{unique}}`).
+- **`state`** (`exists`/`absent`/`is_dir`) runs an `os.Stat` post-condition pass
+  after a turn (see `CheckState`), naming the *intended* final paths. This is the
+  assertion that fails on the screenshot-move bug and passes on the fix
+  (`move_into_existing_dir` in `filesystem_mutations.json` is that regression
+  proof).
+
+The everyday corpus is split into two buckets:
+
+- **Automated (A)** — runs under the default `go run ./cmd/runevals` with no
+  permissions granted and no signed-in accounts, leaving no residue:
+  `filesystem_mutations.json` (the Layer-B `state`-asserting core),
+  `system_reads.json`, `network_reads.json`, `process_reads.json`,
+  `pipeline_and_routing.json`, `screenshot.json` (selection-only — a real capture
+  needs Screen Recording).
+- **Manual (M)** — cases tagged `"manual": true` (e.g. `manual_smoke.json`, plus
+  `lan_scan_manual`) that need a permission grant, a signed-in account, or real
+  hardware. They are **skipped by the default run** and listed in `-dry-run` as
+  `[manual]`. **Run them by hand on a configured Mac** with
+  `go run ./cmd/runevals -include-manual` (or `-only <id>` for a single one).
+  None automates a send/call/print; mutations self-clean where an inverse exists
+  (`m_notes_create_leaves_residue` is the exception, and says so).

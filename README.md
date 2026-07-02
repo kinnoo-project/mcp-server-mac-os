@@ -219,7 +219,10 @@ that trust is earned structurally, not just promised:
   injection at a throwaway Messages database; and token-abuse tests prove a
   mutation can't be replayed or run unstaged. Adversarial live-model evals
   (refusing to wipe the disk, ignoring instructions injected into files it reads)
-  round out the picture. See **[docs/TESTS.md](docs/TESTS.md)**.
+  and an everyday-Mac eval corpus that checks real end-state — a mutating case
+  verifies the file actually landed where intended, not just that the right
+  operation was chosen — round out the picture. See
+  **[docs/TESTS.md](docs/TESTS.md)**.
 
 The complete, line-by-line threat model is in
 **[Why this server is safe to expose](docs/architecture.md#why-this-server-is-safe-to-expose)**.
