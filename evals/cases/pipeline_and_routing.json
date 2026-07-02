@@ -1,0 +1,18 @@
+[
+  {
+    "id": "count_matches_uses_pipeline",
+    "description": "Counting how many files match under a directory should route through the pipeline tool (find -> wc) in a single call, not a client-side loop over per-file reads. Fixtures give it real files to count.",
+    "setup": {"scratch": "logs", "files": ["a.log", "b.log", "sub/c.log", "notes.txt"]},
+    "teardown": {"remove_scratch": true},
+    "prompt": "How many .log files are under {{scratch}}?",
+    "expect": {"tool": "pipeline"}
+  },
+  {
+    "id": "read_not_pipeline",
+    "description": "Simply showing a small file's contents should select a direct filesystem read (head), NOT the pipeline tool — the routing counterpart to the case above.",
+    "setup": {"scratch": "onefile", "files": ["a.txt"]},
+    "teardown": {"remove_scratch": true},
+    "prompt": "Show me the contents of {{scratch}}/a.txt.",
+    "expect": {"tool": "filesystem", "operation": "head", "forbid_tools": ["pipeline"]}
+  }
+]

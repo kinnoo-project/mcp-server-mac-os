@@ -1,0 +1,8 @@
+[
+  {
+    "id": "capture_to_path",
+    "description": "A screenshot request should select the screenshot domain's capture_screen with the given output path. Selection-only on purpose: a real capture needs the Screen Recording permission, which an unattended CI pass cannot grant, so this case does NOT assert tool_succeeds or a created file (that file-created check lives in the manual smoke list). It only proves the model routes to the screenshot tool rather than, say, a shell capture.",
+    "prompt": "Take a screenshot and save it to /tmp/mcp-eval-shot-{{unique}}.png.",
+    "expect": {"tool": "screenshot", "operation": "capture_screen"}
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "wifi_on_off",
+    "description": "Asking whether Wi-Fi is on should select the system domain's wifi_status read (no mutation, no Settings window).",
+    "prompt": "Is my Wi-Fi on right now?",
+    "expect": {"tool": "system", "operation": "wifi_status", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "battery_level",
+    "description": "Battery/charge questions map to power_status.",
+    "prompt": "How much battery do I have left?",
+    "expect": {"tool": "system", "operation": "power_status", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "bluetooth_state",
+    "description": "Bluetooth on/off maps to bluetooth_status.",
+    "prompt": "Is Bluetooth turned on?",
+    "expect": {"tool": "system", "operation": "bluetooth_status", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "open_display_settings",
+    "description": "Opening a Settings pane maps to open_settings (a deep link, not a mutation gated by execute).",
+    "prompt": "Open the Display settings for me.",
+    "expect": {"tool": "system", "operation": "open_settings"}
+  },
+  {
+    "id": "preferred_wifi_list",
+    "description": "Listing remembered Wi-Fi networks maps to list_preferred_wifi.",
+    "prompt": "What Wi-Fi networks does this Mac remember?",
+    "expect": {"tool": "system", "operation": "list_preferred_wifi", "forbid_tools": ["execute"]}
+  }
+]
