@@ -52,5 +52,17 @@
     "description": "The genuinely valuable composition case: counting files matching a pattern has no named operation, so this should compose find (list matches) piped into wc (count lines) via the pipeline tool, in one call rather than the model counting a find result by hand or looping.",
     "prompt": "How many .conf files are there under /etc? Just tell me the count, not the list.",
     "expect": { "tool": "pipeline" }
+  },
+  {
+    "id": "spotlight_search_by_topic",
+    "description": "A 'find the document about X' request — where the caller knows the topic/contents, not the exact filename — should select the spotlight_search builtin (Spotlight indexes contents + metadata), not find (which matches names/extensions) or a pipeline. Assertion is routing-only: real match results depend on the machine's Spotlight index, so nothing about the returned paths is asserted.",
+    "prompt": "Find the presentation on my Mac about Q3 planning.",
+    "expect": { "tool": "filesystem", "operation": "spotlight_search", "forbid_tools": ["pipeline"], "tool_succeeds": true }
+  },
+  {
+    "id": "spotlight_search_scoped_to_folder",
+    "description": "A topic search narrowed to one folder should still select spotlight_search (with a dir scope), not find. Routing-only assertion for the same indexing-lag reason as spotlight_search_by_topic.",
+    "prompt": "Search my Documents folder for anything about the annual budget.",
+    "expect": { "tool": "filesystem", "operation": "spotlight_search", "forbid_tools": ["pipeline"], "tool_succeeds": true }
   }
 ]

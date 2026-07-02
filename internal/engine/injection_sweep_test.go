@@ -59,6 +59,7 @@ var hostileValues = []string{
 // and a regression test, then list it here.
 var reviewedFreeTextBuiltins = map[string]string{
 	"largest_files":       "in-process filepath.WalkDir; dir is used with the standard library, never passed to any binary",
+	"spotlight_search":    "mdfind: dash-leading query rejected (mdfind has no '--'); optional scope dir resolved to an absolute path (leading '/') before -onlyin; see builtins_spotlight_test.go",
 	"capture_screen":      "screencapture: output_path rejected if dash-leading and only ever used to CREATE a file (never overwrite); see builtins_screenshot_test.go",
 	"list_applications":   "mdfind: dash-leading query rejected (mdfind has no '--'); see builtins_apps_test.go",
 	"search_applications": "mdfind: dash-leading query rejected; see builtins_apps_test.go",
