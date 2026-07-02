@@ -52,6 +52,14 @@ type Config struct {
 	// manual case still runs regardless (see RunAll), so a human can drive one
 	// deliberately without flipping this flag.
 	IncludeManual bool
+	// OnCaseStart, if non-nil, is called with a case's id immediately before that
+	// case runs. OnCaseDone, if non-nil, is called with its result immediately
+	// after. They let a caller stream progress as each (slow, API-backed) case
+	// executes — the -verbose path — instead of seeing nothing until the whole
+	// batch returns. Both are optional and, when nil, RunAll behaves exactly as
+	// before, collecting results and returning them in one slice.
+	OnCaseStart func(id string)
+	OnCaseDone  func(result CaseResult)
 }
 
 // CaseResult is one case's outcome.
@@ -127,7 +135,14 @@ func RunAll(ctx context.Context, cfg Config) ([]CaseResult, error) {
 		if c.Manual && cfg.Only == "" && !cfg.IncludeManual {
 			continue
 		}
-		results = append(results, runCase(ctx, client, cfg.Model, cs, tools, c))
+		if cfg.OnCaseStart != nil {
+			cfg.OnCaseStart(c.ID)
+		}
+		r := runCase(ctx, client, cfg.Model, cs, tools, c)
+		if cfg.OnCaseDone != nil {
+			cfg.OnCaseDone(r)
+		}
+		results = append(results, r)
 	}
 	return results, nil
 }

@@ -842,6 +842,7 @@ go run ./cmd/runevals -dry-run
 # Live: makes real, billed Anthropic API calls (a few cents for the full set).
 export ANTHROPIC_API_KEY=sk-ant-...
 go run ./cmd/runevals
+go run ./cmd/runevals -verbose   # stream RUN then PASS/FAIL per case as it runs
 go run ./cmd/runevals -only mkdir_stages_then_confirms_then_undoes   # one case
 
 # Manual cases (need a permission grant / signed-in account / real hardware) are
