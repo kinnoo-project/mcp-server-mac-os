@@ -78,8 +78,15 @@ func TestStageSetAppearance_RejectsUnknownMode(t *testing.T) {
 			{Name: "mode", Type: registry.TypeString, Required: true, Arg: registry.ArgRule{Kind: registry.ArgNone}},
 		},
 	}
-	if _, err := stageSetAppearance(context.Background(), cap, map[string]any{"mode": "sepia"}); err == nil {
+	_, err := stageSetAppearance(context.Background(), cap, map[string]any{"mode": "sepia"})
+	if err == nil {
 		t.Fatal("expected stageSetAppearance to reject an unknown mode")
+	}
+	// Pin that this is the intended short-circuit (the mode switch, which precedes
+	// any System Events probe) and not some other unexpected failure: the message
+	// names the offending mode.
+	if !strings.Contains(err.Error(), "unknown mode") || !strings.Contains(err.Error(), "sepia") {
+		t.Errorf("expected an 'unknown mode \"sepia\"' rejection, got: %v", err)
 	}
 }
 

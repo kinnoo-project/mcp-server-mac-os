@@ -9,11 +9,12 @@
 // preference in the user's account — most of which neither it nor a reviewer can
 // assess. So read_setting takes the SAME closed `setting` enum as write_setting
 // and resolves it through the SAME defaultsAllowlist map (mutate_preferences.go):
-// the real domain/key pair lives in reviewed Go code, never in model input. That
-// also means the manifest-drift guard that keeps write_setting's enum and the
-// allowlist in sync (TestReadSettingEnum_MatchesDefaultsAllowlist,
-// internal/server) protects reads too — a setting is either readable AND
-// writable through the curated list, or neither.
+// the real domain/key pair lives in reviewed Go code, never in model input. Each
+// side has its own manifest-drift guard against that shared allowlist
+// (internal/server): TestDefaultsAllowlist_MatchesManifestEnum for write_setting's
+// enum, TestReadSettingEnum_MatchesDefaultsAllowlist for read_setting's. Together
+// they keep the two in lockstep — a setting is either readable AND writable
+// through the curated list, or neither.
 package engine
 
 import (
