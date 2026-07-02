@@ -47,7 +47,7 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 - *"How big is my Downloads folder?"*
 - *"How many lines are in `/var/log/system.log`?"*
 - **"Create a folder called `drafts` in my Documents."** *(previewed; undoable)*
-- **"Move `test.txt` from Downloads to the Desktop."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
+- **"Move `test.txt` from Downloads to the Desktop."** · **"Move all the screenshots on my Desktop into `~/Desktop/screenshots`."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
 - **"Delete `old-draft.txt`."** *(moved to the Trash, never hard-deleted — previewed; undoable)*
 
 ### ✉️ Mail
@@ -393,10 +393,14 @@ What's next:
 - **More capabilities** — more curated `preferences` settings, more `application-*`
   depth, and mutating capabilities in new domains (e.g. networking).
 - **More file operations** — `move`, `copy`, and `remove` now ship (deletes recycle
-  to the Trash, so every one is reversible); next is widening coverage (e.g.
-  overwrite-with-backup) while keeping the Trash recovery guarantee.
+  to the Trash, so every one is reversible); `move` also accepts a `source_glob`
+  to move many files at once (the server expands the pattern on disk — handy for
+  filenames you can't type exactly, like the narrow no-break space in macOS
+  screenshot names — and stages the whole batch as one reversible step). Next is
+  widening coverage (e.g. overwrite-with-backup, and the same batch `source_glob`
+  for `copy`/`remove`) while keeping the Trash recovery guarantee.
 - **Multi-step *mutation* plans** — stage and commit several changes with a
-  best-effort + report failure policy.
+  best-effort + report failure policy (also what batch `copy`/`remove` need).
 - **Force mode** — an explicit opt-in to skip the confirmation step for low-risk
   reversible operations (never for irreversible ones).
 

@@ -27,9 +27,28 @@ func domainToolDescription(category string, caps []registry.Capability) string {
 	var b strings.Builder
 	b.WriteString("Perform a macOS ")
 	b.WriteString(category)
-	b.WriteString(" operation. Set 'operation' to one of the operations below and ")
-	b.WriteString("'params' to that operation's parameters.\n\nOperations:")
+	b.WriteString(" operation. Set 'operation' to one of the operations listed below, and ")
+	b.WriteString("'params' to that operation's parameters.")
 
+	// Lead with the COMPLETE, compact list of every operation name. This single
+	// line is the truncation-resilient core of the description: the per-operation
+	// detail that follows can run to several thousand characters, and some clients
+	// clip long tool descriptions. If that detail is clipped, this line still
+	// names every operation — including the mutators that sort to the end of the
+	// alphabet (move, remove, ...) and were therefore the first to be lost to a
+	// mid-list cut — so the model never wrongly concludes an operation is missing.
+	b.WriteString("\n\nAll operations: ")
+	for i, c := range sorted {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(c.Name)
+	}
+
+	// Then the per-operation detail. Parameters are rendered compactly — a "*"
+	// after a parameter name marks it as required (see renderParams) — to keep the
+	// whole menu small enough to survive a client's description budget.
+	b.WriteString("\n\nDetails (each line: name — summary (risk; how it runs); a '*' after a parameter name means it is required):")
 	for _, c := range sorted {
 		b.WriteString("\n  - ")
 		b.WriteString(c.Name)
@@ -71,9 +90,12 @@ func executionLane(c registry.Capability) string {
 }
 
 // renderParams renders a capability's parameters as indented lines beneath its
-// operation, or notes that it takes none. Each line states the parameter name,
-// its type, whether it is required, and its description — everything the model
-// needs to populate 'params' correctly without a separate schema lookup.
+// operation, or notes that it takes none. Each line states the parameter name
+// (suffixed with "*" when required), its type, and its description — everything
+// the model needs to populate 'params' correctly without a separate schema
+// lookup. The "*" marker replaces the older ", required" phrasing purely to keep
+// the rendered menu compact; the legend explaining it lives in the domain
+// description header (see domainToolDescription).
 func renderParams(params []registry.ParamSpec) string {
 	if len(params) == 0 {
 		return "\n      (no parameters)"
@@ -82,11 +104,11 @@ func renderParams(params []registry.ParamSpec) string {
 	for _, p := range params {
 		b.WriteString("\n      ")
 		b.WriteString(p.Name)
+		if p.Required {
+			b.WriteString("*")
+		}
 		b.WriteString(" (")
 		b.WriteString(string(p.Type))
-		if p.Required {
-			b.WriteString(", required")
-		}
 		b.WriteString(")")
 		if p.Description != "" {
 			b.WriteString(": ")

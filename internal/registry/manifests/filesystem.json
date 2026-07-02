@@ -435,7 +435,7 @@
   },
   {
     "name": "move",
-    "summary": "Move (or rename) a file or directory. Reversible: undo moves it back to its original location.",
+    "summary": "Move (or rename) a file or directory. Reversible: undo moves it back to its original location. To move many files at once, use source_glob instead of source.",
     "category": "filesystem",
     "binary": "mv",
     "reversibility": "reversible",
@@ -445,15 +445,22 @@
       {
         "name": "source",
         "type": "path",
-        "required": true,
-        "description": "Existing file or directory to move. Leading ~ ok; must not start with '-' (use ./).",
+        "required": false,
+        "description": "Single existing file or directory to move. Provide exactly one of source or source_glob. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "source_glob",
+        "type": "path",
+        "required": false,
+        "description": "Shell glob selecting MANY files to move (e.g. ~/Desktop/Screenshot*.png). The server expands it on disk, so filenames with characters you can't type (like the narrow no-break space in macOS screenshot names) are matched reliably. All matches must share one parent directory, and destination must be an existing directory. Provide exactly one of source or source_glob.",
         "arg": { "kind": "none" }
       },
       {
         "name": "destination",
         "type": "path",
         "required": true,
-        "description": "Target path. Leading ~ ok. Into an existing dir → placed inside under its name; else it is the new path. Must not already exist (no overwrite); parent dir must exist.",
+        "description": "Target path. Leading ~ ok. With source: into an existing dir → placed inside under its name, else it is the new path. With source_glob: must be an existing directory. Must not already exist for any item (no overwrite); parent dir must exist.",
         "arg": { "kind": "none" }
       }
     ]
