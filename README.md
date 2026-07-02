@@ -1,6 +1,8 @@
 
 # Mac OS MCP Server
 
+![mcp-server-mac-os Banner](assets/banner.png)
+
 [![Platform: macOS 13+](https://img.shields.io/badge/platform-macOS%2013%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![MCP](https://img.shields.io/badge/MCP-go--sdk%20v1.4.1-6E56CF)](https://modelcontextprotocol.io/)
@@ -431,3 +433,5 @@ This README is the tour; the engineering details live alongside the code:
 
 Licensed under the **GNU Affero General Public License v3.0** — see
 [LICENSE](LICENSE). Contributions are accepted under the same license.
+
+Disclaimer: This project is an independent, open-source utility and is not affiliated with Apple Inc. Any Mac-specific logos in this README are trademarks of Apple Inc.
