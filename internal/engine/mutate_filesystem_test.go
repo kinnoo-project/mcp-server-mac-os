@@ -430,3 +430,254 @@ func TestTrashPathFor_CollisionSuffix(t *testing.T) {
 		t.Errorf("trashPathFor with collision = %q, want %q", got, want)
 	}
 }
+
+// --- write_file / append_to_file ---
+//
+// These two mutators carry model-controlled content on the forward command's
+// stdin (Command.Stdin), so alongside the usual plan/rejection/round-trip
+// coverage the tests here pin the injection contract: flag-like content lands
+// in Stdin (pure data), never in argv, and the argv itself is exactly the
+// fixed ["--", path] / ["-a", "--", path] shape.
+
+// TestStageWriteFile_Plan confirms staging yields a tee forward carrying the
+// content on stdin, a Trash-recycling inverse, and a preview that names the
+// path without dumping the payload — all without touching the filesystem.
+func TestStageWriteFile_Plan(t *testing.T) {
+	redirectHomeWithTrash(t)
+	target := filepath.Join(t.TempDir(), "notes.txt")
+	content := "line one\nline two\n"
+
+	plan, err := stageWriteFile(context.Background(), registry.Capability{}, map[string]any{"path": target, "content": content})
+	if err != nil {
+		t.Fatalf("stageWriteFile: %v", err)
+	}
+	wantArgs := []string{"--", target}
+	if plan.Forward.Binary != "tee" || !reflect.DeepEqual(plan.Forward.Args, wantArgs) {
+		t.Errorf("forward = %q %v, want tee %v", plan.Forward.Binary, plan.Forward.Args, wantArgs)
+	}
+	if string(plan.Forward.Stdin) != content {
+		t.Errorf("forward stdin = %q, want the content verbatim", plan.Forward.Stdin)
+	}
+	if plan.Inverse == nil || plan.Inverse.Binary != "mv" || !strings.Contains(plan.Inverse.Args[2], ".Trash") {
+		t.Errorf("inverse should mv the file into the Trash; got %+v", plan.Inverse)
+	}
+	if !strings.Contains(plan.Preview, target) {
+		t.Errorf("preview should name the target: %q", plan.Preview)
+	}
+	if strings.Contains(plan.Preview, "line two") {
+		t.Errorf("preview must not dump the full payload (only a first-line snippet): %q", plan.Preview)
+	}
+	if !plan.Forward.DiscardStdout {
+		t.Error("forward must discard tee's stdout echo of the written content")
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("staging must not create the file; stat err = %v", err)
+	}
+}
+
+// TestStageWriteFile_FlagLikeContentIsStdinData is the option-injection
+// regression for the stdin seam: content that looks like osascript/tee flags
+// must land byte-for-byte in Stdin while argv stays the fixed two-token shape.
+func TestStageWriteFile_FlagLikeContentIsStdinData(t *testing.T) {
+	redirectHomeWithTrash(t)
+	target := filepath.Join(t.TempDir(), "f.txt")
+	hostile := "-e do shell script\n--append\n$(rm -rf ~)\n"
+
+	plan, err := stageWriteFile(context.Background(), registry.Capability{}, map[string]any{"path": target, "content": hostile})
+	if err != nil {
+		t.Fatalf("stageWriteFile: %v", err)
+	}
+	if string(plan.Forward.Stdin) != hostile {
+		t.Errorf("hostile content must be carried verbatim as stdin data; got %q", plan.Forward.Stdin)
+	}
+	if !reflect.DeepEqual(plan.Forward.Args, []string{"--", target}) {
+		t.Errorf("argv must stay fixed regardless of content; got %v", plan.Forward.Args)
+	}
+}
+
+// TestStageWriteFile_Rejects covers the guardrail table: bad paths, an occupied
+// target (including a dangling symlink, which Lstat must count as occupied), a
+// missing parent, and oversize content.
+func TestStageWriteFile_Rejects(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	existing := filepath.Join(dir, "have.txt")
+	if err := os.WriteFile(existing, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dangling := filepath.Join(dir, "dangling")
+	if err := os.Symlink(filepath.Join(dir, "no-such-target"), dangling); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name string
+		in   map[string]any
+	}{
+		{"missing_path", map[string]any{"content": "x"}},
+		{"dash_leading_path", map[string]any{"path": "-rf", "content": "x"}},
+		{"existing_target", map[string]any{"path": existing, "content": "x"}},
+		{"dangling_symlink_target", map[string]any{"path": dangling, "content": "x"}},
+		{"missing_parent", map[string]any{"path": filepath.Join(dir, "no", "such", "file.txt"), "content": "x"}},
+		{"oversize_content", map[string]any{"path": filepath.Join(dir, "big.txt"), "content": strings.Repeat("x", maxWriteContentBytes+1)}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := stageWriteFile(context.Background(), registry.Capability{}, tc.in); err == nil {
+				t.Fatalf("expected stageWriteFile to reject %s", tc.name)
+			}
+		})
+	}
+}
+
+// TestWriteFile_RoundTrip executes the real flow: forward creates the file with
+// the exact bytes (via RunCommand's stdin path), inverse recycles it into the
+// sandbox Trash.
+func TestWriteFile_RoundTrip(t *testing.T) {
+	home := redirectHomeWithTrash(t)
+	target := filepath.Join(t.TempDir(), "made.txt")
+	content := "alpha\nbeta\n"
+	eng := New()
+	ctx := context.Background()
+
+	plan, err := eng.Stage(ctx, registry.Capability{Name: "write_file", Builder: "write_file", Params: []registry.ParamSpec{
+		{Name: "path", Type: registry.TypePath, Required: true, Arg: registry.ArgRule{Kind: registry.ArgNone}},
+		{Name: "content", Type: registry.TypeString, Required: true, Arg: registry.ArgRule{Kind: registry.ArgNone}},
+	}}, map[string]any{"path": target, "content": content})
+	if err != nil {
+		t.Fatalf("Stage: %v", err)
+	}
+	if _, err := eng.RunCommand(ctx, plan.Forward); err != nil {
+		t.Fatalf("RunCommand(forward): %v", err)
+	}
+	got, err := os.ReadFile(target)
+	if err != nil || string(got) != content {
+		t.Fatalf("file content = %q (err %v), want %q", got, err, content)
+	}
+	if _, err := eng.RunCommand(ctx, *plan.Inverse); err != nil {
+		t.Fatalf("RunCommand(inverse): %v", err)
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("undo should have removed the created file; stat err = %v", err)
+	}
+	trashed, err := os.ReadFile(filepath.Join(home, ".Trash", "made.txt"))
+	if err != nil || string(trashed) != content {
+		t.Errorf("undo should have recycled the file into the sandbox Trash; read err = %v", err)
+	}
+}
+
+// TestStageAppendToFile_Plan confirms staging bakes the target's CURRENT bytes
+// into a truncating tee inverse, so undo is a byte-exact restore.
+func TestStageAppendToFile_Plan(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "log.txt")
+	prior := "existing line\n"
+	if err := os.WriteFile(target, []byte(prior), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := stageAppendToFile(context.Background(), registry.Capability{}, map[string]any{"path": target, "content": "new line\n"})
+	if err != nil {
+		t.Fatalf("stageAppendToFile: %v", err)
+	}
+	if plan.Forward.Binary != "tee" || !reflect.DeepEqual(plan.Forward.Args, []string{"-a", "--", target}) {
+		t.Errorf("forward = %q %v, want tee [-a -- %s]", plan.Forward.Binary, plan.Forward.Args, target)
+	}
+	if string(plan.Forward.Stdin) != "new line\n" {
+		t.Errorf("forward stdin = %q", plan.Forward.Stdin)
+	}
+	if plan.Inverse == nil || !reflect.DeepEqual(plan.Inverse.Args, []string{"--", target}) || string(plan.Inverse.Stdin) != prior {
+		t.Errorf("inverse must rewrite the prior bytes exactly; got %+v", plan.Inverse)
+	}
+	// Both directions must suppress tee's echo: the forward echo is redundant,
+	// and the inverse echo would LEAK the file's prior contents to the client.
+	if !plan.Forward.DiscardStdout || !plan.Inverse.DiscardStdout {
+		t.Error("append forward and inverse must both discard tee's stdout echo")
+	}
+	if !strings.Contains(plan.Preview, "prior contents") {
+		t.Errorf("preview should state undo restores prior contents: %q", plan.Preview)
+	}
+}
+
+// TestStageAppendToFile_Rejects covers the guardrail table for append: the
+// target must be an existing regular file within the size cap, and the content
+// must be present, non-empty, and within its cap.
+func TestStageAppendToFile_Rejects(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "ok.txt")
+	if err := os.WriteFile(target, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	big := filepath.Join(dir, "big.bin")
+	if err := os.WriteFile(big, make([]byte, maxAppendTargetBytes+1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name string
+		in   map[string]any
+	}{
+		{"missing_path", map[string]any{"content": "x"}},
+		{"nonexistent_target", map[string]any{"path": filepath.Join(dir, "nope.txt"), "content": "x"}},
+		{"dash_leading_path", map[string]any{"path": "-x", "content": "x"}},
+		{"directory_target", map[string]any{"path": dir, "content": "x"}},
+		{"empty_content", map[string]any{"path": target, "content": ""}},
+		{"oversize_content", map[string]any{"path": target, "content": strings.Repeat("x", maxWriteContentBytes+1)}},
+		{"oversize_target", map[string]any{"path": big, "content": "x"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := stageAppendToFile(context.Background(), registry.Capability{}, tc.in); err == nil {
+				t.Fatalf("expected stageAppendToFile to reject %s", tc.name)
+			}
+		})
+	}
+}
+
+// TestRunCommand_DiscardStdoutSuppressesEcho proves the leak fix end to end: a
+// tee command that would echo its (potentially sensitive) stdin returns no
+// content when DiscardStdout is set — the file is still written, but nothing of
+// it comes back through the tool result.
+func TestRunCommand_DiscardStdoutSuppressesEcho(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "quiet.txt")
+	secret := "s3cret prior contents\n"
+	out, err := New().RunCommand(context.Background(), Command{
+		Binary: "tee", Args: []string{"--", target}, Stdin: []byte(secret), DiscardStdout: true,
+	})
+	if err != nil {
+		t.Fatalf("RunCommand: %v", err)
+	}
+	if strings.Contains(out, "s3cret") {
+		t.Errorf("stdout echo must be discarded; got %q", out)
+	}
+	if got, _ := os.ReadFile(target); string(got) != secret {
+		t.Errorf("file must still be written; got %q", got)
+	}
+}
+
+// TestAppendToFile_RoundTrip executes the real flow: forward appends, inverse
+// restores the prior bytes exactly — a snapshot restore, as the preview states.
+func TestAppendToFile_RoundTrip(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "notes.txt")
+	prior := "hello\n"
+	if err := os.WriteFile(target, []byte(prior), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	eng := New()
+	ctx := context.Background()
+
+	plan, err := stageAppendToFile(ctx, registry.Capability{}, map[string]any{"path": target, "content": "world\n"})
+	if err != nil {
+		t.Fatalf("stageAppendToFile: %v", err)
+	}
+	if _, err := eng.RunCommand(ctx, plan.Forward); err != nil {
+		t.Fatalf("RunCommand(forward): %v", err)
+	}
+	if got, _ := os.ReadFile(target); string(got) != "hello\nworld\n" {
+		t.Fatalf("after append content = %q, want %q", got, "hello\nworld\n")
+	}
+	if _, err := eng.RunCommand(ctx, *plan.Inverse); err != nil {
+		t.Fatalf("RunCommand(inverse): %v", err)
+	}
+	if got, _ := os.ReadFile(target); string(got) != prior {
+		t.Errorf("undo should restore prior bytes exactly; got %q, want %q", got, prior)
+	}
+}

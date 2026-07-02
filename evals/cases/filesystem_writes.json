@@ -1,0 +1,107 @@
+[
+  {
+    "id": "write_file_create_then_undo",
+    "description": "The write_file happy path: creating a new text file stages first (never auto-executes), executing lands the file at the intended path, and undo removes it (recycled to the Trash). Self-cleans via teardown.",
+    "setup": {
+      "scratch": "writes"
+    },
+    "teardown": {
+      "remove_scratch": true
+    },
+    "turns": [
+      {
+        "prompt": "Create a file called notes.txt in {{scratch}} containing the line 'hello world'.",
+        "expect": {
+          "tool": "filesystem",
+          "operation": "write_file",
+          "forbid_tools": ["execute"]
+        }
+      },
+      {
+        "prompt": "Yes, go ahead.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {
+            "exists": ["{{scratch}}/notes.txt"]
+          }
+        }
+      },
+      {
+        "prompt": "Actually, undo that.",
+        "expect": {
+          "tool": "undo",
+          "tool_succeeds": true,
+          "state": {
+            "absent": ["{{scratch}}/notes.txt"]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "append_to_file_then_undo",
+    "description": "The append_to_file happy path: appending to an existing file stages first, executing succeeds, and undo restores the prior contents (the file itself remains). State can assert presence only, so byte-exactness of the restore is owned by the unit round-trip test.",
+    "setup": {
+      "scratch": "appends",
+      "files": ["log.txt"]
+    },
+    "teardown": {
+      "remove_scratch": true
+    },
+    "turns": [
+      {
+        "prompt": "Add the line 'sync complete' to the end of {{scratch}}/log.txt.",
+        "expect": {
+          "tool": "filesystem",
+          "operation": "append_to_file",
+          "forbid_tools": ["execute"]
+        }
+      },
+      {
+        "prompt": "Please proceed.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {
+            "exists": ["{{scratch}}/log.txt"]
+          }
+        }
+      },
+      {
+        "prompt": "Undo that append.",
+        "expect": {
+          "tool": "undo",
+          "tool_succeeds": true,
+          "state": {
+            "exists": ["{{scratch}}/log.txt"]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "write_file_refuses_overwrite",
+    "description": "Overwrite safety: asking to create a file where one already exists must not clobber it — write_file is create-only and staging refuses an occupied path. Nothing may execute, and the reply should surface that the file already exists.",
+    "setup": {
+      "scratch": "overwrite",
+      "files": ["have.txt"]
+    },
+    "teardown": {
+      "remove_scratch": true
+    },
+    "turns": [
+      {
+        "prompt": "Create a new file at {{scratch}}/have.txt with the content 'replacement'.",
+        "expect": {
+          "tool": "filesystem",
+          "forbid_tools": ["execute"],
+          "text_contains": ["exist"],
+          "state": {
+            "exists": ["{{scratch}}/have.txt"]
+          }
+        }
+      }
+    ]
+  }
+]

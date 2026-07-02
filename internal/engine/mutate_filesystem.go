@@ -296,6 +296,140 @@ func stageRemove(_ context.Context, _ registry.Capability, in map[string]any) (*
 	}, nil
 }
 
+// maxWriteContentBytes caps the content a single write_file/append_to_file may
+// deliver. The payload travels on the forward command's stdin (inert data, see
+// Command.Stdin) but is held in the staged-plan store until executed, so it is
+// bounded well below the engine-wide maxStdinBytes backstop; 1 MiB comfortably
+// covers any text file an assistant legitimately authors.
+const maxWriteContentBytes = 1 << 20 // 1 MiB
+
+// maxAppendTargetBytes caps how large a file append_to_file will touch. The
+// inverse must bake the target's ENTIRE prior contents into its stdin (that is
+// what makes undo a byte-exact restore), so the target size bounds the staged
+// payload; past 8 MiB the file is not the kind of text document this operation
+// is for, and the caller is steered away rather than silently staging a huge
+// undo payload.
+const maxAppendTargetBytes = 8 << 20 // 8 MiB
+
+// stageWriteFile stages the creation of a NEW file with caller-supplied content.
+//
+// Forward is `tee -- <path>` with the content on stdin (tee is a pure data sink:
+// stdin bytes are written to the file verbatim and can never be parsed as flags
+// or code, so the model-controlled content needs no argv hardening). Undo
+// honours the recycling rule (transactional-state.md §3): the inverse moves the
+// created file to the Trash rather than hard-deleting it.
+//
+// Guardrails, mirroring the other filesystem mutators:
+//   - path is required, must not begin with "-", and is resolved to absolute
+//     form so the inverse is cwd-stable;
+//   - the target must NOT already exist — this operation only creates, never
+//     overwrites, so undo can only ever trash a file this action produced.
+//     os.Lstat (not Stat) is used so even a dangling symlink at the path counts
+//     as occupied: writing through one would create a file at the symlink's
+//     target, somewhere this plan never previewed;
+//   - the parent directory must exist (tee does not create intermediate dirs;
+//     a plan that cannot execute must fail at stage time, not at execute time);
+//   - content is capped at maxWriteContentBytes.
+func stageWriteFile(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	path, _ := getString(in, "path")
+	if path == "" {
+		return nil, fmt.Errorf("write_file: 'path' is required")
+	}
+	if strings.HasPrefix(path, "-") {
+		return nil, fmt.Errorf("write_file: path %q begins with '-' and is not allowed; prefix it with ./", path)
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("write_file: resolving path %q: %w", path, err)
+	}
+	if _, err := os.Lstat(abs); err == nil {
+		return nil, fmt.Errorf("write_file: %q already exists; refusing to overwrite (use append_to_file to add to it, or remove it first)", abs)
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("write_file: cannot inspect %q: %w", abs, err)
+	}
+	parent := filepath.Dir(abs)
+	if info, err := os.Stat(parent); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("write_file: parent directory %q does not exist (create it first with mkdir)", parent)
+		}
+		return nil, fmt.Errorf("write_file: cannot inspect parent %q: %w", parent, err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("write_file: parent %q is not a directory", parent)
+	}
+	content, _ := getString(in, "content")
+	if len(content) > maxWriteContentBytes {
+		return nil, fmt.Errorf("write_file: content is %d bytes, exceeding the %d-byte limit", len(content), maxWriteContentBytes)
+	}
+	trashDest, err := trashPathFor(abs)
+	if err != nil {
+		return nil, fmt.Errorf("write_file: %w", err)
+	}
+	return &StagedPlan{
+		Preview: fmt.Sprintf("Create file %s with content %s. Undo will move it to the Trash (%s).",
+			abs, previewSnippet([]byte(content)), trashDest),
+		Forward: Command{Binary: "tee", Args: []string{"--", abs}, Stdin: []byte(content), DiscardStdout: true},
+		Inverse: &Command{Binary: "mv", Args: []string{"--", abs, trashDest}},
+	}, nil
+}
+
+// stageAppendToFile stages a reversible append to an EXISTING text file.
+//
+// Forward is `tee -a -- <path>` with the new content on stdin. The inverse is a
+// byte-exact restore: staging reads the file's current contents (a read-only
+// probe) and bakes them into an inverse `tee -- <path>` whose stdin rewrites the
+// file exactly as it was — so undo removes the appended bytes AND reverts any
+// hand edits made in between, which the preview states plainly.
+//
+// Guardrails:
+//   - the target must exist (validateExistingOperand: non-empty, no leading
+//     dash, absolute) and be a regular file — appending to a directory or a
+//     device makes no sense and could hang;
+//   - the target must be at most maxAppendTargetBytes, since its full prior
+//     contents become the staged undo payload;
+//   - content is capped at maxWriteContentBytes.
+func stageAppendToFile(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	path, _ := getString(in, "path")
+	abs, err := validateExistingOperand("append_to_file", "path", path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(abs)
+	if err != nil {
+		return nil, fmt.Errorf("append_to_file: cannot inspect %q: %w", abs, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("append_to_file: %q is not a regular file", abs)
+	}
+	if info.Size() > maxAppendTargetBytes {
+		return nil, fmt.Errorf("append_to_file: %q is %d bytes, larger than the %d-byte limit (undo must hold the file's full prior contents)",
+			abs, info.Size(), maxAppendTargetBytes)
+	}
+	content, _ := getString(in, "content")
+	if content == "" {
+		return nil, fmt.Errorf("append_to_file: 'content' is required")
+	}
+	if len(content) > maxWriteContentBytes {
+		return nil, fmt.Errorf("append_to_file: content is %d bytes, exceeding the %d-byte limit", len(content), maxWriteContentBytes)
+	}
+	prior, err := os.ReadFile(abs)
+	if err != nil {
+		return nil, fmt.Errorf("append_to_file: reading current contents of %q for undo: %w", abs, err)
+	}
+	// Re-check the cap on the bytes actually read: the file can grow between the
+	// Stat above and the ReadFile (TOCTOU), and it is the read payload — not the
+	// earlier stat size — that would sit in the undo token store.
+	if len(prior) > maxAppendTargetBytes {
+		return nil, fmt.Errorf("append_to_file: %q is %d bytes, larger than the %d-byte limit (undo must hold the file's full prior contents)",
+			abs, len(prior), maxAppendTargetBytes)
+	}
+	return &StagedPlan{
+		Preview: fmt.Sprintf("Append %s to %s. Undo will restore the file's prior contents (%d bytes), discarding any edits made after this append.",
+			previewSnippet([]byte(content)), abs, len(prior)),
+		Forward: Command{Binary: "tee", Args: []string{"-a", "--", abs}, Stdin: []byte(content), DiscardStdout: true},
+		Inverse: &Command{Binary: "tee", Args: []string{"--", abs}, Stdin: prior, DiscardStdout: true},
+	}, nil
+}
+
 // resolveSourceAndDest validates the shared "source"/"destination" parameter
 // pair used by move and copy: it enforces presence and the dash-leading
 // guardrail on both, confirms the source exists, and returns both paths in
