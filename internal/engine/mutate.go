@@ -55,10 +55,14 @@ type Command struct {
 	// Stdin, when non-nil, is fed to the child's standard input. It is the
 	// channel for content payloads (file bodies, clipboard text) that must reach
 	// a utility like tee or pbcopy as pure data: bytes on stdin can never be
-	// parsed as flags, paths, or script, so they need no argv-style hardening.
-	// Because staged plans (and their inverses) are stored and replayed as
-	// Command values, a payload captured at stage time — including prior state
-	// baked into an inverse — flows through commit and undo untouched.
+	// parsed as argv flags or paths, so they need no dash-guard/`--` hardening.
+	// That guarantee is about argv only — an interpreter (sh, python, osascript)
+	// would happily execute its stdin as code, so a mutator must pair Stdin with
+	// a data-sink utility (tee, pbcopy), never an interpreter. Payloads are
+	// capped at maxStdinBytes by RunCommand. Because staged plans (and their
+	// inverses) are stored and replayed as Command values, a payload captured at
+	// stage time — including prior state baked into an inverse — flows through
+	// commit and undo untouched.
 	Stdin []byte
 }
 
@@ -75,6 +79,17 @@ type StagedPlan struct {
 	// the operation is irreversible (in which case there is no undo to offer).
 	Inverse *Command
 }
+
+// maxStdinBytes caps a Command's stdin payload at the RunCommand choke point.
+// Staged plans (and their inverses, which may bake in prior file contents) sit
+// in the in-memory transaction stores until consumed or expired, so an
+// unbounded payload would be a memory-pressure/DoS vector — the same class of
+// risk the stdout compaction and pipeline intermediate caps already guard.
+// Individual mutators impose their own tighter, purpose-fit limits (e.g. 1 MiB
+// for a new file body); this ceiling is the engine-wide backstop, sized so a
+// legitimate inverse (prior contents of a several-MiB file) still fits. A var
+// (not a const) so tests can lower it.
+var maxStdinBytes = 16 << 20 // 16 MiB
 
 // Mutator stages one mutating capability. Like an ArgBuilder it receives the
 // already-normalized parameter map, but instead of returning argv it performs
@@ -166,6 +181,9 @@ func (e *Engine) Stage(ctx context.Context, c registry.Capability, raw map[strin
 func (e *Engine) RunCommand(ctx context.Context, cmd Command) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
+	}
+	if len(cmd.Stdin) > maxStdinBytes {
+		return "", fmt.Errorf("engine: stdin payload is %d bytes, exceeding the %d-byte limit", len(cmd.Stdin), maxStdinBytes)
 	}
 	bin, err := policy.ResolveBinary(cmd.Binary)
 	if err != nil {
