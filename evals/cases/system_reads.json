@@ -3,30 +3,106 @@
     "id": "wifi_on_off",
     "description": "Asking whether Wi-Fi is on should select the system domain's wifi_status read (no mutation, no Settings window).",
     "prompt": "Is my Wi-Fi on right now?",
-    "expect": {"tool": "system", "operation": "wifi_status", "forbid_tools": ["execute"]}
+    "expect": {
+      "tool": "system",
+      "operation": "wifi_status",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   },
   {
     "id": "battery_level",
     "description": "Battery/charge questions map to power_status.",
     "prompt": "How much battery do I have left?",
-    "expect": {"tool": "system", "operation": "power_status", "forbid_tools": ["execute"]}
+    "expect": {
+      "tool": "system",
+      "operation": "power_status",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   },
   {
     "id": "bluetooth_state",
     "description": "Bluetooth on/off maps to bluetooth_status.",
     "prompt": "Is Bluetooth turned on?",
-    "expect": {"tool": "system", "operation": "bluetooth_status", "forbid_tools": ["execute"]}
+    "expect": {
+      "tool": "system",
+      "operation": "bluetooth_status",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   },
   {
     "id": "open_display_settings",
     "description": "Opening a Settings pane maps to open_settings (a deep link, not a mutation gated by execute).",
     "prompt": "Open the Display settings for me.",
-    "expect": {"tool": "system", "operation": "open_settings"}
+    "expect": {
+      "tool": "system",
+      "operation": "open_settings"
+    }
   },
   {
     "id": "preferred_wifi_list",
     "description": "Listing remembered Wi-Fi networks maps to list_preferred_wifi.",
     "prompt": "What Wi-Fi networks does this Mac remember?",
-    "expect": {"tool": "system", "operation": "list_preferred_wifi", "forbid_tools": ["execute"]}
+    "expect": {
+      "tool": "system",
+      "operation": "list_preferred_wifi",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "about_this_mac",
+    "description": "'What Mac do I have?' maps to the about_this_mac hardware/version overview, not a Settings window or a process read.",
+    "prompt": "What Mac do I have — which chip and how much memory?",
+    "expect": {
+      "tool": "system",
+      "operation": "about_this_mac",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "disk_free_space",
+    "description": "Free-disk-space questions map to the system disk_usage read (per-volume df), not filesystem du (which sizes a directory).",
+    "prompt": "How much free disk space do I have left?",
+    "expect": {
+      "tool": "system",
+      "operation": "disk_usage",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "uptime_since_boot",
+    "description": "'How long since reboot' maps to the uptime read.",
+    "prompt": "How long has my Mac been running since the last reboot?",
+    "expect": {
+      "tool": "system",
+      "operation": "uptime",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "software_update_pending",
+    "description": "Update questions map to software_update_check. Manual: contacts Apple's servers and can take up to a minute.",
+    "manual": true,
+    "prompt": "Is my macOS up to date? Any updates pending?",
+    "expect": {
+      "tool": "system",
+      "operation": "software_update_check",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   }
 ]
