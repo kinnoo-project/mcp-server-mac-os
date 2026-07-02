@@ -1,7 +1,7 @@
 [
   {
     "id": "current_ssid",
-    "description": "Asking for IP address and active interface maps to network/current_network. The prompt is deliberately framed around IP and gateway (information only current_network provides) rather than 'what network am I on' — the latter is ambiguous: system/wifi_status also reports the joined SSID, so a fresh model correctly routes there instead.",
+    "description": "Asking for local IP address and default gateway maps to network/current_network. The prompt is deliberately framed around IP and gateway (information only current_network provides) rather than 'what network am I on' — the latter is ambiguous: system/wifi_status also reports the joined SSID, so a fresh model correctly routes there instead.",
     "prompt": "What's my local IP address and default gateway?",
     "expect": {"tool": "network", "operation": "current_network", "forbid_tools": ["execute"]}
   },
