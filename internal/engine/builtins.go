@@ -74,6 +74,9 @@ var builtins = map[string]BuiltinFunc{
 	"disk_usage":            runDiskUsage,
 	"software_update_check": runSoftwareUpdateCheck,
 
+	"list_airplay_devices": runListAirplayDevices,
+	"list_input_sources":   runListInputSources,
+
 	"capture_screen": runCaptureScreen,
 
 	"current_network": runCurrentNetwork,
