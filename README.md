@@ -129,7 +129,9 @@ and hands back the path (plus size and dimensions) so it can look at what you se
 ### 🖨️ Printers & ⚙️ System
 
 Check hardware and network status, print, and jump straight to the right Settings
-pane for anything that needs admin rights.
+pane for anything that needs admin rights — or that simply has no command line at
+all (pairing, iCloud sign-in, Focus, keyboard languages, screen mirroring), where
+it opens the exact pane *and* tells you what to click once you're there.
 
 - *"What printers do I have, and are they on?"* · *"What's in the print queue?"*
 - **"Print this PDF."** · **"Print a test page on the office laser."**
@@ -139,6 +141,10 @@ pane for anything that needs admin rights.
 - *"How much free disk space do I have?"* *(every mounted volume, sized like Finder shows)*
 - *"Am I up to date on macOS?"* *(read-only check — installing stays in System Settings)*
 - **"Open System Settings to Wi-Fi."** *(opens the pane for you to finish)*
+- **"Pair my wireless mouse."** *(opens Bluetooth settings and walks you through pairing)*
+- **"Sign me into iCloud."** · **"Turn on Do Not Disturb."** · **"Add a Chinese
+  keyboard."** · **"Mirror my screen to the TV."** *(opens the Apple Account, Focus,
+  Keyboard, or Displays pane with click-by-click instructions)*
 
 ### 🌐 Network & diagnostics
 

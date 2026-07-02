@@ -93,6 +93,51 @@
     }
   },
   {
+    "id": "pair_wireless_mouse",
+    "description": "Pairing a Bluetooth device has no CLI: the right move is open_settings (pane bluetooth) plus click-path guidance mentioning pairing mode. Opens a real Settings window when run.",
+    "prompt": "I want to pair my wireless mouse with my Mac.",
+    "expect": {
+      "tool": "system",
+      "operation": "open_settings",
+      "forbid_tools": [
+        "execute"
+      ],
+      "text_contains": [
+        "pairing"
+      ]
+    }
+  },
+  {
+    "id": "icloud_sign_in",
+    "description": "Apple Account / iCloud asks route to open_settings (pane apple_id) with sign-in guidance. Opens a real Settings window when run.",
+    "prompt": "Help me sign into iCloud on this Mac.",
+    "expect": {
+      "tool": "system",
+      "operation": "open_settings",
+      "forbid_tools": [
+        "execute"
+      ],
+      "text_contains": [
+        "iCloud"
+      ]
+    }
+  },
+  {
+    "id": "focus_dnd_toggle",
+    "description": "Focus/Do Not Disturb has no first-party CLI: route to open_settings (pane focus) with toggle guidance, not a refusal. Opens a real Settings window when run.",
+    "prompt": "Turn on Do Not Disturb.",
+    "expect": {
+      "tool": "system",
+      "operation": "open_settings",
+      "forbid_tools": [
+        "execute"
+      ],
+      "text_contains": [
+        "Focus"
+      ]
+    }
+  },
+  {
     "id": "software_update_pending",
     "description": "Update questions map to software_update_check. Manual: contacts Apple's servers and can take up to a minute.",
     "manual": true,

@@ -81,7 +81,7 @@
   },
   {
     "name": "open_settings",
-    "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly because they need admin rights — e.g. connecting/re-enabling a printer, joining a Wi-Fi network, toggling Bluetooth, changing battery/Low-Power settings. Runs immediately; cannot be undone (it just opens a window).",
+    "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly — because they need admin rights (connecting/re-enabling a printer, joining a Wi-Fi network, battery/Low-Power settings) or have no command line at all (pairing a Bluetooth device, signing into iCloud, toggling a Focus, adding a keyboard language, starting screen mirroring). ALWAYS tell the user the exact click-path to finish in the opened pane — e.g. bluetooth: 'put the device in pairing mode, then click Connect next to it under Nearby Devices'; apple_id: 'sign in or manage iCloud here'; focus: 'turn a Focus like Do Not Disturb on or off here'; keyboard: 'Text Input > Input Sources > Edit, then + to add a language'; displays: 'the AirPlay/mirroring control is the + dropdown here'. Runs immediately; cannot be undone (it just opens a window).",
     "category": "system",
     "binary": "open",
     "reversibility": "irreversible",
@@ -93,8 +93,8 @@
         "name": "pane",
         "type": "enum",
         "required": true,
-        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network"],
-        "description": "Which System Settings pane to open.",
+        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network", "focus", "keyboard", "apple_id"],
+        "description": "Which System Settings pane to open. 'focus' = Focus/Do Not Disturb; 'keyboard' = keyboard and input sources (add/change a typing language); 'apple_id' = Apple Account / iCloud; 'displays' = display arrangement and AirPlay screen mirroring.",
         "arg": { "kind": "none" }
       }
     ]
