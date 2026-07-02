@@ -6,8 +6,8 @@
 [![MCP](https://img.shields.io/badge/MCP-go--sdk%20v1.4.1-6E56CF)](https://modelcontextprotocol.io/)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-### 🖥️ **Talk to your Mac**
-No more memorizing Terminal commands, no more digging through System Settings, no more looking up how to navigate and do things on your Mac.
+### 🖥️ **Your Personal Mac Assistant**
+**Talk to your Mac**. No more memorizing Terminal commands, no more digging through System Settings, no more looking up how to navigate and do things on your Mac.
 
 > This is a Model Context Protocol (MCP) server that turns plain-language requests
 > into safe, native macOS actions — your files, Mail, Calendar, Reminders, 
@@ -15,8 +15,7 @@ No more memorizing Terminal commands, no more digging through System Settings, n
 > from any MCP-aware client like **Claude Code** or **Claude Desktop**.
 
 Pair this server with an MCP-aware client like **Claude Code** or **Claude
-Desktop** and the two together become a genuine **macOS command center** — one
-place to drive your whole Mac in ordinary language. Ask —
+Desktop** and the two together serve as an AI agent that acts a **personal Mac assistant** that you can use to interact your Mac in ordinary language. Ask —
 
 > *"Text Bob Jones that I'm running 10 minutes late."* ·
 > *"Put a dentist appointment for Thursday at 2pm."* · *"Find my tax return and
