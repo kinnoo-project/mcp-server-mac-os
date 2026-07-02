@@ -200,9 +200,12 @@ misbehaving one *gracefully* — never a force-kill.
 ### 🎛️ Preferences & accessibility
 
 Flip well-known Finder, Dock, keyboard, and accessibility toggles — a curated set
-of safe, reversible switches (no security-sensitive settings, ever).
+of safe, reversible switches (no security-sensitive settings, ever) — read back
+what any of them is currently set to, and switch between Dark and Light mode.
 
 - **"Show hidden files in Finder."** · **"Auto-hide the Dock."**
+- **"Is the Dock set to auto-hide right now?"** *(reads the current value)*
+- **"Switch my Mac to Dark mode."** *(and undo puts the prior appearance back)*
 - **"Turn on Reduce Motion."** · **"Increase contrast."**
 - **"Turn off smart quotes."** *(every one of these is undoable)*
 

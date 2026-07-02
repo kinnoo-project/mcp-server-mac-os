@@ -28,6 +28,7 @@ type BuiltinFunc func(ctx context.Context, c registry.Capability, in map[string]
 // map is run as a subprocess. The two sets are disjoint.
 var builtins = map[string]BuiltinFunc{
 	"pwd":                runPwd,
+	"read_setting":       runReadSetting,
 	"largest_files":      runLargestFiles,
 	"spotlight_search":   runSpotlightSearch,
 	"read_clipboard":     runReadClipboard,

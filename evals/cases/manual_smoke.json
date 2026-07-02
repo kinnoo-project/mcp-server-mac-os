@@ -169,5 +169,20 @@
     "manual": true,
     "prompt": "Say out loud: the backup is complete.",
     "expect": {"tool": "system", "operation": "speak", "tool_succeeds": true}
+  },
+  {
+    "id": "m_set_appearance_then_undo",
+    "description": "MANUAL (flips the whole screen's appearance; needs Automation access to System Events on first use). set_appearance is auto_commit, so the switch runs immediately and returns an undo_token — it does NOT stage. Turn 1 switches to Dark mode; turn 2 restores the appearance that was active before. If turn 1 errors, grant the host app System Events access in System Settings > Privacy & Security > Automation and retry.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Switch my Mac to Dark mode.",
+        "expect": {"tool": "preferences", "operation": "set_appearance", "tool_succeeds": true}
+      },
+      {
+        "prompt": "Actually, undo that — put my appearance back the way it was.",
+        "expect": {"tool": "undo", "tool_succeeds": true}
+      }
+    ]
   }
 ]

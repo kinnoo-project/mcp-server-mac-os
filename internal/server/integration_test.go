@@ -377,6 +377,43 @@ func TestDefaultsAllowlist_MatchesManifestEnum(t *testing.T) {
 	}
 }
 
+// TestReadSettingEnum_MatchesDefaultsAllowlist guards the read side of the
+// curated-preferences allowlist: read_setting shares write_setting's setting
+// enum and the engine's defaultsAllowlist map, so its manifest enum must match
+// the allowlist exactly. Without this, a setting could be writable but not
+// readable (or vice versa) if the two manifest enums drifted apart.
+func TestReadSettingEnum_MatchesDefaultsAllowlist(t *testing.T) {
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatalf("registry.Load(): %v", err)
+	}
+	capability, ok := reg.Lookup("read_setting")
+	if !ok {
+		t.Fatal("read_setting capability not found in registry")
+	}
+	var manifestEnum []string
+	for _, p := range capability.Params {
+		if p.Name == "setting" {
+			manifestEnum = p.Enum
+		}
+	}
+	if manifestEnum == nil {
+		t.Fatal("read_setting manifest entry has no 'setting' param with an enum")
+	}
+	sort.Strings(manifestEnum)
+	engineKeys := engine.DefaultsAllowlistKeys() // already sorted
+
+	if len(manifestEnum) != len(engineKeys) {
+		t.Fatalf("read_setting enum has %d settings, engine allowlist has %d: manifest=%v engine=%v",
+			len(manifestEnum), len(engineKeys), manifestEnum, engineKeys)
+	}
+	for i := range manifestEnum {
+		if manifestEnum[i] != engineKeys[i] {
+			t.Fatalf("read_setting enum and engine allowlist diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
+		}
+	}
+}
+
 // TestSettingsPanes_MatchManifestEnum guards against the open_settings pane list
 // being declared twice (once as the manifest's "pane" enum, once as the engine's
 // settingsPaneURLs map) and the two drifting apart — which would let the enum
