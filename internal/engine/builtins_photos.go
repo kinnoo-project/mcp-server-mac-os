@@ -58,12 +58,26 @@ const (
 // the one-row-per-line contract, and the date read is wrapped in `try` so an item
 // without a readable date renders with an empty date instead of failing the whole
 // listing. Location is intentionally NOT part of a row (see file header).
+//
+// The handler body is wrapped in its own `tell application "Photos"` block. This
+// is mandatory, not stylistic: `_row` is a top-level handler, and its callers pass
+// in a media-item reference (`my _row(m)`). Photos-specific properties such as
+// `filename`, `favorite`, `width`, and `height` are only meaningful inside a
+// Photos `tell` context — read them outside one and AppleScript cannot resolve the
+// term, raising "-1700 … can't make filename of … into type specifier" and
+// failing the whole listing. Standard terms like `id`/`name`/`date` happen to
+// resolve anyway, which is why the failure surfaces on `filename` specifically.
+// Because the body now runs inside a `tell`, every call back into this script's
+// own handlers (_fmt/_clean/_str) MUST be qualified with `my`, or AppleScript
+// would dispatch them to Photos as commands ("Can't continue _clean").
 const photoRowHelpers = asDateHelpers + `on _row(m)
-	set theDate to ""
-	try
-		set theDate to _fmt(date of m)
-	end try
-	return (id of m) & tab & _clean(_str(name of m)) & tab & _clean(_str(filename of m)) & tab & theDate & tab & ((favorite of m) as string) & tab & ((width of m) as string) & "x" & ((height of m) as string)
+	tell application "Photos"
+		set theDate to ""
+		try
+			set theDate to my _fmt(date of m)
+		end try
+		return (id of m) & tab & my _clean(my _str(name of m)) & tab & my _clean(my _str(filename of m)) & tab & theDate & tab & ((favorite of m) as string) & tab & ((width of m) as string) & "x" & ((height of m) as string)
+	end tell
 end _row
 
 `
@@ -223,7 +237,7 @@ const getPhotoScript = asDateHelpers + `on run argv
 		set m to first media item whose id is theId
 		set theDate to ""
 		try
-			set theDate to _fmt(date of m)
+			set theDate to my _fmt(date of m)
 		end try
 		set theSize to ""
 		try
@@ -247,7 +261,7 @@ const getPhotoScript = asDateHelpers + `on run argv
 			set kwStr to (keywords of m) as string
 			set AppleScript's text item delimiters to savedTID
 		end try
-		return (id of m) & sep & _clean(_str(name of m)) & sep & _clean(_str(filename of m)) & sep & theDate & sep & ((favorite of m) as string) & sep & ((width of m) as string) & sep & ((height of m) as string) & sep & theSize & sep & theAlt & sep & latStr & sep & lonStr & sep & _clean(_str(description of m)) & sep & _clean(kwStr)
+		return (id of m) & sep & my _clean(my _str(name of m)) & sep & my _clean(my _str(filename of m)) & sep & theDate & sep & ((favorite of m) as string) & sep & ((width of m) as string) & sep & ((height of m) as string) & sep & theSize & sep & theAlt & sep & latStr & sep & lonStr & sep & my _clean(my _str(description of m)) & sep & my _clean(kwStr)
 	end tell
 end run`
 

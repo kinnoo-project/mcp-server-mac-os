@@ -14,6 +14,8 @@ This project provides a highly scalable, enterprise-grade Model Context Protocol
 - Run the Test Automation Pipeline: `go test -v ./...`
 - Local Binary Target Compilation: `go build -o bin/macos-darwin-mcp ./cmd/macos-darwin-mcp`
 
+> **No real PII in committed tests (non-negotiable):** never hard-code a real email address or phone number (or any other real personal contact data) into a test that lands in the codebase. Use obviously-fake placeholders instead — `test@example.com`, `+15555550123`, `Jane Doe`, etc. (`example.com` and the `555-01xx` range are reserved for exactly this). Running a *transient* smoke test against your own real email or number while manually verifying a live path is fine — but that value must never be saved as a committed test fixture, table case, or assertion. This codebase has leaked real PII through saved test/session data before; treat it as a recurring hazard, not a hypothetical.
+
 ## 4. Fundamental Engineering Axioms (Non-Negotiable)
 1. **Zero Stream Corruption (`os.Stdout`)**: The `os.Stdout` channel belongs strictly to the JSON-RPC messaging loop. All internal log engines (`log.Printf`), fmt print statements, process initialization output, and inner panicked stack traces MUST be routed explicitly to `os.Stderr`. Any loose string leakage to stdout will break protocol framing and crash the client interface.
 2. **Defensive Parameter Slicing**: Bypassing tokenization via shell string mapping is banned. All native utilities must be invoked via `exec.CommandContext` using explicit positional string arrays (`[]string`). Shell wrappers (`sh`, `bash`, `zsh`, `eval`) are entirely forbidden.

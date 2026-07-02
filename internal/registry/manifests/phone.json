@@ -1,7 +1,7 @@
 [
   {
     "name": "find_contact",
-    "summary": "Search Contacts.app by name and return matching people with their phone numbers (and labels like mobile/home/work). Use this to discover the exact number to dial, or to let the user disambiguate when a name is ambiguous.",
+    "summary": "Search Contacts.app by name; returns matching people with their phone numbers (and labels like mobile/home/work). Use to discover the exact number to dial or to disambiguate an ambiguous name.",
     "category": "application-phone",
     "binary": "",
     "reversibility": "read_only",
@@ -12,7 +12,7 @@
         "name": "name",
         "type": "string",
         "required": true,
-        "description": "Name (or part of a name) to search for in Contacts.",
+        "description": "Name (or part of a name) to search Contacts for.",
         "arg": { "kind": "none" }
       },
       {
@@ -20,14 +20,14 @@
         "type": "int",
         "required": false,
         "default": 20,
-        "description": "Maximum number of matching people to return (default 20, maximum 50).",
+        "description": "Max people to return (default 20, max 50).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "call",
-    "summary": "Place a phone or FaceTime call. STAGED for confirmation before anything is dialed (initiating a call is irreversible; there is no undo). Provide EITHER an explicit number OR a contact_name (resolved via Contacts at confirmation time). Choosing the method: default to 'cellular' (places the call through a paired iPhone via Continuity); if no iPhone is available or the person is better reached on FaceTime, use 'facetime_audio'; use 'facetime_video' only when the user explicitly asks for a video call or 'a FaceTime call'.",
+    "summary": "Place a phone or FaceTime call. STAGED; irreversible (no undo). Provide EITHER number OR contact_name (resolved via Contacts at confirmation). Method: default 'cellular' (via a paired iPhone); 'facetime_audio' when no iPhone is available or the person is better reached on FaceTime; 'facetime_video' only when the user explicitly asks for video / 'a FaceTime call'.",
     "category": "application-phone",
     "binary": "open",
     "reversibility": "irreversible",
@@ -40,21 +40,21 @@
         "required": false,
         "default": "cellular",
         "enum": ["cellular", "facetime_audio", "facetime_video"],
-        "description": "How to place the call. 'cellular' = phone call via a paired iPhone (the default). 'facetime_audio' = FaceTime audio (use when cellular isn't available or the contact is an Apple user reached on FaceTime). 'facetime_video' = FaceTime video (only when the user explicitly asks for a video / FaceTime call).",
+        "description": "'cellular' = phone call via a paired iPhone (default). 'facetime_audio' = FaceTime audio (when cellular isn't available or the contact is reached on FaceTime). 'facetime_video' = FaceTime video (only when the user explicitly asks for video).",
         "arg": { "kind": "none" }
       },
       {
         "name": "number",
         "type": "string",
         "required": false,
-        "description": "Explicit phone number to call. Provide this OR contact_name, not both. Digits, with an optional leading '+' and spaces/dashes/parentheses; no letters.",
+        "description": "Explicit number to call. Provide this OR contact_name, not both. Digits with an optional leading '+' and spaces/dashes/parentheses; no letters.",
         "arg": { "kind": "none" }
       },
       {
         "name": "contact_name",
         "type": "string",
         "required": false,
-        "description": "Name to look up in Contacts and call. Provide this OR number, not both. If the name matches more than one person, or one person with more than one number, the call is refused and the candidates are listed so you can retry with an explicit number.",
+        "description": "Name to look up in Contacts and call. Provide this OR number, not both. If it matches multiple people (or one person with multiple numbers), the call is refused and candidates are listed — retry with an explicit number.",
         "arg": { "kind": "none" }
       }
     ]

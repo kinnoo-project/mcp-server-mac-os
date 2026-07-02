@@ -1,7 +1,7 @@
 [
   {
     "name": "list_reminders",
-    "summary": "List reminders from Reminders.app. Returns each reminder's id — pass that id to modify_reminder, complete_reminder, or delete_reminder. By default only incomplete reminders are shown.",
+    "summary": "List reminders from Reminders.app. Returns each reminder's id for modify_reminder/complete_reminder/delete_reminder. By default only incomplete reminders are shown.",
     "category": "application-reminders",
     "binary": "",
     "reversibility": "read_only",
@@ -12,7 +12,7 @@
         "name": "list",
         "type": "string",
         "required": false,
-        "description": "Restrict to a single reminders list by exact name. Omit to list across all lists.",
+        "description": "Restrict to one list by exact name. Omit for all lists.",
         "arg": { "kind": "none" }
       },
       {
@@ -20,7 +20,7 @@
         "type": "bool",
         "required": false,
         "default": false,
-        "description": "Include reminders that are already marked complete (default false).",
+        "description": "Include already-completed reminders (default false).",
         "arg": { "kind": "none" }
       },
       {
@@ -28,14 +28,14 @@
         "type": "int",
         "required": false,
         "default": 25,
-        "description": "Maximum number of reminders to return (default 25, maximum 100).",
+        "description": "Max reminders to return (default 25, max 100).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "add_reminder",
-    "summary": "Create a reminder. A due day is optional; include a due_time for a timed alert, or give only due_date for an all-day reminder. STAGED for confirmation; undo deletes the created reminder.",
+    "summary": "Create a reminder. Due day optional; add due_time for a timed alert, or give only due_date for an all-day reminder. STAGED; undo deletes the created reminder.",
     "category": "application-reminders",
     "binary": "osascript",
     "reversibility": "compensatable",
@@ -46,42 +46,42 @@
         "name": "list",
         "type": "string",
         "required": true,
-        "description": "Exact name of the reminders list to add to (e.g. \"Reminders\").",
+        "description": "Exact name of the list to add to (e.g. \"Reminders\").",
         "arg": { "kind": "none" }
       },
       {
         "name": "title",
         "type": "string",
         "required": true,
-        "description": "Reminder title / name.",
+        "description": "Reminder title.",
         "arg": { "kind": "none" }
       },
       {
         "name": "due_date",
         "type": "string",
         "required": false,
-        "description": "Optional due day, in YYYY-MM-DD form.",
+        "description": "Optional due day, YYYY-MM-DD.",
         "arg": { "kind": "none" }
       },
       {
         "name": "due_time",
         "type": "string",
         "required": false,
-        "description": "Optional time of day for the due date, in 24-hour HH:MM form. Requires due_date. With a time the reminder alerts at that moment; without one it is an all-day reminder.",
+        "description": "Optional time for the due date, 24-hour HH:MM. Requires due_date; without it the reminder is all-day.",
         "arg": { "kind": "none" }
       },
       {
         "name": "notes",
         "type": "string",
         "required": false,
-        "description": "Optional notes / body text for the reminder.",
+        "description": "Optional notes/body.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "modify_reminder",
-    "summary": "Change an existing reminder identified by its id (from list_reminders). Supply the new title; due date and notes are changed only if provided. STAGED for confirmation; undo restores the prior values.",
+    "summary": "Change a reminder by id (from list_reminders). Supply the new title; due date and notes change only if provided. STAGED; undo restores the prior values.",
     "category": "application-reminders",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -99,42 +99,42 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The reminder's id, as returned by list_reminders.",
+        "description": "Reminder id from list_reminders.",
         "arg": { "kind": "none" }
       },
       {
         "name": "title",
         "type": "string",
         "required": true,
-        "description": "New reminder title / name (supply the current one unchanged if you only mean to change the due date).",
+        "description": "New title (pass the current one unchanged if only changing the due date).",
         "arg": { "kind": "none" }
       },
       {
         "name": "due_date",
         "type": "string",
         "required": false,
-        "description": "If provided, sets a new due day in YYYY-MM-DD form. If omitted, the existing due date is left unchanged.",
+        "description": "If given, sets a new due day (YYYY-MM-DD); if omitted, left unchanged.",
         "arg": { "kind": "none" }
       },
       {
         "name": "due_time",
         "type": "string",
         "required": false,
-        "description": "Optional time of day for the new due date, in 24-hour HH:MM form. Requires due_date.",
+        "description": "Optional time for the new due date, 24-hour HH:MM. Requires due_date.",
         "arg": { "kind": "none" }
       },
       {
         "name": "notes",
         "type": "string",
         "required": false,
-        "description": "If provided, replaces the reminder's notes/body. If omitted, the existing notes are left unchanged.",
+        "description": "If given, replaces the notes; if omitted, left unchanged.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "complete_reminder",
-    "summary": "Mark a reminder complete, identified by its id (from list_reminders). STAGED for confirmation; undo marks it incomplete again.",
+    "summary": "Mark a reminder complete by id (from list_reminders). STAGED; undo marks it incomplete again.",
     "category": "application-reminders",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -152,14 +152,14 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The reminder's id, as returned by list_reminders.",
+        "description": "Reminder id from list_reminders.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "delete_reminder",
-    "summary": "Delete a reminder identified by its id (from list_reminders). STAGED for confirmation; undo re-creates the reminder from the details captured before deletion.",
+    "summary": "Delete a reminder by id (from list_reminders). STAGED; undo re-creates it from the details captured before deletion.",
     "category": "application-reminders",
     "binary": "osascript",
     "reversibility": "compensatable",
@@ -177,7 +177,7 @@
         "name": "id",
         "type": "string",
         "required": true,
-        "description": "The reminder's id, as returned by list_reminders.",
+        "description": "Reminder id from list_reminders.",
         "arg": { "kind": "none" }
       }
     ]

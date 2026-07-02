@@ -1,7 +1,7 @@
 [
   {
     "name": "capture_screen",
-    "summary": "Capture the screen to an image file and return its path, dimensions, and size. Saves to ~/Pictures/Screenshots by default; pass output_path to save elsewhere. Open the returned path to view the image. Requires the Screen Recording permission (System Settings → Privacy & Security → Screen Recording); a denied permission is reported with a grant hint. Captures the whole desktop, never a specific window or region (those are not yet supported).",
+    "summary": "Capture the screen to an image file and return its path, dimensions, and size. Saves to ~/Pictures/Screenshots by default; pass output_path to save elsewhere. Requires the Screen Recording permission (a denied permission is reported with a grant hint). Captures the whole desktop, not a specific window or region (those are not yet supported).",
     "category": "screenshot",
     "binary": "screencapture",
     "reversibility": "read_only",
@@ -12,14 +12,14 @@
         "name": "output_path",
         "type": "path",
         "required": false,
-        "description": "Where to save the screenshot. If it is an existing directory (e.g. ~/Desktop), the file is created inside it with a generated name. Otherwise it is the full file path (e.g. ~/Desktop/login.png), and its parent folder is created if needed. A recognized image extension here sets the format. Supports a leading ~. Refuses to overwrite an existing file. Omit to save to ~/Pictures/Screenshots.",
+        "description": "Where to save. An existing directory (e.g. ~/Desktop) → file created inside with a generated name; otherwise the full file path (e.g. ~/Desktop/login.png), parent created if needed. A known image extension here sets the format. Leading ~ ok. Won't overwrite. Omit for ~/Pictures/Screenshots.",
         "arg": { "kind": "none" }
       },
       {
         "name": "display",
         "type": "int",
         "required": false,
-        "description": "1-based index of the display to capture (1 is the main display). Omit to capture the main display.",
+        "description": "1-based index of the display to capture (1 = main). Omit for the main display.",
         "arg": { "kind": "none" }
       },
       {
@@ -28,7 +28,7 @@
         "required": false,
         "default": "png",
         "enum": ["png", "jpg", "pdf", "tiff"],
-        "description": "Image file format (default: png).",
+        "description": "Image file format (default png).",
         "arg": { "kind": "none" }
       }
     ]

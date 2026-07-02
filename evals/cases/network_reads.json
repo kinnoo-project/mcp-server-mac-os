@@ -1,0 +1,39 @@
+[
+  {
+    "id": "current_ssid",
+    "description": "Asking for local IP address and default gateway maps to network/current_network. The prompt is deliberately framed around IP and gateway (information only current_network provides) rather than 'what network am I on' — the latter is ambiguous: system/wifi_status also reports the joined SSID, so a fresh model correctly routes there instead.",
+    "prompt": "What's my local IP address and default gateway?",
+    "expect": {"tool": "network", "operation": "current_network", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "dns_servers",
+    "description": "Asking which DNS resolvers are in use maps to dns_servers.",
+    "prompt": "What DNS servers is my Mac using?",
+    "expect": {"tool": "network", "operation": "dns_servers", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "ping_gateway",
+    "description": "A reachability question maps to ping_host. Uses 1.1.1.1 so the case needs only outbound ICMP, not a LAN scan.",
+    "prompt": "Can I reach 1.1.1.1?",
+    "expect": {"tool": "network", "operation": "ping_host", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "resolve_host",
+    "description": "Resolving a hostname to an IP maps to dns_lookup.",
+    "prompt": "What's the IP address for example.com?",
+    "expect": {"tool": "network", "operation": "dns_lookup", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "whats_listening",
+    "description": "Asking what is listening on the machine maps to listening_ports (loopback-only, no external dependency).",
+    "prompt": "What ports are listening on my machine?",
+    "expect": {"tool": "network", "operation": "listening_ports", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "lan_scan_manual",
+    "description": "A LAN device sweep maps to scan_lan, but an active subnet sweep is not appropriate for an unattended CI pass (network side effects, variable results), so this case is manual-only. Selection assertion is still recorded for a human run.",
+    "manual": true,
+    "prompt": "Scan my local network for devices.",
+    "expect": {"tool": "network", "operation": "scan_lan"}
+  }
+]

@@ -6,8 +6,8 @@
 [![MCP](https://img.shields.io/badge/MCP-go--sdk%20v1.4.1-6E56CF)](https://modelcontextprotocol.io/)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-### 🖥️ **Talk to your Mac**
-No more memorizing Terminal commands, no more digging through System Settings, no more looking up how to navigate and do things on your Mac.
+### 🖥️ **Your Personal Mac Assistant**
+**Talk to your Mac**. No more memorizing Terminal commands, no more digging through System Settings, no more looking up how to navigate and do things on your Mac.
 
 > This is a Model Context Protocol (MCP) server that turns plain-language requests
 > into safe, native macOS actions — your files, Mail, Calendar, Reminders, 
@@ -15,8 +15,7 @@ No more memorizing Terminal commands, no more digging through System Settings, n
 > from any MCP-aware client like **Claude Code** or **Claude Desktop**.
 
 Pair this server with an MCP-aware client like **Claude Code** or **Claude
-Desktop** and the two together become a genuine **macOS command center** — one
-place to drive your whole Mac in ordinary language. Ask —
+Desktop** and the two together act as a **personal Mac assistant** — one place to interact with your Mac in ordinary language. Ask —
 
 > *"Text Bob Jones that I'm running 10 minutes late."* ·
 > *"Put a dentist appointment for Thursday at 2pm."* · *"Find my tax return and
@@ -47,7 +46,7 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 - *"How big is my Downloads folder?"*
 - *"How many lines are in `/var/log/system.log`?"*
 - **"Create a folder called `drafts` in my Documents."** *(previewed; undoable)*
-- **"Move `test.txt` from Downloads to the Desktop."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
+- **"Move `test.txt` from Downloads to the Desktop."** · **"Move all the screenshots on my Desktop into `~/Desktop/screenshots`."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
 - **"Delete `old-draft.txt`."** *(moved to the Trash, never hard-deleted — previewed; undoable)*
 
 ### ✉️ Mail
@@ -219,7 +218,10 @@ that trust is earned structurally, not just promised:
   injection at a throwaway Messages database; and token-abuse tests prove a
   mutation can't be replayed or run unstaged. Adversarial live-model evals
   (refusing to wipe the disk, ignoring instructions injected into files it reads)
-  round out the picture. See **[docs/TESTS.md](docs/TESTS.md)**.
+  and an everyday-Mac eval corpus that checks real end-state — a mutating case
+  verifies the file actually landed where intended, not just that the right
+  operation was chosen — round out the picture. See
+  **[docs/TESTS.md](docs/TESTS.md)**.
 
 The complete, line-by-line threat model is in
 **[Why this server is safe to expose](docs/architecture.md#why-this-server-is-safe-to-expose)**.
@@ -393,10 +395,14 @@ What's next:
 - **More capabilities** — more curated `preferences` settings, more `application-*`
   depth, and mutating capabilities in new domains (e.g. networking).
 - **More file operations** — `move`, `copy`, and `remove` now ship (deletes recycle
-  to the Trash, so every one is reversible); next is widening coverage (e.g.
-  overwrite-with-backup) while keeping the Trash recovery guarantee.
+  to the Trash, so every one is reversible); `move` also accepts a `source_glob`
+  to move many files at once (the server expands the pattern on disk — handy for
+  filenames you can't type exactly, like the narrow no-break space in macOS
+  screenshot names — and stages the whole batch as one reversible step). Next is
+  widening coverage (e.g. overwrite-with-backup, and the same batch `source_glob`
+  for `copy`/`remove`) while keeping the Trash recovery guarantee.
 - **Multi-step *mutation* plans** — stage and commit several changes with a
-  best-effort + report failure policy.
+  best-effort + report failure policy (also what batch `copy`/`remove` need).
 - **Force mode** — an explicit opt-in to skip the confirmation step for low-risk
   reversible operations (never for irreversible ones).
 

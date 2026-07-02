@@ -1,0 +1,144 @@
+[
+  {
+    "id": "m_app_open_textedit",
+    "description": "MANUAL (launches a real app). Opening a named app maps to application/open_application.",
+    "manual": true,
+    "prompt": "Open TextEdit.",
+    "expect": {"tool": "application", "operation": "open_application"}
+  },
+  {
+    "id": "m_app_quit_textedit_stages",
+    "description": "MANUAL (Automation permission; quits a real app). Quitting an app must STAGE, not auto-execute. Run open first, then this; confirm the quit by hand.",
+    "manual": true,
+    "prompt": "Quit TextEdit.",
+    "expect": {"tool": "application", "operation": "quit_application", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_calendar_query_tomorrow",
+    "description": "MANUAL (Automation permission; real calendar). Reading upcoming events maps to query_events.",
+    "manual": true,
+    "prompt": "What's on my calendar tomorrow?",
+    "expect": {"tool": "application-calendar", "operation": "query_events", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_calendar_add_then_delete",
+    "description": "MANUAL (Automation permission; writes then removes a real event). Adds a uniquely-named event (stage->confirm), then deletes it so the case self-cleans. No real PII in the title.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Add an event titled 'Eval {{unique}}' at 3pm tomorrow.",
+        "expect": {"tool": "application-calendar", "operation": "add_event", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, add it.", "expect": {"tool": "execute"}},
+      {
+        "prompt": "Now delete the event titled 'Eval {{unique}}'.",
+        "expect": {"tool": "application-calendar", "operation": "delete_event", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, delete it.", "expect": {"tool": "execute"}}
+    ]
+  },
+  {
+    "id": "m_reminders_due_today",
+    "description": "MANUAL (Automation permission). Listing reminders due today maps to list_reminders.",
+    "manual": true,
+    "prompt": "What reminders are due today?",
+    "expect": {"tool": "application-reminders", "operation": "list_reminders", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_reminders_add_then_delete",
+    "description": "MANUAL (Automation permission; writes then removes a real reminder). Self-cleans via delete.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Remind me to buy milk, titled 'Eval {{unique}}'.",
+        "expect": {"tool": "application-reminders", "operation": "add_reminder", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, add it.", "expect": {"tool": "execute"}},
+      {
+        "prompt": "Delete the reminder titled 'Eval {{unique}}'.",
+        "expect": {"tool": "application-reminders", "operation": "delete_reminder", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, delete it.", "expect": {"tool": "execute"}}
+    ]
+  },
+  {
+    "id": "m_notes_search",
+    "description": "MANUAL (Automation permission). Searching notes maps to search_notes.",
+    "manual": true,
+    "prompt": "Search my notes for the word budget.",
+    "expect": {"tool": "application-notes", "operation": "search_notes", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_notes_create_leaves_residue",
+    "description": "MANUAL (Automation permission). Creating a note maps to create_note. NOTE: the notes domain has no delete operation, so this case cannot self-clean — it leaves a note titled 'Eval {{unique}}' behind for the human to remove manually.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Make a note titled 'Eval {{unique}}'.",
+        "expect": {"tool": "application-notes", "operation": "create_note", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, create it.", "expect": {"tool": "execute"}}
+    ]
+  },
+  {
+    "id": "m_photos_library_stats",
+    "description": "MANUAL (Photos permission; on-device library). How-many-photos maps to library_stats.",
+    "manual": true,
+    "prompt": "How many photos are in my library?",
+    "expect": {"tool": "application-photos", "operation": "library_stats", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_photos_favorite_selection",
+    "description": "MANUAL (Photos permission; needs a photo selected in Photos.app). Favoriting the current selection maps to get_selection then set_favorite (stage->confirm). Reversible: a human can unfavorite after.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Favorite the photo I have selected in Photos.",
+        "expect": {"tool": "application-photos", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, favorite it.", "expect": {"tool": "execute"}}
+    ]
+  },
+  {
+    "id": "m_messages_unread_readonly",
+    "description": "MANUAL (Full Disk Access). Checking for unread texts maps to check_messages. Read-only: this suite NEVER automates sending a message.",
+    "manual": true,
+    "prompt": "Do I have any unread texts?",
+    "expect": {"tool": "application-messages", "operation": "check_messages", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_mail_search_readonly",
+    "description": "MANUAL (a configured Mail account). Searching mail maps to search_mail. Read-only: sending is refusal-only and lives in the security suite; this suite NEVER automates a send.",
+    "manual": true,
+    "prompt": "Search my mail for receipts.",
+    "expect": {"tool": "application-mail", "operation": "search_mail", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_phone_find_contact",
+    "description": "MANUAL (Contacts permission). Looking up a contact's number maps to find_contact. Uses the obviously-fake 'Jane Doe' (no real PII). This suite NEVER automates placing a call.",
+    "manual": true,
+    "prompt": "Find Jane Doe's phone number.",
+    "expect": {"tool": "application-phone", "operation": "find_contact", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_printer_list",
+    "description": "MANUAL (real printer setup). Listing printers maps to list_printers.",
+    "manual": true,
+    "prompt": "What printers do I have?",
+    "expect": {"tool": "printer", "operation": "list_printers", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_printer_test_page_stages_only",
+    "description": "MANUAL (real printer hardware). A test-page request must STAGE, not auto-print — asserted by forbid_tools execute. Kept stage-only ON PURPOSE so even a manual run never actually consumes paper; executing the staged print is a deliberate human step outside this case.",
+    "manual": true,
+    "prompt": "Print a test page.",
+    "expect": {"tool": "printer", "operation": "print_test_page", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_process_quit_calculator_stages",
+    "description": "MANUAL (terminates a real process; open Calculator first). Quitting a running app by name maps to the process domain's quit_process, which must STAGE (no auto-execute).",
+    "manual": true,
+    "prompt": "Quit the Calculator app.",
+    "expect": {"tool": "process", "operation": "quit_process", "forbid_tools": ["execute"]}
+  }
+]

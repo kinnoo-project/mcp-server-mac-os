@@ -842,20 +842,32 @@ go run ./cmd/runevals -dry-run
 # Live: makes real, billed Anthropic API calls (a few cents for the full set).
 export ANTHROPIC_API_KEY=sk-ant-...
 go run ./cmd/runevals
+go run ./cmd/runevals -verbose   # stream RUN then PASS/FAIL per case as it runs
 go run ./cmd/runevals -only mkdir_stages_then_confirms_then_undoes   # one case
+
+# Manual cases (need a permission grant / signed-in account / real hardware) are
+# tagged "manual" and SKIPPED by default. Run them by hand on a configured Mac:
+go run ./cmd/runevals -include-manual        # add the manual smoke set to the run
+go run ./cmd/runevals -only m_calendar_query_tomorrow   # or drive one manual case
 ```
 
-How it works: for each case in `evals/cases/*.json` (**18 cases** today), the
-harness sends the prompt to `claude-sonnet-4-6` with the *real* domain tool
-schemas attached (read straight off the live in-process server via
-`server.Connect` — the same helper the integration tests use, no hand-duplicated
-schemas). Any tool the model calls is executed for real against the real engine;
-the result is fed back, and the exchange repeats (capped at 6 rounds — exceeding
-that is itself a reported failure, mirroring the original `largest_files` loop
-incident) until the model yields back to the user. The case's `expect` block is
-then checked: which tool/operation was called, which tools must NOT have been
-called (`forbid_tools`, the auto-confirm guard), and any required substrings in
-the response text.
+How it works: for each case in `evals/cases/*.json` (an everyday-Mac corpus
+spanning all 15 domains, split into CI-safe **automated** cases and permission-/
+account-/hardware-gated **manual** ones tagged `"manual": true` and skipped
+unless `-include-manual` is passed), the harness sends the prompt to
+`claude-sonnet-4-6` with the *real* domain tool schemas attached (read straight
+off the live in-process server via `server.Connect` — the same helper the
+integration tests use, no hand-duplicated schemas). Any tool the model calls is
+executed for real against the real engine; the result is fed back, and the
+exchange repeats (capped at 6 rounds — exceeding that is itself a reported
+failure, mirroring the original `largest_files` loop incident) until the model
+yields back to the user. The case's `expect` block is then checked: which
+tool/operation was called, which tools must NOT have been called (`forbid_tools`,
+the auto-confirm guard), any required substrings in the response text, whether
+the chosen tool actually succeeded (`tool_succeeds`), and — for mutating cases
+staged against a scratch directory — declarative filesystem post-conditions
+(`state`: `exists`/`absent`/`is_dir`) that verify the operation reached the
+intended real end-state, not just that the right op was selected.
 
 **Scope caveat:** the real, enforceable confirmation gate on `execute` is the
 MCP *client's* own "Allow this tool call?" prompt — something a raw Messages

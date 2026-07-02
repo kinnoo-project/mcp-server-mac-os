@@ -1,7 +1,7 @@
 [
   {
     "name": "current_network",
-    "summary": "Report this Mac's place on the local network: the active interface, its IPv4 address, this device's MAC (hardware) address, the subnet mask, how many devices the subnet can hold, and the default gateway/router IP. Use this first when diagnosing connectivity — it tells you who you are and which router to test against.",
+    "summary": "Report this Mac's place on the network: active interface, IPv4 address, this device's MAC, subnet mask, subnet host capacity, and the default gateway/router IP. Use first when diagnosing connectivity — it tells you who you are and which router to test against.",
     "category": "network",
     "binary": "route",
     "reversibility": "read_only",
@@ -11,7 +11,7 @@
   },
   {
     "name": "dns_servers",
-    "summary": "List the DNS resolver (name server) IP addresses this Mac is currently using. Useful when a host pings by IP but names won't resolve — that points at DNS rather than the link.",
+    "summary": "List the DNS resolver IPs this Mac is using. Useful when a host pings by IP but names won't resolve — that points at DNS rather than the link.",
     "category": "network",
     "binary": "scutil",
     "reversibility": "read_only",
@@ -21,7 +21,7 @@
   },
   {
     "name": "ping_host",
-    "summary": "Ping a host (IP address or hostname) to test reachability, and report packet loss and round-trip time. Works for LAN devices (e.g. the router or a printer), public IPs, and hostnames. To diagnose 'no internet', ping the gateway from current_network, then a public IP such as 8.8.8.8.",
+    "summary": "Ping a host (IP or hostname) to test reachability; reports packet loss and round-trip time. To diagnose 'no internet', ping the gateway from current_network, then a public IP such as 8.8.8.8.",
     "category": "network",
     "binary": "ping",
     "reversibility": "read_only",
@@ -32,21 +32,21 @@
         "name": "host",
         "type": "string",
         "required": true,
-        "description": "The IP address or hostname to ping. Must be a bare host (e.g. 8.8.8.8, router.local, apple.com) — option-like or punctuated values are rejected.",
+        "description": "IP or hostname to ping. Bare host only (e.g. 8.8.8.8, router.local, apple.com); option-like or punctuated values are rejected.",
         "arg": { "kind": "none" }
       },
       {
         "name": "count",
         "type": "int",
         "default": 3,
-        "description": "How many echo requests to send (1–10). Defaults to 3.",
+        "description": "How many echo requests to send (1–10, default 3).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "dns_lookup",
-    "summary": "Resolve a hostname to its IP addresses (A/AAAA records), or reverse-resolve an IP address to its hostname (PTR). Use to confirm DNS is working when names fail but IPs succeed.",
+    "summary": "Resolve a hostname to its IPs (A/AAAA), or reverse-resolve an IP to its hostname (PTR). Use to confirm DNS is working when names fail but IPs succeed.",
     "category": "network",
     "binary": "dig",
     "reversibility": "read_only",
@@ -57,14 +57,14 @@
         "name": "host",
         "type": "string",
         "required": true,
-        "description": "The hostname to resolve (e.g. apple.com) or an IP address to reverse-resolve (e.g. 17.253.144.10). Must be a bare host — option-like or punctuated values are rejected.",
+        "description": "Hostname to resolve (e.g. apple.com) or an IP to reverse-resolve (e.g. 17.253.144.10). Bare host only; option-like or punctuated values are rejected.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "listening_ports",
-    "summary": "List the ports this Mac is listening on and which process (name + PID) owns each one. Answers 'what's using port N' and 'what's accepting connections on this machine'.",
+    "summary": "List the ports this Mac is listening on and which process (name + PID) owns each. Answers 'what's using port N' and 'what's accepting connections on this machine'.",
     "category": "network",
     "binary": "lsof",
     "reversibility": "read_only",
@@ -76,14 +76,14 @@
         "type": "enum",
         "enum": ["tcp", "udp", "both"],
         "default": "tcp",
-        "description": "Which transport to report: tcp (listening TCP sockets, the default), udp (bound UDP sockets), or both.",
+        "description": "Transport to report: tcp (default), udp, or both.",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "lan_devices",
-    "summary": "List other devices on the local network (IP + MAC address) from this Mac's ARP cache. Note: this only shows hosts this Mac has recently communicated with, not every device on the network — use scan_lan for a fuller sweep.",
+    "summary": "List other devices on the LAN (IP + MAC) from this Mac's ARP cache. Only shows hosts this Mac has recently talked to, not every device — use scan_lan for a fuller sweep.",
     "category": "network",
     "binary": "arp",
     "reversibility": "read_only",
@@ -93,7 +93,7 @@
   },
   {
     "name": "scan_lan",
-    "summary": "Actively discover devices on the local network by pinging every address in this Mac's IPv4 subnet, then reporting the IP + MAC of every host that answered. More complete than lan_devices but slower and it generates network traffic, so choose it deliberately. Limited to /24-or-smaller subnets and bounded by the request timeout.",
+    "summary": "Actively discover LAN devices by pinging every address in this Mac's IPv4 subnet, then reporting the IP + MAC of every host that answered. Fuller than lan_devices but slower and it generates traffic, so choose it deliberately. /24-or-smaller subnets only, bounded by the request timeout.",
     "category": "network",
     "binary": "ping",
     "reversibility": "read_only",

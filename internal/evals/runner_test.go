@@ -91,3 +91,59 @@ func TestCheckExpectation_TextContainsMissingSubstringFails(t *testing.T) {
 		t.Fatal("expected an error when a required substring is missing")
 	}
 }
+
+// TestCheckExpectation_ToolSucceedsPasses covers the happy path: the expected
+// tool was called and did not error, so tool_succeeds:true is satisfied.
+func TestCheckExpectation_ToolSucceedsPasses(t *testing.T) {
+	yes := true
+	exp := Expectation{Tool: "filesystem", Operation: "move", ToolSucceeds: &yes}
+	outcome := TurnOutcome{
+		ToolsCalled:      []string{"filesystem"},
+		OperationsByTool: map[string][]string{"filesystem": {"move"}},
+	}
+	if err := CheckExpectation(exp, outcome); err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+}
+
+// TestCheckExpectation_ToolSucceedsCatchesErroredTool is the point of the field:
+// the model called the right tool/op, but the call came back as an error block.
+// Selection-only checks miss this; tool_succeeds:true must fail it.
+func TestCheckExpectation_ToolSucceedsCatchesErroredTool(t *testing.T) {
+	yes := true
+	exp := Expectation{Tool: "filesystem", Operation: "move", ToolSucceeds: &yes}
+	outcome := TurnOutcome{
+		ToolsCalled:      []string{"filesystem"},
+		OperationsByTool: map[string][]string{"filesystem": {"move"}},
+		ErroredTools:     []string{"filesystem"},
+	}
+	if err := CheckExpectation(exp, outcome); err == nil {
+		t.Fatal("expected an error: the expected tool's result was an error block")
+	}
+}
+
+// TestCheckExpectation_ToolSucceedsUnsetIgnoresErrors confirms the pointer
+// semantics: with the field omitted, an errored tool does not fail the case
+// (a case that doesn't opt into the check keeps its old behavior).
+func TestCheckExpectation_ToolSucceedsUnsetIgnoresErrors(t *testing.T) {
+	exp := Expectation{Tool: "filesystem"} // ToolSucceeds nil
+	outcome := TurnOutcome{
+		ToolsCalled:  []string{"filesystem"},
+		ErroredTools: []string{"filesystem"},
+	}
+	if err := CheckExpectation(exp, outcome); err != nil {
+		t.Errorf("expected no error when tool_succeeds is unset, got %v", err)
+	}
+}
+
+// TestCheckExpectation_ToolSucceedsWithoutToolFailsFast confirms a mis-specified
+// case — tool_succeeds:true but no tool — is rejected rather than silently
+// passing (a bare erroredSet[""] membership would be a no-op).
+func TestCheckExpectation_ToolSucceedsWithoutToolFailsFast(t *testing.T) {
+	yes := true
+	exp := Expectation{ToolSucceeds: &yes} // Tool omitted
+	// Even with no tools called at all, this must error on the mis-specification.
+	if err := CheckExpectation(exp, TurnOutcome{}); err == nil {
+		t.Fatal("expected an error: tool_succeeds set without a tool")
+	}
+}

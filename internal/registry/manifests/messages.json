@@ -1,7 +1,7 @@
 [
   {
     "name": "check_messages",
-    "summary": "List the most recent messages from Messages.app (iMessage/SMS). Optionally only unread messages from other people. Reads the local Messages database; requires Full Disk Access.",
+    "summary": "List the most recent messages from Messages.app (iMessage/SMS), optionally only unread ones from others. Reads the local Messages DB (needs Full Disk Access).",
     "category": "application-messages",
     "binary": "sqlite3",
     "reversibility": "read_only",
@@ -13,7 +13,7 @@
         "type": "bool",
         "required": false,
         "default": false,
-        "description": "Only show unread messages received from others (default false: show the most recent messages either way).",
+        "description": "Only unread messages received from others (default false).",
         "arg": { "kind": "none" }
       },
       {
@@ -21,14 +21,14 @@
         "type": "int",
         "required": false,
         "default": 20,
-        "description": "Maximum number of messages to return (default 20, maximum 50).",
+        "description": "Max messages to return (default 20, max 50).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "search_messages",
-    "summary": "Search message text in Messages.app for a term and return matching messages, most recent first. Reads the local Messages database; requires Full Disk Access.",
+    "summary": "Search message text for a term, most recent first. Reads the local Messages DB (needs Full Disk Access).",
     "category": "application-messages",
     "binary": "sqlite3",
     "reversibility": "read_only",
@@ -39,7 +39,7 @@
         "name": "query",
         "type": "string",
         "required": true,
-        "description": "Text to search for within message bodies (case-insensitive substring).",
+        "description": "Text to find in message bodies (case-insensitive substring).",
         "arg": { "kind": "none" }
       },
       {
@@ -47,14 +47,14 @@
         "type": "int",
         "required": false,
         "default": 20,
-        "description": "Maximum number of messages to return (default 20, maximum 50).",
+        "description": "Max messages to return (default 20, max 50).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "read_conversation",
-    "summary": "Show the recent message history with one person, identified by a phone/email handle OR a contact_name resolved via Contacts. Reads the local Messages database; requires Full Disk Access.",
+    "summary": "Show the recent message history with one person, by phone/email handle OR contact_name (resolved via Contacts). Reads the local Messages DB (needs Full Disk Access).",
     "category": "application-messages",
     "binary": "sqlite3",
     "reversibility": "read_only",
@@ -65,14 +65,14 @@
         "name": "handle",
         "type": "string",
         "required": false,
-        "description": "The other party's phone number or email (e.g. as shown by check_messages/list_conversations). Provide this OR contact_name, not both.",
+        "description": "Other party's phone or email (as shown by check_messages/list_conversations). Provide this OR contact_name, not both.",
         "arg": { "kind": "none" }
       },
       {
         "name": "contact_name",
         "type": "string",
         "required": false,
-        "description": "Name to look up in Contacts and read the conversation with. Provide this OR handle, not both. An ambiguous name is refused with the candidates.",
+        "description": "Name to look up in Contacts. Provide this OR handle, not both. An ambiguous name is refused with the candidates.",
         "arg": { "kind": "none" }
       },
       {
@@ -80,14 +80,14 @@
         "type": "int",
         "required": false,
         "default": 30,
-        "description": "Maximum number of messages to return (default 30, maximum 50).",
+        "description": "Max messages to return (default 30, max 50).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "list_conversations",
-    "summary": "List recent conversations in Messages.app, each with its last message and timestamp. Reads the local Messages database; requires Full Disk Access.",
+    "summary": "List recent conversations, each with its last message and timestamp. Reads the local Messages DB (needs Full Disk Access).",
     "category": "application-messages",
     "binary": "sqlite3",
     "reversibility": "read_only",
@@ -99,14 +99,14 @@
         "type": "int",
         "required": false,
         "default": 20,
-        "description": "Maximum number of conversations to return (default 20, maximum 50).",
+        "description": "Max conversations to return (default 20, max 50).",
         "arg": { "kind": "none" }
       }
     ]
   },
   {
     "name": "send_message",
-    "summary": "Send an iMessage, optionally with one or more file attachments (images, PDFs, etc.). STAGED for confirmation before it is sent. Irreversible: there is no way to unsend a message. Provide the recipient as a phone/email handle OR a contact_name resolved via Contacts. Provide message text, attachments, or both.",
+    "summary": "Send an iMessage, optionally with one or more file attachments (images, PDFs, etc.). STAGED; irreversible — there is no way to unsend. Recipient as a phone/email handle OR contact_name. Provide text, attachments, or both.",
     "category": "application-messages",
     "binary": "osascript",
     "reversibility": "irreversible",
@@ -117,28 +117,28 @@
         "name": "text",
         "type": "string",
         "required": false,
-        "description": "The message text to send. Optional when one or more attachments are supplied; at least one of text/attachments is required.",
+        "description": "Message text. Optional when attachments are supplied; at least one of text/attachments is required.",
         "arg": { "kind": "none" }
       },
       {
         "name": "attachments",
         "type": "path_list",
         "required": false,
-        "description": "Absolute or ~-relative path(s) of file(s) to send as iMessage attachments (e.g. an image or PDF); each must already exist and be a regular file. Supply the exact path — if you only know a description of where the file is (e.g. \"in Downloads\"), use the filesystem tool (ls/find) to locate it first, then pass the resolved path here.",
+        "description": "Path(s) of existing regular file(s) to attach (leading ~ ok). If you only know roughly where a file is (e.g. \"in Downloads\"), locate it with the filesystem tool first, then pass the resolved path here.",
         "arg": { "kind": "none" }
       },
       {
         "name": "handle",
         "type": "string",
         "required": false,
-        "description": "Recipient phone number or email (iMessage handle). Provide this OR contact_name, not both.",
+        "description": "Recipient phone or email (iMessage handle). Provide this OR contact_name, not both.",
         "arg": { "kind": "none" }
       },
       {
         "name": "contact_name",
         "type": "string",
         "required": false,
-        "description": "Name to look up in Contacts and send to. Provide this OR handle, not both. An ambiguous name is refused with the candidates.",
+        "description": "Name to look up in Contacts. Provide this OR handle, not both. An ambiguous name is refused with the candidates.",
         "arg": { "kind": "none" }
       }
     ]
