@@ -34,10 +34,12 @@ for this repo, so do not pause for per-commit confirmation.
 
 1. **Branch.** Update the base branch and cut a feature branch from it:
    `git fetch origin && git switch <base> && git pull --ff-only`, then create the
-   feature branch. Name it in the repo's convention: find the highest existing
-   `mvp2/implNN` and use the next number, or derive a short kebab slug from the
-   plan's topic if that convention doesn't fit. Never build on the base branch
-   itself.
+   feature branch. Use these naming conventions:
+   - **Plan implementations / new features**: `feat/<short-kebab-description>`
+     (e.g. `feat/eval-layer-b-harness`, `feat/printer-capability`)
+   - **Bug fixes or small corrections**: `fix/<short-kebab-description>`
+     (e.g. `fix/move-dest-path`, `fix/whitespace-normalization`)
+   Keep the slug to 3–5 words. Never build on the base branch itself.
 2. **Implement incrementally.** Work the plan task by task (this is the `/build`
    auto pass, inline). After each coherent task:
    - run the project verify pipeline —
