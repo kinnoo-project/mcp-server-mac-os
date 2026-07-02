@@ -86,8 +86,14 @@ func TestStageNotify_BuildsOsascriptCommand(t *testing.T) {
 	if plan.Inverse != nil {
 		t.Error("notify is irreversible: Inverse should be nil")
 	}
-	if !strings.Contains(plan.Preview, "cannot be undone") {
-		t.Errorf("preview should state the action cannot be undone, got %q", plan.Preview)
+	// The preview states the irreversibility REASON (a shown notification cannot be
+	// recalled) but must NOT repeat the phrase "cannot be undone": the auto-commit
+	// path appends that suffix itself, so duplicating it here would read redundantly.
+	if !strings.Contains(plan.Preview, "cannot be recalled") {
+		t.Errorf("preview should state why the action is irreversible, got %q", plan.Preview)
+	}
+	if strings.Contains(plan.Preview, "cannot be undone") {
+		t.Errorf("preview must not repeat the server's 'cannot be undone' suffix, got %q", plan.Preview)
 	}
 	if plan.Forward.Binary != "osascript" {
 		t.Fatalf("forward binary = %q, want osascript", plan.Forward.Binary)
@@ -175,8 +181,13 @@ func TestStageSpeak_BuildsSayCommand(t *testing.T) {
 	if plan.Inverse != nil {
 		t.Error("speak is irreversible: Inverse should be nil")
 	}
-	if !strings.Contains(plan.Preview, "cannot be undone") {
-		t.Errorf("preview should state the action cannot be undone, got %q", plan.Preview)
+	// The preview keeps the helpful detail (audio plays immediately) but must NOT
+	// repeat "cannot be undone" — the auto-commit path appends that suffix itself.
+	if !strings.Contains(plan.Preview, "plays immediately") {
+		t.Errorf("preview should note that audio plays immediately, got %q", plan.Preview)
+	}
+	if strings.Contains(plan.Preview, "cannot be undone") {
+		t.Errorf("preview must not repeat the server's 'cannot be undone' suffix, got %q", plan.Preview)
 	}
 	want := []string{"--", "hello there"}
 	if plan.Forward.Binary != "say" || len(plan.Forward.Args) != len(want) {

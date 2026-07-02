@@ -145,7 +145,13 @@ func stageNotify(_ context.Context, _ registry.Capability, in map[string]any) (*
 	}
 
 	return &StagedPlan{
-		Preview: fmt.Sprintf("Post a macOS notification titled %q: %q. This cannot be undone (a notification, once shown, cannot be recalled).", title, message),
+		// The reason (a shown notification cannot be recalled) enriches the preview,
+		// but we deliberately do NOT repeat the phrase "cannot be undone": the
+		// auto-commit path appends its own "Done: <name>. This cannot be undone."
+		// suffix for a nil-inverse op (server.autoCommitMutation), so including it
+		// here too would read as duplicated output. open_settings' preview omits it
+		// for the same reason.
+		Preview: fmt.Sprintf("Post a macOS notification titled %q: %q. A shown notification cannot be recalled.", title, message),
 		// Argv order mirrors the script's item indices: message first, title second.
 		Forward: osascriptCommand(notifyAppleScript, message, title),
 		Inverse: nil, // irreversible: a shown notification cannot be recalled
@@ -174,7 +180,10 @@ func stageSpeak(_ context.Context, _ registry.Capability, in map[string]any) (*S
 	}
 
 	return &StagedPlan{
-		Preview: fmt.Sprintf("Speak this text aloud through the Mac's speakers: %q. This cannot be undone (audio plays immediately).", text),
+		// As with notify, keep the reason (audio plays at once) but not the phrase
+		// "cannot be undone" — the auto-commit path appends that suffix itself for a
+		// nil-inverse op, so repeating it here would duplicate the message.
+		Preview: fmt.Sprintf("Speak this text aloud through the Mac's speakers: %q. Audio plays immediately.", text),
 		// "--" makes the (possibly dash-leading) text a pure positional operand.
 		Forward: Command{Binary: "say", Args: []string{"--", text}},
 		Inverse: nil, // irreversible: audio, once played, cannot be unheard

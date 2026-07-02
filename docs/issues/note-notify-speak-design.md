@@ -9,12 +9,17 @@ without them watching the transcript.
 Design choices worth recording:
 
 - **Both are irreversible and auto_commit.** A posted banner cannot be recalled
-  and played audio cannot be unheard, so each `StagedPlan` carries `Inverse = nil`
-  and its preview says the action cannot be undone. They are low-risk one-shot
-  side effects, so forcing a stage→execute round-trip on "ping the user" would be
-  pure friction — they run in the auto-commit lane (registry-enforced: auto_commit
-  is only legal at risk none/low). The auto-commit lane already renders the
-  "cannot be undone" text from the nil inverse, so no new server machinery.
+  and played audio cannot be unheard, so each `StagedPlan` carries `Inverse = nil`.
+  They are low-risk one-shot side effects, so forcing a stage→execute round-trip on
+  "ping the user" would be pure friction — they run in the auto-commit lane
+  (registry-enforced: auto_commit is only legal at risk none/low). The auto-commit
+  path itself appends the fixed suffix "Done: <name>. This cannot be undone." for a
+  nil-inverse op (`server.autoCommitMutation`), so the mutator previews deliberately
+  state only the irreversibility *reason* ("A shown notification cannot be
+  recalled." / "Audio plays immediately.") and NOT the phrase "cannot be undone" —
+  repeating it would duplicate the server's suffix in the final output. This mirrors
+  `open_settings`, whose preview also omits the phrase. (Caught in Copilot review of
+  PR #41.)
 
 - **notify uses the shared osascript seam.** The forward command is a FIXED
   `display notification (item 1 of argv) with title (item 2 of argv)` script run
