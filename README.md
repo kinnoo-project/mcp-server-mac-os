@@ -156,6 +156,9 @@ it opens the exact pane *and* tells you what to click once you're there.
 - **"Sign me into iCloud."** · **"Turn on Do Not Disturb."** · **"Add a Chinese
   keyboard."** · **"Mirror my screen to the TV."** *(opens the Apple Account, Focus,
   Keyboard, or Displays pane with click-by-click instructions)*
+- **"Notify me when the export is done."** · **"Say out loud that the backup finished."**
+  *(a Notification Center banner or spoken text-to-speech — the model's way to get
+  your attention when you're not watching the chat; runs immediately, nothing to undo)*
 
 ### 🌐 Network & diagnostics
 

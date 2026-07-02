@@ -146,6 +146,8 @@ var mutators = map[string]Mutator{
 	"print_file":        stagePrintFile,
 	"print_test_page":   stagePrintTestPage,
 	"open_settings":     stageOpenSettings,
+	"notify":            stageNotify,
+	"speak":             stageSpeak,
 	"quit_process":      stageQuitProcess,
 	"terminate_process": stageTerminateProcess,
 }

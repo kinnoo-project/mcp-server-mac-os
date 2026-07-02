@@ -155,5 +155,19 @@
         "expect": {"tool": "undo", "tool_succeeds": true}
       }
     ]
+  },
+  {
+    "id": "m_system_notify_banner",
+    "description": "MANUAL (posts a real Notification Center banner). notify is auto_commit — it fires immediately, no stage/execute. Routing check: 'let me know with a notification' maps to the system tool's notify op. Watch for the banner titled 'MCP eval'. If none appears, the host app lacks Notifications permission (System Settings > Notifications). Nothing to undo.",
+    "manual": true,
+    "prompt": "Send me a macOS notification titled 'MCP eval' that says the export finished.",
+    "expect": {"tool": "system", "operation": "notify", "tool_succeeds": true}
+  },
+  {
+    "id": "m_system_speak_aloud",
+    "description": "MANUAL (plays audio through the speakers). speak is auto_commit — it fires immediately, no stage/execute. Routing check: 'say it out loud' maps to the system tool's speak op. You should hear the text spoken. Nothing to undo.",
+    "manual": true,
+    "prompt": "Say out loud: the backup is complete.",
+    "expect": {"tool": "system", "operation": "speak", "tool_succeeds": true}
   }
 ]
