@@ -1,0 +1,33 @@
+[
+  {
+    "name": "read_clipboard",
+    "summary": "Read the current text on the macOS clipboard (what a paste would produce). Returns plain text only. Note: the clipboard often holds sensitive data — a password manager copies passwords here, for example — so treat whatever comes back as potentially secret.",
+    "category": "clipboard",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "read_clipboard",
+    "params": []
+  },
+  {
+    "name": "write_clipboard",
+    "summary": "Replace the macOS clipboard with the given text (as if the user had copied it). Runs immediately; undo restores whatever text was on the clipboard before — unless the prior contents were non-text or too large to hold, in which case there is nothing to restore to and the preview says so.",
+    "category": "clipboard",
+    "binary": "pbcopy",
+    "reversibility": "reversible",
+    "risk": "low",
+    "builder": "write_clipboard",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "description": "Text to place on the clipboard (max 1 MiB). Delivered verbatim as data — never parsed as flags or code.",
+        "arg": {
+          "kind": "none"
+        }
+      }
+    ]
+  }
+]

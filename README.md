@@ -127,6 +127,16 @@ and hands back the path (plus size and dimensions) so it can look at what you se
 - Needs the **Screen Recording** permission, and says so plainly if it isn't
   granted yet.
 
+### 📋 Clipboard
+
+Read what's on the clipboard, or put text on it.
+
+- *"What's on my clipboard?"* · *"Show me what I just copied."* *(text only; it
+  warns that the clipboard may hold something sensitive like a copied password)*
+- **"Copy this address to my clipboard."** *(runs immediately; undo puts back
+  whatever text was there before — unless the previous contents were an image or
+  too large to hold, in which case it tells you there's nothing to restore)*
+
 ### 🖨️ Printers & ⚙️ System
 
 Check hardware and network status, print, and jump straight to the right Settings
