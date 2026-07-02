@@ -41,15 +41,24 @@ func TestDomainDescription_ListsEveryOperationUpFront(t *testing.T) {
 			t.Errorf("%s: 'All operations:' must precede the 'Details' section", c.Category)
 		}
 
-		// The summary line (everything up to the Details section) must name every
-		// operation, so a mid-Details truncation never hides one.
-		summary := desc
-		if detailIdx != -1 {
-			summary = desc[:detailIdx]
+		// Parse the "All operations:" line into exact comma-separated tokens and
+		// check membership by equality. strings.Contains on the full description
+		// produces false positives when one operation name is a substring of
+		// another (e.g. "move" is contained in "remove"), which would let a
+		// genuinely missing operation silently pass the test.
+		allOpsStart := allIdx + len("All operations: ")
+		lineEnd := strings.Index(desc[allOpsStart:], "\n")
+		allOpsLine := desc[allOpsStart:]
+		if lineEnd != -1 {
+			allOpsLine = desc[allOpsStart : allOpsStart+lineEnd]
+		}
+		listedOps := map[string]bool{}
+		for _, tok := range strings.Split(allOpsLine, ", ") {
+			listedOps[strings.TrimSpace(tok)] = true
 		}
 		for _, op := range caps {
-			if !strings.Contains(summary, op.Name) {
-				t.Errorf("%s: operation %q missing from the up-front summary line", c.Category, op.Name)
+			if !listedOps[op.Name] {
+				t.Errorf("%s: operation %q missing from the up-front 'All operations:' list", c.Category, op.Name)
 			}
 		}
 	}

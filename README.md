@@ -15,7 +15,7 @@
 > from any MCP-aware client like **Claude Code** or **Claude Desktop**.
 
 Pair this server with an MCP-aware client like **Claude Code** or **Claude
-Desktop** and the two together serve as an AI agent that acts a **personal Mac assistant** that you can use to interact your Mac in ordinary language. Ask —
+Desktop** and the two together act as a **personal Mac assistant** — one place to interact with your Mac in ordinary language. Ask —
 
 > *"Text Bob Jones that I'm running 10 minutes late."* ·
 > *"Put a dentist appointment for Thursday at 2pm."* · *"Find my tax return and

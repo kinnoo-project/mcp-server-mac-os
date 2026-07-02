@@ -26,9 +26,12 @@ were structural, not a model mistake:
    `source_glob`. The **server** expands the pattern on disk and stages the whole
    batch as ONE reversible pair of commands:
    `Forward: mv -- <m1> <m2> … <destDir>` and
-   `Inverse: mv -- <destDir>/<base1> … <commonParent>`. Because `mv` moves many
-   sources into a trailing directory in one process, there is no partial-completion
-   state for undo to reason about. Three invariants keep the single inverse correct
+   `Inverse: mv -- <destDir>/<base1> … <commonParent>`. This is NOT atomic —
+   `mv` can fail partway (permission error, cross-device move, etc.) and the
+   engine applies no automatic rollback of sources that already moved. What the
+   single-command shape buys is a well-defined inverse: because every source
+   lands in one destination directory, re-running `Inverse` moves back exactly
+   the files that made it across. Three invariants keep the single inverse correct
    and non-destructive: every match must share ONE parent directory (anchors the
    inverse; a multi-directory glob is rejected), the destination must be an
    EXISTING directory distinct from that parent, and no match's basename may
