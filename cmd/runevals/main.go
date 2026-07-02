@@ -26,6 +26,7 @@ func run() int {
 	model := flag.String("model", "claude-sonnet-4-6", "Anthropic model ID to evaluate")
 	only := flag.String("only", "", "run a single case by id (for cheap iteration)")
 	dryRun := flag.Bool("dry-run", false, "load cases and resolve tool schemas only; make no API calls")
+	includeManual := flag.Bool("include-manual", false, "also run manual-tagged cases (need permissions / accounts / hardware); off by default")
 	flag.Parse()
 
 	ctx := context.Background()
@@ -46,7 +47,11 @@ func run() int {
 				fmt.Fprintf(os.Stderr, "runevals: case %q: %v\n", c.ID, err)
 				return 1
 			}
-			fmt.Printf("  - %s (%d turn(s))\n", c.ID, len(turns))
+			tag := ""
+			if c.Manual {
+				tag = " [manual]"
+			}
+			fmt.Printf("  - %s (%d turn(s))%s\n", c.ID, len(turns), tag)
 		}
 		fmt.Println("dry run OK; no API calls were made.")
 		return 0
@@ -59,10 +64,11 @@ func run() int {
 	}
 
 	results, err := evals.RunAll(ctx, evals.Config{
-		APIKey:   apiKey,
-		Model:    *model,
-		CasesDir: *casesDir,
-		Only:     *only,
+		APIKey:        apiKey,
+		Model:         *model,
+		CasesDir:      *casesDir,
+		Only:          *only,
+		IncludeManual: *includeManual,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "runevals: %v\n", err)
