@@ -1,0 +1,27 @@
+[
+  {
+    "id": "clipboard_read_selection",
+    "description": "Asking what's on the clipboard should select the clipboard tool's read_clipboard op, not a filesystem read or a pipeline. Reading the pasteboard always succeeds on a live Mac session.",
+    "prompt": "What's on my clipboard right now?",
+    "expect": {
+      "tool": "clipboard",
+      "operation": "read_clipboard",
+      "forbid_tools": [
+        "pipeline"
+      ],
+      "tool_succeeds": true
+    }
+  },
+  {
+    "id": "clipboard_read_what_i_copied",
+    "description": "A paraphrase ('what did I just copy') should still route to read_clipboard rather than being misread as a file or history search.",
+    "prompt": "Can you show me what I just copied?",
+    "expect": {
+      "tool": "clipboard",
+      "operation": "read_clipboard",
+      "forbid_tools": [
+        "pipeline"
+      ]
+    }
+  }
+]

@@ -140,5 +140,20 @@
     "manual": true,
     "prompt": "Quit the Calculator app.",
     "expect": {"tool": "process", "operation": "quit_process", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_clipboard_write_then_undo",
+    "description": "MANUAL (clobbers the live clipboard mid-run). write_clipboard is auto_commit, so the copy runs immediately and returns an undo_token — it does NOT stage. To make the undo restorable, put some ordinary TEXT on the clipboard before running this (so the prior contents are text, not an image). Turn 1 replaces the clipboard; turn 2 restores the prior text. No real PII in the copied value.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Copy the text 'MCP eval {{unique}}' to my clipboard.",
+        "expect": {"tool": "clipboard", "operation": "write_clipboard", "tool_succeeds": true}
+      },
+      {
+        "prompt": "Actually, undo that — put back what was there before.",
+        "expect": {"tool": "undo", "tool_succeeds": true}
+      }
+    ]
   }
 ]

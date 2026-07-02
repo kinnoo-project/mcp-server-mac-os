@@ -30,6 +30,7 @@ var builtins = map[string]BuiltinFunc{
 	"pwd":                runPwd,
 	"largest_files":      runLargestFiles,
 	"spotlight_search":   runSpotlightSearch,
+	"read_clipboard":     runReadClipboard,
 	"search_mail":        runSearchMail,
 	"list_calendars":     runListCalendars,
 	"query_events":       runQueryEvents,
