@@ -37,6 +37,20 @@ type Expectation struct {
 	// wording isn't the point, just that a refusal/confirmation actually
 	// happened in some form.
 	TextContains []string `json:"text_contains,omitempty"`
+	// ToolSucceeds, when non-nil and true, asserts that the call to Tool this
+	// turn did NOT come back as a tool-level error block. It closes a hole in the
+	// selection-only vocabulary: a case could "pass" merely because the model
+	// CALLED filesystem/move even when the move returned an error the model then
+	// narrated around. A pointer (not a bare bool) so an omitted field means "do
+	// not check", distinct from an explicit false. Only meaningful with Tool set.
+	ToolSucceeds *bool `json:"tool_succeeds,omitempty"`
+	// State, when set, are declarative filesystem post-conditions checked AFTER
+	// the turn's tool calls settle (see state.go / CheckState). This is what lets
+	// a mutating case verify the real end-state (e.g. that move actually landed a
+	// file at its intended path) rather than only which op was selected. The
+	// os.Stat pass lives in CheckState, not here, so CheckExpectation stays pure
+	// (no I/O) and unit-testable without a filesystem.
+	State *State `json:"state,omitempty"`
 }
 
 // Turn is one exchange: a user prompt and what must be true about the model's
@@ -62,6 +76,45 @@ type Case struct {
 	Prompt      string      `json:"prompt,omitempty"`
 	Expect      Expectation `json:"expect,omitempty"`
 	Turns       []Turn      `json:"turns,omitempty"`
+	// Setup, when set, stages a per-case scratch directory (with fake input
+	// files) before the turns run, so a mutating case has realistic inputs to act
+	// on. Fixtures are declarative and created with stdlib os only — never a
+	// shell — per .claude/rules/darwin-execution.md. See runner.go's applySetup.
+	Setup *Setup `json:"setup,omitempty"`
+	// Teardown, when set, controls cleanup after the case finishes (pass or fail).
+	Teardown *Teardown `json:"teardown,omitempty"`
+	// Manual marks a case that needs a permission grant, a signed-in account, real
+	// hardware, or is otherwise disruptive — so it cannot run in an unattended CI
+	// pass. Manual cases still load (so -dry-run lists them) but are skipped by the
+	// default run unless the caller opts in with Config.IncludeManual.
+	Manual bool `json:"manual,omitempty"`
+}
+
+// Setup declares the fixtures a case needs before its turns run. The scratch
+// directory is created under the system temp directory (os.TempDir(), which
+// honors $TMPDIR — typically /var/folders/… on macOS, not /tmp) as
+// mcp-eval-<unique>-<Scratch>, where <unique> is the same per-case random token
+// used for "{{unique}}" substitution, so repeat or concurrent runs never
+// collide. The resolved path is exposed to prompts and to State post-condition
+// paths as "{{scratch}}".
+type Setup struct {
+	// Scratch is the trailing, caller-chosen segment of the scratch directory
+	// name (e.g. "screenshots"). It must be a single plain path segment: no
+	// separators, no "..", not absolute — a guardrail so a case file can never
+	// point setup/teardown at an arbitrary location on disk.
+	Scratch string `json:"scratch"`
+	// Files are paths, relative to the scratch directory, created empty before
+	// the turns run (intermediate directories are created as needed). Enough to
+	// stage realistic inputs like fake screenshot files.
+	Files []string `json:"files,omitempty"`
+}
+
+// Teardown controls post-case cleanup.
+type Teardown struct {
+	// RemoveScratch removes the entire scratch tree after the case ends, even on
+	// failure. Recommended for every case with a Setup so a passing OR failing run
+	// leaves no residue on disk.
+	RemoveScratch bool `json:"remove_scratch,omitempty"`
 }
 
 // ResolvedTurns returns c's turns in their normalized []Turn form, expanding

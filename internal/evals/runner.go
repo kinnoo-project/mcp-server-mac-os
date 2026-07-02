@@ -22,6 +22,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -44,6 +46,12 @@ type Config struct {
 	Model    string
 	CasesDir string
 	Only     string // case ID to run alone; empty runs every loaded case
+	// IncludeManual opts manual-tagged cases into the run. They are skipped by
+	// default because they need a permission grant, a signed-in account, or real
+	// hardware and so cannot pass in an unattended pass. A single -only <id> for a
+	// manual case still runs regardless (see RunAll), so a human can drive one
+	// deliberately without flipping this flag.
+	IncludeManual bool
 }
 
 // CaseResult is one case's outcome.
@@ -113,6 +121,12 @@ func RunAll(ctx context.Context, cfg Config) ([]CaseResult, error) {
 		if cfg.Only != "" && c.ID != cfg.Only {
 			continue
 		}
+		// Skip manual cases in the default run. An explicit -only for a manual
+		// case is an intentional single-case invocation, so it is NOT skipped;
+		// otherwise a manual case runs only when the caller opts all of them in.
+		if c.Manual && cfg.Only == "" && !cfg.IncludeManual {
+			continue
+		}
 		results = append(results, runCase(ctx, client, cfg.Model, cs, tools, c))
 	}
 	return results, nil
@@ -141,18 +155,105 @@ func runCase(ctx context.Context, client *anthropicClient, model string, cs *mcp
 		return CaseResult{ID: c.ID, Err: err}
 	}
 
+	// Stage fixtures (if any) before any turn runs, and always tear them down —
+	// even if a turn later fails — so a run leaves no residue on disk.
+	scratch, err := applySetup(c.Setup, unique)
+	if err != nil {
+		return CaseResult{ID: c.ID, Err: err}
+	}
+	if c.Teardown != nil && c.Teardown.RemoveScratch && scratch != "" {
+		defer os.RemoveAll(scratch)
+	}
+
+	// subst resolves the two placeholders in prompts and in State post-condition
+	// paths: "{{unique}}" -> the per-case token, "{{scratch}}" -> the resolved
+	// scratch directory (empty when the case declares no Setup).
+	subst := func(s string) string {
+		s = strings.ReplaceAll(s, "{{unique}}", unique)
+		s = strings.ReplaceAll(s, "{{scratch}}", scratch)
+		return s
+	}
+
 	var messages []anthropicMessage
 	for i, turn := range turns {
-		prompt := strings.ReplaceAll(turn.Prompt, "{{unique}}", unique)
-		outcome, err := runTurn(ctx, client, model, cs, tools, &messages, prompt)
+		outcome, err := runTurn(ctx, client, model, cs, tools, &messages, subst(turn.Prompt))
 		if err != nil {
 			return CaseResult{ID: c.ID, Err: fmt.Errorf("turn %d: %w", i+1, err)}
 		}
 		if err := CheckExpectation(turn.Expect, outcome); err != nil {
 			return CaseResult{ID: c.ID, Err: fmt.Errorf("turn %d: %w", i+1, err)}
 		}
+		// Post-condition pass: verify the real end-state the turn was supposed to
+		// produce (see state.go). Checked after CheckExpectation so a selection
+		// failure is reported first.
+		if err := CheckState(turn.Expect.State, subst); err != nil {
+			return CaseResult{ID: c.ID, Err: fmt.Errorf("turn %d: %w", i+1, err)}
+		}
 	}
 	return CaseResult{ID: c.ID}
+}
+
+// applySetup materializes a case's fixtures and returns the scratch directory
+// path (empty when setup is nil). It creates the scratch dir under the system
+// temp directory (os.TempDir(), which honors $TMPDIR — typically /var/folders/…
+// on macOS, not /tmp) as mcp-eval-<unique>-<scratch>, then each declared file
+// empty inside it, using stdlib os only — never a shell, per
+// .claude/rules/darwin-execution.md.
+//
+// The scratch segment is validated to a single plain path component (no
+// separators, no "..", not absolute): this is the guardrail that keeps a case
+// file from steering fixture creation — and, via Teardown, deletion — at an
+// arbitrary location on disk.
+//
+// If any step after the scratch dir is created fails, the partially-built
+// scratch tree is removed before returning, so a setup error never leaves
+// residue behind (the caller only defers teardown on success).
+func applySetup(s *Setup, unique string) (scratch string, err error) {
+	if s == nil {
+		return "", nil
+	}
+	if err := validateScratchName(s.Scratch); err != nil {
+		return "", fmt.Errorf("evals: setup: %w", err)
+	}
+	scratch = filepath.Join(os.TempDir(), fmt.Sprintf("mcp-eval-%s-%s", unique, s.Scratch))
+	if err := os.MkdirAll(scratch, 0o755); err != nil {
+		return "", fmt.Errorf("evals: creating scratch dir %q: %w", scratch, err)
+	}
+	// From here on the scratch dir exists; on any failure remove it so a
+	// half-staged fixture set is not left on disk.
+	defer func() {
+		if err != nil {
+			os.RemoveAll(scratch)
+			scratch = ""
+		}
+	}()
+	for _, name := range s.Files {
+		path := filepath.Join(scratch, name)
+		// Confine every fixture file to the scratch tree: a file entry may name
+		// subdirectories but must not escape via "..".
+		if !strings.HasPrefix(filepath.Clean(path)+string(os.PathSeparator), scratch+string(os.PathSeparator)) {
+			return scratch, fmt.Errorf("evals: setup file %q escapes the scratch directory", name)
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return scratch, fmt.Errorf("evals: creating fixture parent for %q: %w", name, err)
+		}
+		if err := os.WriteFile(path, []byte{}, 0o644); err != nil {
+			return scratch, fmt.Errorf("evals: creating fixture file %q: %w", name, err)
+		}
+	}
+	return scratch, nil
+}
+
+// validateScratchName enforces that a Setup.Scratch is a single, safe path
+// segment (see applySetup for why).
+func validateScratchName(name string) error {
+	if name == "" {
+		return fmt.Errorf("scratch must be a non-empty name")
+	}
+	if name == "." || name == ".." || strings.ContainsAny(name, `/\`) || filepath.IsAbs(name) {
+		return fmt.Errorf("scratch %q must be a single path segment (no separators, no \"..\", not absolute)", name)
+	}
+	return nil
 }
 
 // uniqueToken returns a short random hex string for "{{unique}}" substitution.
@@ -220,6 +321,9 @@ func runTurn(ctx context.Context, client *anthropicClient, model string, cs *mcp
 
 			res, callErr := cs.CallTool(ctx, &mcp.CallToolParams{Name: use.Name, Arguments: args})
 			text, isErr := toolResultText(res, callErr)
+			if isErr {
+				outcome.ErroredTools = append(outcome.ErroredTools, use.Name)
+			}
 			results = append(results, contentBlock{
 				Type:      "tool_result",
 				ToolUseID: use.ID,

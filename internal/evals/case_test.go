@@ -114,3 +114,89 @@ func TestLoadCases_IgnoresNonJSONFiles(t *testing.T) {
 		t.Fatalf("expected the README to be ignored, got %d cases", len(cases))
 	}
 }
+
+// TestLoadCases_LayerBFieldsRoundTrip confirms the new optional fields
+// (setup/teardown/manual and the new expectation fields) decode from JSON, so a
+// corpus using them loads without error.
+func TestLoadCases_LayerBFieldsRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	writeCaseFile(t, dir, "b.json", `[
+		{
+			"id": "move_into_existing_dir",
+			"manual": false,
+			"setup": {"scratch": "screenshots", "files": ["a.png", "b.png", "archive/.keep"]},
+			"teardown": {"remove_scratch": true},
+			"turns": [
+				{"prompt": "move every png in {{scratch}} into {{scratch}}/archive",
+				 "expect": {"tool": "filesystem", "operation": "move", "forbid_tools": ["execute"]}},
+				{"prompt": "yes go ahead",
+				 "expect": {"tool": "execute", "tool_succeeds": true,
+				            "state": {"exists": ["{{scratch}}/archive/a.png"], "absent": ["{{scratch}}/a.png"], "is_dir": ["{{scratch}}/archive"]}}}
+			]
+		},
+		{"id": "manual_case", "manual": true, "prompt": "open TextEdit", "expect": {"tool": "application", "operation": "open_application"}}
+	]`)
+
+	cases, err := LoadCases(dir)
+	if err != nil {
+		t.Fatalf("LoadCases: %v", err)
+	}
+	// Sorted by ID: "manual_case" < "move_into_existing_dir".
+	manual := cases[0]
+	if !manual.Manual {
+		t.Errorf("manual_case should have Manual=true, got %+v", manual)
+	}
+	mv := cases[1]
+	if mv.Setup == nil || mv.Setup.Scratch != "screenshots" || len(mv.Setup.Files) != 3 {
+		t.Fatalf("setup did not decode: %+v", mv.Setup)
+	}
+	if mv.Teardown == nil || !mv.Teardown.RemoveScratch {
+		t.Fatalf("teardown did not decode: %+v", mv.Teardown)
+	}
+	turns, _ := mv.ResolvedTurns()
+	exec := turns[1].Expect
+	if exec.ToolSucceeds == nil || !*exec.ToolSucceeds {
+		t.Errorf("tool_succeeds did not decode as true: %+v", exec.ToolSucceeds)
+	}
+	if exec.State == nil || len(exec.State.Exists) != 1 || len(exec.State.Absent) != 1 || len(exec.State.IsDir) != 1 {
+		t.Fatalf("state did not decode: %+v", exec.State)
+	}
+}
+
+// TestApplySetup_CreatesAndConfines confirms fixtures are created inside the
+// scratch tree and that the scratch-name guardrail rejects an escaping name.
+func TestApplySetup_CreatesAndConfines(t *testing.T) {
+	scratch, err := applySetup(&Setup{Scratch: "shots", Files: []string{"a.png", "nested/b.png"}}, "deadbeef")
+	if err != nil {
+		t.Fatalf("applySetup: %v", err)
+	}
+	defer os.RemoveAll(scratch)
+	for _, rel := range []string{"a.png", "nested/b.png"} {
+		if _, err := os.Stat(filepath.Join(scratch, rel)); err != nil {
+			t.Errorf("expected fixture %q to exist: %v", rel, err)
+		}
+	}
+
+	// A bad scratch name (separator / traversal / absolute) must be rejected
+	// before anything is created.
+	for _, bad := range []string{"", "..", "a/b", "/etc"} {
+		if _, err := applySetup(&Setup{Scratch: bad}, "deadbeef"); err == nil {
+			t.Errorf("expected applySetup to reject scratch name %q", bad)
+		}
+	}
+	// A file entry escaping via ".." must be rejected too — and the partially
+	// created scratch tree must be cleaned up, with "" returned, so a setup error
+	// leaves no residue on disk.
+	bad, err := applySetup(&Setup{Scratch: "escapecase", Files: []string{"../escape.txt"}}, "deadbeef")
+	if err == nil {
+		t.Error("expected applySetup to reject a fixture file escaping the scratch dir")
+	}
+	if bad != "" {
+		t.Errorf("expected empty scratch path on error, got %q", bad)
+	}
+	leftover := filepath.Join(os.TempDir(), "mcp-eval-deadbeef-escapecase")
+	if _, statErr := os.Stat(leftover); statErr == nil {
+		os.RemoveAll(leftover)
+		t.Errorf("expected scratch dir %q to be removed after a setup error", leftover)
+	}
+}

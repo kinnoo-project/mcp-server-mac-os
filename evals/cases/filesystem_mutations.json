@@ -1,0 +1,133 @@
+[
+  {
+    "id": "move_into_existing_dir",
+    "description": "The Layer-B regression proof. Move every png in a scratch dir into an EXISTING subdirectory. This is the exact shape of the shipped bug: move into a directory that already exists must land each file at <dir>/<basename>, not at the directory path itself. The state post-condition names the intended final paths, so a move that lands them elsewhere fails the eval. Self-cleans via teardown (whole scratch tree removed).",
+    "setup": {"scratch": "shots", "files": ["a.png", "b.png", "archive/.keep"]},
+    "teardown": {"remove_scratch": true},
+    "turns": [
+      {
+        "prompt": "Move every .png file in {{scratch}} into {{scratch}}/archive.",
+        "expect": {"tool": "filesystem", "operation": "move", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Yes, go ahead.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {
+            "exists": ["{{scratch}}/archive/a.png", "{{scratch}}/archive/b.png"],
+            "absent": ["{{scratch}}/a.png", "{{scratch}}/b.png"],
+            "is_dir": ["{{scratch}}/archive"]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "move_glob_screenshots",
+    "description": "Move only the screenshots (space-bearing names) into an existing folder, leaving an unrelated file behind. Verifies the selective batch move touches the pngs and not keep.txt.",
+    "setup": {"scratch": "desktop", "files": ["Screenshot 1.png", "Screenshot 2.png", "keep.txt", "shots/.keep"]},
+    "teardown": {"remove_scratch": true},
+    "turns": [
+      {
+        "prompt": "Move my screenshots in {{scratch}} to {{scratch}}/shots.",
+        "expect": {"tool": "filesystem", "operation": "move", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Please proceed.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {
+            "exists": ["{{scratch}}/shots/Screenshot 1.png", "{{scratch}}/shots/Screenshot 2.png", "{{scratch}}/keep.txt"],
+            "absent": ["{{scratch}}/Screenshot 1.png"]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "copy_keeps_original",
+    "description": "Copy a file into an existing backup folder. Verifies copy preserves the source and lands a real copy at backup/<basename> (the into-existing-dir shape again, for copy).",
+    "setup": {"scratch": "docs", "files": ["report.txt", "backup/.keep"]},
+    "teardown": {"remove_scratch": true},
+    "turns": [
+      {
+        "prompt": "Copy {{scratch}}/report.txt into {{scratch}}/backup.",
+        "expect": {"tool": "filesystem", "operation": "copy", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Yes, do it.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {"exists": ["{{scratch}}/report.txt", "{{scratch}}/backup/report.txt"]}
+        }
+      }
+    ]
+  },
+  {
+    "id": "mkdir_creates_dir",
+    "description": "Create a single new directory under an existing parent. mkdir requires the parent to exist and the target not to, so this is the well-defined success shape; the state post-condition confirms a real directory now exists.",
+    "setup": {"scratch": "workspace"},
+    "teardown": {"remove_scratch": true},
+    "turns": [
+      {
+        "prompt": "Make a new folder called reports inside {{scratch}}.",
+        "expect": {"tool": "filesystem", "operation": "mkdir", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Go ahead.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {"is_dir": ["{{scratch}}/reports"]}
+        }
+      }
+    ]
+  },
+  {
+    "id": "rename_file",
+    "description": "Rename a file in place (a move whose destination is a new name in the same directory). Verifies the new name exists and the old one is gone.",
+    "setup": {"scratch": "notes", "files": ["old.txt"]},
+    "teardown": {"remove_scratch": true},
+    "turns": [
+      {
+        "prompt": "Rename {{scratch}}/old.txt to new.txt.",
+        "expect": {"tool": "filesystem", "operation": "move", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Yes please.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {"exists": ["{{scratch}}/new.txt"], "absent": ["{{scratch}}/old.txt"]}
+        }
+      }
+    ]
+  },
+  {
+    "id": "remove_routes_to_trash",
+    "description": "Deleting a file must stage (not auto-execute), and on confirmation the source must be gone. A third turn undoes, restoring the file from the Trash so the run leaves no residue (teardown then removes the scratch tree). The Trash-landing path itself is asserted by the engine unit tests, not here (machine-specific ~/.Trash); this case asserts source-absent + a successful execute.",
+    "setup": {"scratch": "junkdir", "files": ["junk.txt"]},
+    "teardown": {"remove_scratch": true},
+    "turns": [
+      {
+        "prompt": "Delete the file {{scratch}}/junk.txt.",
+        "expect": {"tool": "filesystem", "operation": "remove", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Yes, delete it.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {"absent": ["{{scratch}}/junk.txt"]}
+        }
+      },
+      {
+        "prompt": "Actually, undo that — put it back.",
+        "expect": {"tool": "undo"}
+      }
+    ]
+  }
+]
