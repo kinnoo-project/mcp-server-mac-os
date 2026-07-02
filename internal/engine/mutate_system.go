@@ -7,8 +7,12 @@
 // a printer, joining a Wi-Fi network, turning Bluetooth on/off, changing battery
 // or Low-Power settings — require administrator rights (lpadmin/cupsenable,
 // privileged power management, etc.) that cannot be obtained over this server's
-// non-interactive transport. Rather than fail, open_settings deep-links the user
-// straight to the relevant pane so they can finish with a click.
+// non-interactive transport. Others — pairing a Bluetooth device, signing into
+// an Apple Account/iCloud, toggling a Focus, adding a keyboard language,
+// starting screen mirroring — have NO first-party command line at all, admin or
+// not. Rather than fail either way, open_settings deep-links the user straight
+// to the relevant pane so they can finish with a click; the tool description
+// tells the model to include the exact click-path in its reply.
 //
 // # auto-commit, and why the URL is built in Go
 //
@@ -48,6 +52,14 @@ var settingsPaneURLs = map[string]string{
 	"displays":      "x-apple.systempreferences:com.apple.Displays-Settings.extension",
 	"sound":         "x-apple.systempreferences:com.apple.Sound-Settings.extension",
 	"network":       "x-apple.systempreferences:com.apple.Network-Settings.extension",
+	// Hand-off panes for actions with no first-party CLI at all (not merely
+	// admin-gated): Focus/Do Not Disturb toggles, keyboard input-source
+	// management, and Apple Account/iCloud sign-in. Note apple_id uses the
+	// legacy "com.apple.systempreferences." prefix — that IS its Ventura+
+	// identifier, unlike the "-Settings.extension" panes around it.
+	"focus":    "x-apple.systempreferences:com.apple.Focus-Settings.extension",
+	"keyboard": "x-apple.systempreferences:com.apple.Keyboard-Settings.extension",
+	"apple_id": "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings",
 }
 
 // stageOpenSettings stages (for immediate auto-commit) opening a System Settings

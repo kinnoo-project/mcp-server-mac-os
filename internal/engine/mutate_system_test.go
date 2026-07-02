@@ -40,6 +40,30 @@ func TestStageOpenSettings_EveryPaneHasURL(t *testing.T) {
 	}
 }
 
+// TestStageOpenSettings_HandoffPaneURLs pins the exact deep-link URLs of the
+// guided hand-off panes added for no-CLI actions (Focus toggles, keyboard
+// languages, iCloud sign-in). The generic tests above only check non-emptiness,
+// which would not catch a mistyped identifier — and apple_id's identifier is
+// easy to get wrong (it keeps the legacy "com.apple.systempreferences." prefix
+// rather than the "-Settings.extension" shape of its neighbors).
+func TestStageOpenSettings_HandoffPaneURLs(t *testing.T) {
+	want := map[string]string{
+		"focus":    "x-apple.systempreferences:com.apple.Focus-Settings.extension",
+		"keyboard": "x-apple.systempreferences:com.apple.Keyboard-Settings.extension",
+		"apple_id": "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings",
+	}
+	for pane, url := range want {
+		plan, err := stageOpenSettings(context.Background(), lookupCapability(t, "open_settings"), map[string]any{"pane": pane})
+		if err != nil {
+			t.Errorf("pane %q: %v", pane, err)
+			continue
+		}
+		if got := plan.Forward.Args[0]; got != url {
+			t.Errorf("pane %q URL = %q, want %q", pane, got, url)
+		}
+	}
+}
+
 func TestStageOpenSettings_RejectsUnknownPane(t *testing.T) {
 	if _, err := stageOpenSettings(context.Background(), lookupCapability(t, "open_settings"), map[string]any{"pane": "nonsense"}); err == nil {
 		t.Error("an unknown pane should be rejected")
