@@ -43,6 +43,7 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 `du` incantations.
 
 - *"What are the 10 biggest files under my home directory?"*
+- *"Find the presentation about Q3 planning."* · *"Search my Documents for anything about the annual budget."* *(Spotlight — searches contents and metadata, not just filenames)*
 - *"List every PNG, JPG, and HEIC under `~/Pictures`."*
 - *"Which files in this project mention `TODO`?"*
 - *"How big is my Downloads folder?"*

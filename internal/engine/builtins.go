@@ -29,6 +29,7 @@ type BuiltinFunc func(ctx context.Context, c registry.Capability, in map[string]
 var builtins = map[string]BuiltinFunc{
 	"pwd":                runPwd,
 	"largest_files":      runLargestFiles,
+	"spotlight_search":   runSpotlightSearch,
 	"search_mail":        runSearchMail,
 	"list_calendars":     runListCalendars,
 	"query_events":       runQueryEvents,

@@ -92,6 +92,39 @@
     ]
   },
   {
+    "name": "spotlight_search",
+    "summary": "Search this Mac with Spotlight (content AND metadata, like the magnifying glass in the menu bar). Use this for 'find that presentation about Q3' or 'the invoice PDF from last month' — questions about a file's meaning or contents, not its exact name. For an exact name/extension/type match use find; to grep inside known files use grep.",
+    "category": "filesystem",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "spotlight_search",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "description": "Free-text search terms (e.g. \"quarterly report\"). Matched against indexed file contents and metadata. Must not begin with '-'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "dir",
+        "type": "path",
+        "required": false,
+        "description": "Restrict the search to this directory tree (default: everywhere Spotlight indexes). Leading ~ ok.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 30,
+        "description": "Maximum number of matching paths to return (default 30, max 200).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
     "name": "file",
     "summary": "Identify the type of one or more files (e.g. \"PNG image data\", \"ASCII text\").",
     "category": "filesystem",
