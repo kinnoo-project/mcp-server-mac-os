@@ -52,6 +52,11 @@ for this repo, so do not pause for per-commit confirmation.
    Honor every CLAUDE.md and `.claude/rules/*` guardrail while implementing
    (stdout hygiene, argv-only exec + `--`/dash-leading input hardening, two-phase
    staging for mutations, self-documenting code, no real PII in tests).
+   After the verify pipeline is green, also run `/runevals` in-session and
+   confirm no regressions in the eval suite. Add or update eval cases in
+   `evals/cases/` for any new capability or routing the plan introduces — pick
+   a practical set that covers the happy path and the key refusal/safety
+   boundaries, not an exhaustive matrix.
 3. **Push** the branch: `git push -u origin <feature-branch>`.
 4. **Open the PR to the base branch** and request Copilot:
    ```bash
