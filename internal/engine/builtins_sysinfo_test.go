@@ -134,6 +134,27 @@ func TestRenderBatteryHealth(t *testing.T) {
 	}
 }
 
+// TestCommandFailed pins the failure-surfacing contract: exit 0 is nil; a
+// non-zero exit becomes an error carrying the exit code and stderr, falling
+// back to stdout and then to an explicit "no error output".
+func TestCommandFailed(t *testing.T) {
+	if err := commandFailed("df", &runResult{ExitCode: 0, Stdout: "fine"}); err != nil {
+		t.Errorf("exit 0 should be nil, got %v", err)
+	}
+	err := commandFailed("df", &runResult{ExitCode: 1, Stderr: "df: something broke\n"})
+	if err == nil || !strings.Contains(err.Error(), "exit 1") || !strings.Contains(err.Error(), "something broke") {
+		t.Errorf("stderr failure = %v", err)
+	}
+	err = commandFailed("softwareupdate", &runResult{ExitCode: 2, Stdout: "only stdout detail"})
+	if err == nil || !strings.Contains(err.Error(), "only stdout detail") {
+		t.Errorf("stdout fallback = %v", err)
+	}
+	err = commandFailed("sw_vers", &runResult{ExitCode: 3})
+	if err == nil || !strings.Contains(err.Error(), "no error output") {
+		t.Errorf("empty-output fallback = %v", err)
+	}
+}
+
 // TestSysinfoBuiltins_Live runs about_this_mac and disk_usage against the real
 // machine. Gated: slowish subprocesses and machine-specific output.
 // software_update_check is deliberately NOT run even here — it contacts

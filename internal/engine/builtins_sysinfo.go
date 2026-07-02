@@ -16,6 +16,25 @@ import (
 	"mcp-server-mac-os/internal/registry"
 )
 
+// commandFailed converts a non-zero exit into a real error carrying the tool
+// name and its stderr. runCommand deliberately reports exit status as data
+// (grep's "no match" is a legitimate result), but the builtins in this file
+// parse one specific tool's output — rendering a FAILED run's partial output
+// would silently mislead, so they must surface the failure instead.
+func commandFailed(tool string, res *runResult) error {
+	if res.ExitCode == 0 {
+		return nil
+	}
+	msg := strings.TrimSpace(res.Stderr)
+	if msg == "" {
+		msg = strings.TrimSpace(res.Stdout)
+	}
+	if msg == "" {
+		msg = "no error output"
+	}
+	return fmt.Errorf("%s failed (exit %d): %s", tool, res.ExitCode, msg)
+}
+
 // runAboutThisMac answers "what Mac do I have?": the macOS version (sw_vers)
 // plus the hardware overview (model, chip/CPU, memory, serial number) from
 // system_profiler's hardware data type.
@@ -28,12 +47,18 @@ func runAboutThisMac(ctx context.Context, _ registry.Capability, _ map[string]an
 	if err != nil {
 		return "", err
 	}
+	if err := commandFailed("sw_vers", versOut); err != nil {
+		return "", err
+	}
 	profiler, err := policy.ResolveBinary("system_profiler")
 	if err != nil {
 		return "", err
 	}
 	hwOut, err := runCommand(ctx, profiler, "SPHardwareDataType", "-json")
 	if err != nil {
+		return "", err
+	}
+	if err := commandFailed("system_profiler", hwOut); err != nil {
 		return "", err
 	}
 	return renderAboutThisMac(versOut.Stdout, hwOut.Stdout), nil
@@ -100,6 +125,9 @@ func runDiskUsage(ctx context.Context, _ registry.Capability, _ map[string]any) 
 	}
 	out, err := runCommand(ctx, bin, "-H")
 	if err != nil {
+		return "", err
+	}
+	if err := commandFailed("df", out); err != nil {
 		return "", err
 	}
 	return renderDiskUsage(out.Stdout), nil
@@ -178,6 +206,11 @@ func runSoftwareUpdateCheck(ctx context.Context, _ registry.Capability, _ map[st
 	}
 	out, err := runCommand(ctx, bin, "-l")
 	if err != nil {
+		return "", err
+	}
+	// A failed check (network down, service unreachable) must surface as a
+	// failure, not be formatted as if it were a verdict.
+	if err := commandFailed("softwareupdate", out); err != nil {
 		return "", err
 	}
 	return renderSoftwareUpdateCheck(out.Stdout, out.Stderr), nil
