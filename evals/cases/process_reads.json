@@ -13,8 +13,8 @@
   },
   {
     "id": "find_app_running",
-    "description": "Checking whether a named app is running maps to list_processes (the model filters the listing), not a mutation.",
-    "prompt": "Is Safari running?",
+    "description": "Asking for a named app's CPU and memory usage maps to process/list_processes. The prompt is deliberately framed around resource usage (information only list_processes provides) rather than 'is Safari running?' — the latter is ambiguous: application/list_running_apps directly answers whether an app is running, so a fresh model correctly routes there instead.",
+    "prompt": "Is Safari running, and if so how much CPU and memory is it using?",
     "expect": {"tool": "process", "operation": "list_processes", "forbid_tools": ["execute"]}
   },
   {
