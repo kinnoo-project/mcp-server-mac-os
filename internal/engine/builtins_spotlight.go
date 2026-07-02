@@ -44,16 +44,22 @@ const maxSpotlightLimit = 200
 // limit).
 func runSpotlightSearch(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
 	query, _ := getString(in, "query")
-	if strings.TrimSpace(query) == "" {
+	// Trim once, up front, and use the trimmed value for everything downstream
+	// (the required-check, the dash guard below, and the argv). This is what
+	// makes the "first character" guarantee below sound: without it a value like
+	// " -e" would slip past the dash guard (its first char is a space) yet reach
+	// mdfind with a leading dash once whitespace is disregarded.
+	query = strings.TrimSpace(query)
+	if query == "" {
 		return "", fmt.Errorf("spotlight_search: 'query' is required")
 	}
 	// Guard against mdfind option injection. mdfind parses an argument beginning
 	// with "-" as one of its OWN options (e.g. "-name", "-onlyin"), not as a
 	// search term, and it has no "--" terminator to force the argument to be read
 	// as data. So we refuse a dash-leading query outright (darwin-execution.md
-	// §4). Only the FIRST character matters: once the argument starts with a
-	// non-dash mdfind treats the whole thing as the query, so an interior dash
-	// ("foo -bar") is already safe.
+	// §4). Only the FIRST character matters: once the (trimmed) argument starts
+	// with a non-dash mdfind treats the whole thing as the query, so an interior
+	// dash ("foo -bar") is already safe.
 	if strings.HasPrefix(query, "-") {
 		return "", fmt.Errorf("spotlight_search: 'query' must not begin with '-' (mdfind would parse it as an option, and mdfind has no '--' terminator to prevent that)")
 	}

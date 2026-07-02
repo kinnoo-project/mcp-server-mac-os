@@ -2,9 +2,11 @@
 // pure result-formatting, plus one safe real-subprocess check.
 //
 // SAFETY: no test here searches for or prints real user content. The only real
-// `mdfind` invocation uses an obviously nonsensical query token engineered to
-// match nothing on any machine, so the test asserts only the clean no-results
-// path and never surfaces indexed files.
+// `mdfind` invocation is scoped to a fresh empty temp directory, so it is
+// guaranteed to match nothing regardless of the machine's Spotlight index; the
+// test asserts only the clean no-results path and never surfaces indexed files.
+// (An unscoped whole-index search would be both unreliable and capable of
+// surfacing real files — indeed this very file contains the query token.)
 package engine
 
 import (
@@ -36,7 +38,10 @@ func TestRunSpotlightSearch_RequiresQuery(t *testing.T) {
 // options and has no "--" terminator to prevent that. The refusal is pure
 // validation, so this test launches no subprocess.
 func TestRunSpotlightSearch_RejectsDashLeadingQuery(t *testing.T) {
-	for _, q := range []string{"-e", "-name", "--onlyin", "-"} {
+	// The whitespace-prefixed cases (" -e", "  --") prove the up-front trim
+	// closes the bypass where surrounding whitespace would otherwise let a
+	// dash-leading value slip past the guard and reach mdfind as a flag.
+	for _, q := range []string{"-e", "-name", "--onlyin", "-", " -e", "  --"} {
 		_, err := runSpotlightSearch(context.Background(), spotlightCapability(t), map[string]any{"query": q})
 		if err == nil {
 			t.Errorf("%q: expected an error for a query beginning with '-'", q)
