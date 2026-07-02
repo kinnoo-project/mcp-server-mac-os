@@ -73,6 +73,84 @@ func TestStageMkdir_RejectsDashLeading(t *testing.T) {
 	}
 }
 
+// TestRunCommand_StdinIsPureData proves the Command.Stdin channel delivers a
+// payload to the child verbatim: content full of flag-like and metacharacter
+// text (`-e`, `--`, `$(...)`) comes back from cat byte-for-byte — asserted by
+// exact equality, so no prefix/suffix bytes slipped in — demonstrating stdin
+// bytes are never parsed as options or paths. This is the injection-safety
+// property that lets write_file/write_clipboard-style mutators carry
+// model-controlled content without argv hardening. (The guarantee is argv-only:
+// mutators must still pair Stdin with a data sink like tee/pbcopy, never an
+// interpreter that executes its stdin.)
+func TestRunCommand_StdinIsPureData(t *testing.T) {
+	hostile := "-e beep\n--flag-looking line\n$(rm -rf ~) `id` ; echo pwned\n"
+	out, err := New().RunCommand(context.Background(), Command{
+		Binary: "cat",
+		Stdin:  []byte(hostile),
+	})
+	if err != nil {
+		t.Fatalf("RunCommand: %v", err)
+	}
+	if out != hostile {
+		t.Errorf("stdin payload must round-trip byte-for-byte as data; got %q, want %q", out, hostile)
+	}
+}
+
+// TestRunCommand_StdinSizeCap proves the engine-wide stdin ceiling: a payload
+// over maxStdinBytes is refused before any subprocess runs, guarding the
+// in-memory transaction stores (and the child) against unbounded payloads.
+func TestRunCommand_StdinSizeCap(t *testing.T) {
+	orig := maxStdinBytes
+	maxStdinBytes = 64
+	defer func() { maxStdinBytes = orig }()
+
+	_, err := New().RunCommand(context.Background(), Command{
+		Binary: "cat",
+		Stdin:  []byte(strings.Repeat("x", 65)),
+	})
+	if err == nil || !strings.Contains(err.Error(), "exceeding") {
+		t.Fatalf("expected over-limit stdin to be refused, got err = %v", err)
+	}
+}
+
+// TestRunCommand_NilStdinUnchanged pins the zero-value behavior: a Command
+// without a payload runs exactly as before the Stdin field existed.
+func TestRunCommand_NilStdinUnchanged(t *testing.T) {
+	out, err := New().RunCommand(context.Background(), Command{Binary: "echo", Args: []string{"ok"}})
+	if err != nil {
+		t.Fatalf("RunCommand: %v", err)
+	}
+	if !strings.Contains(out, "ok") {
+		t.Errorf("expected plain argv output, got %q", out)
+	}
+}
+
+// TestPreviewSnippet covers the preview-rendering contract: byte counts are
+// exact, only the first line is shown, long or multi-line payloads are marked
+// as elided, and control characters arrive escaped rather than raw.
+func TestPreviewSnippet(t *testing.T) {
+	long := strings.Repeat("a", 100)
+	cases := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"empty", "", "empty (0 bytes)"},
+		{"single_line", "hello", `5 bytes: "hello"`},
+		{"multi_line_elided", "first\nsecond", `12 bytes, beginning "first" …`},
+		{"long_line_truncated", long, `100 bytes, beginning "` + strings.Repeat("a", 80) + `" …`},
+		{"crlf_trimmed", "top\r\nrest", `9 bytes, beginning "top" …`},
+		{"control_chars_escaped", "bad\x1b[31m", `8 bytes: "bad\x1b[31m"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := previewSnippet([]byte(tc.content)); got != tc.want {
+				t.Errorf("previewSnippet(%q) = %q, want %q", tc.content, got, tc.want)
+			}
+		})
+	}
+}
+
 // TestMkdir_RoundTrip drives the full reversible flow through the engine: stage,
 // run Forward (directory appears), then run Inverse (directory is gone).
 func TestMkdir_RoundTrip(t *testing.T) {
