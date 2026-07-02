@@ -65,8 +65,9 @@ func runCommand(ctx context.Context, binary string, args ...string) (*runResult,
 
 // runCommandWithStdin is runCommand's pipeline counterpart: it wires stdin
 // (a prior pipeline stage's captured output) into the child's standard input
-// when non-nil. Used only by RunPipeline (pipeline.go) — every other caller
-// goes through runCommand, which never supplies stdin.
+// when non-nil. Used by RunPipeline (pipeline.go); the mutation seam reaches
+// execCommand directly so a staged Command can carry its own stdin payload
+// (see Command.Stdin in mutate.go).
 func runCommandWithStdin(ctx context.Context, binary string, stdin []byte, args ...string) (*runResult, error) {
 	return execCommand(ctx, binary, stdin, args...)
 }

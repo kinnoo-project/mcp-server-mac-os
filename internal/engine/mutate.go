@@ -31,8 +31,11 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"mcp-server-mac-os/internal/policy"
 	"mcp-server-mac-os/internal/registry"
@@ -49,6 +52,14 @@ type Command struct {
 	Binary string
 	// Args is the pre-split argument vector passed to the binary verbatim.
 	Args []string
+	// Stdin, when non-nil, is fed to the child's standard input. It is the
+	// channel for content payloads (file bodies, clipboard text) that must reach
+	// a utility like tee or pbcopy as pure data: bytes on stdin can never be
+	// parsed as flags, paths, or script, so they need no argv-style hardening.
+	// Because staged plans (and their inverses) are stored and replayed as
+	// Command values, a payload captured at stage time — including prior state
+	// baked into an inverse — flows through commit and undo untouched.
+	Stdin []byte
 }
 
 // StagedPlan is the product of staging a mutating capability: everything needed
@@ -160,9 +171,38 @@ func (e *Engine) RunCommand(ctx context.Context, cmd Command) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	res, err := runCommand(ctx, bin, cmd.Args...)
+	res, err := execCommand(ctx, bin, cmd.Stdin, cmd.Args...)
 	if err != nil {
 		return "", err
 	}
 	return formatRunResult(res), nil
+}
+
+// previewSnippet renders a short, human-safe description of a content payload
+// for a staged-plan preview: the total byte count plus the (truncated, quoted)
+// first line. Previews are shown to a person before they approve a mutation, so
+// they must convey what will be written without dumping a potentially huge or
+// control-character-laden payload into the confirmation text — %q-style quoting
+// escapes anything that could mangle a terminal or impersonate preview markup.
+func previewSnippet(content []byte) string {
+	if len(content) == 0 {
+		return "empty (0 bytes)"
+	}
+	first := content
+	if i := bytes.IndexByte(first, '\n'); i >= 0 {
+		first = first[:i]
+	}
+	// elided marks that the snippet shows less than the full payload, either
+	// because more lines follow or because the first line itself was cut.
+	elided := len(first) < len(content)
+	const maxSnippetBytes = 80
+	if len(first) > maxSnippetBytes {
+		first = first[:maxSnippetBytes]
+		elided = true
+	}
+	quoted := strconv.Quote(strings.TrimSuffix(string(first), "\r"))
+	if elided {
+		return fmt.Sprintf("%d bytes, beginning %s …", len(content), quoted)
+	}
+	return fmt.Sprintf("%d bytes: %s", len(content), quoted)
 }
