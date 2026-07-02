@@ -66,14 +66,22 @@ func runListAirplayDevices(ctx context.Context, _ registry.Capability, _ map[str
 		return "", ctx.Err()
 	}
 	// The only error we expect is our own browse-window deadline firing; anything
-	// else (with no captured output to fall back on) is a real launch failure.
+	// else is a real launch failure.
 	if err != nil && runCtx.Err() == nil {
 		return "", err
 	}
-	if res == nil {
-		return "", fmt.Errorf("list_airplay_devices: dns-sd produced no output")
+	// res is nil only when the derived context was already done as the subprocess
+	// was about to start; since runCtx is created fresh here, that can only mean
+	// the PARENT context was cancelled — already handled above. Guard against nil
+	// defensively anyway, and treat "no output" as a benign EMPTY browse rather
+	// than an error: finding zero receivers is a normal outcome (nothing powered
+	// on, or Local Network access not yet granted), which renderAirplayDevices
+	// already explains.
+	var stdout string
+	if res != nil {
+		stdout = res.Stdout
 	}
-	return renderAirplayDevices(parseAirplayDevices(res.Stdout)), nil
+	return renderAirplayDevices(parseAirplayDevices(stdout)), nil
 }
 
 // parseAirplayDevices extracts the distinct receiver names from `dns-sd -B`
@@ -83,12 +91,21 @@ func runListAirplayDevices(ctx context.Context, _ registry.Capability, _ map[str
 //
 // i.e. timestamp, an Add/Rmv action, flags, interface index, domain, service
 // type, then the instance (device) name — which may itself contain spaces
-// ("Jerry's MacBook Air", `55" The Frame`). We honour Add/Rmv so a receiver that
-// announced then withdrew within the window is not reported, and de-duplicate
-// because the same receiver is advertised once per network interface.
+// ("Jerry's MacBook Air", `55" The Frame`).
+//
+// The same receiver is advertised once per network interface (the `if` column),
+// so presence is tracked per (interface, name): a receiver is still reachable as
+// long as at least one interface advertises it. That matters because a `Rmv` on
+// one interface can arrive while the receiver is still `Add`-ed on another — a
+// single boolean per name would wrongly drop it. First-seen order (for a stable
+// listing and cross-interface de-duplication) is tracked separately from
+// presence, so a name whose first row in the window is a `Rmv` — followed by an
+// `Add` — is still ordered and reported.
 func parseAirplayDevices(stdout string) []string {
-	present := make(map[string]bool)
-	var order []string // preserves first-seen order for a stable listing
+	interfaces := make(map[string]map[string]bool) // name -> set of interface ids currently advertising it
+	seen := make(map[string]bool)
+	var order []string // first-seen order, independent of current presence
+
 	for _, line := range strings.Split(stdout, "\n") {
 		fields := strings.Fields(line)
 		// A data row has at least: timestamp, action, flags, if, domain, service,
@@ -101,25 +118,32 @@ func parseAirplayDevices(stdout string) []string {
 		if action != "Add" && action != "Rmv" {
 			continue
 		}
+		iface := fields[3]
 		// The device name is everything from the 7th column onward; Fields collapsed
 		// runs of spaces, so re-join with a single space.
 		name := strings.Join(fields[6:], " ")
 		if name == "" {
 			continue
 		}
+		if !seen[name] {
+			seen[name] = true
+			order = append(order, name)
+		}
+		ifaceSet := interfaces[name]
+		if ifaceSet == nil {
+			ifaceSet = make(map[string]bool)
+			interfaces[name] = ifaceSet
+		}
 		if action == "Add" {
-			if _, seen := present[name]; !seen {
-				order = append(order, name)
-			}
-			present[name] = true
-		} else { // Rmv
-			present[name] = false
+			ifaceSet[iface] = true
+		} else { // Rmv: withdraw only this interface's advertisement
+			delete(ifaceSet, iface)
 		}
 	}
 
 	var out []string
 	for _, name := range order {
-		if present[name] {
+		if len(interfaces[name]) > 0 {
 			out = append(out, name)
 		}
 	}

@@ -49,6 +49,33 @@ func TestParseAirplayDevices_AddThenRemove(t *testing.T) {
 	}
 }
 
+// A receiver advertised on two interfaces that then withdraws from only ONE of
+// them is still reachable and must stay listed — presence is per (interface,
+// name), not a single flag per name.
+func TestParseAirplayDevices_RemoveOneInterfaceKeepsDevice(t *testing.T) {
+	out := `Timestamp     A/R    Flags  if Domain               Service Type         Instance Name
+10:00:00.000  Add        3   1 local.               _airplay._tcp.       Studio Display
+10:00:00.100  Add        3  11 local.               _airplay._tcp.       Studio Display
+10:00:01.000  Rmv        3   1 local.               _airplay._tcp.       Studio Display`
+	got := parseAirplayDevices(out)
+	if len(got) != 1 || got[0] != "Studio Display" {
+		t.Errorf("parseAirplayDevices = %v, want [Studio Display] (still advertised on if 11)", got)
+	}
+}
+
+// A receiver whose first row in the browse window is a Rmv, immediately followed
+// by an Add, must still appear — ordering is recorded on first sight, decoupled
+// from presence, so the later Add is not lost.
+func TestParseAirplayDevices_RemoveThenAdd(t *testing.T) {
+	out := `Timestamp     A/R    Flags  if Domain               Service Type         Instance Name
+10:00:00.000  Rmv        3   1 local.               _airplay._tcp.       Late Joiner
+10:00:01.000  Add        3   1 local.               _airplay._tcp.       Late Joiner`
+	got := parseAirplayDevices(out)
+	if len(got) != 1 || got[0] != "Late Joiner" {
+		t.Errorf("parseAirplayDevices = %v, want [Late Joiner] (Add after an initial Rmv)", got)
+	}
+}
+
 func TestParseAirplayDevices_Empty(t *testing.T) {
 	// Only the banner + header, no receivers.
 	out := "Browsing for _airplay._tcp\nTimestamp     A/R    Flags  if Domain               Service Type         Instance Name\n"
