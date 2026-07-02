@@ -178,3 +178,123 @@ func boolArg(b bool) string {
 	}
 	return "false"
 }
+
+// --- set_appearance: Dark/Light mode toggle via System Events ---------------
+//
+// set_appearance is the FIRST capability to drive System Events (macOS's
+// GUI-scripting bridge) as a MUTATION, which makes it the first to require the
+// "System Events" Automation grant on the mutating path. Switching Dark/Light
+// mode has no first-party command line (`defaults write -g AppleInterfaceStyle`
+// does NOT reliably repaint the running session), so System Events'
+// `appearance preferences` is the sanctioned route.
+//
+// It is reversible/low and runs in the auto-commit lane: flipping appearance is
+// a benign, instantly-reversible cosmetic change, so forcing a stage→execute
+// round-trip would be pure friction — but an undo token is still returned so the
+// prior appearance can be restored in one step.
+
+// readDarkModeScript returns "true" or "false" for the current Dark-mode state.
+// It is a FIXED, reviewed script (no interpolation) run read-only at stage time
+// to capture the prior state the inverse must restore. Reading via System Events
+// (rather than `defaults read -g AppleInterfaceStyle`) means the SAME Automation
+// permission the forward needs is exercised at stage time, so a missing grant
+// surfaces as one clear, mapped error before anything is committed — consistent
+// with how the Calendar/Reminders mutators probe prior state through osascript.
+const readDarkModeScript = `on run argv
+	tell application "System Events"
+		tell appearance preferences
+			return dark mode as text
+		end tell
+	end tell
+end run`
+
+// setDarkModeScript sets Dark mode on/off. The desired state arrives as data
+// bound to `on run argv` (item 1 = "true"/"false"); osascriptCommand inserts the
+// "--" terminator ahead of it so the value can never be parsed as an osascript
+// option. The script itself is a fixed constant — model input only ever picks
+// the closed "dark"/"light" enum, which this file maps to the boolean token.
+const setDarkModeScript = `on run argv
+	tell application "System Events"
+		tell appearance preferences
+			set dark mode to ((item 1 of argv) is "true")
+		end tell
+	end tell
+end run`
+
+// appearanceLabel renders a dark-mode boolean as the user-facing mode name.
+func appearanceLabel(dark bool) string {
+	if dark {
+		return "dark"
+	}
+	return "light"
+}
+
+// stageSetAppearance stages (for immediate auto-commit) a Dark/Light appearance
+// switch. It probes the current appearance via System Events, bakes that prior
+// state into the inverse, and returns a plan whose forward sets the requested
+// mode and whose inverse restores the one observed at stage time.
+func stageSetAppearance(ctx context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	mode, _ := getString(in, "mode")
+
+	var wantDark bool
+	switch mode {
+	case "dark":
+		wantDark = true
+	case "light":
+		wantDark = false
+	default:
+		// Unreachable when staged through the registry (the enum is validated),
+		// but defended because this also runs in direct unit tests.
+		return nil, fmt.Errorf("set_appearance: unknown mode %q (want \"dark\" or \"light\")", mode)
+	}
+
+	priorDark, err := probeDarkMode(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return planSetAppearance(wantDark, priorDark), nil
+}
+
+// planSetAppearance is the pure half of stageSetAppearance: given the desired and
+// prior Dark-mode states, it assembles the forward/inverse commands and preview
+// with no side effects. Split out so the argv layout, "--" terminator, and
+// preview text can be unit-tested without a live (permission-gated) System Events
+// probe.
+func planSetAppearance(wantDark, priorDark bool) *StagedPlan {
+	inverse := osascriptCommand(setDarkModeScript, boolArg(priorDark))
+	return &StagedPlan{
+		Preview: fmt.Sprintf(
+			"Switch the system appearance to %s mode (currently %s mode). Undo will switch it back to %s mode.",
+			appearanceLabel(wantDark), appearanceLabel(priorDark), appearanceLabel(priorDark),
+		),
+		Forward: osascriptCommand(setDarkModeScript, boolArg(wantDark)),
+		Inverse: &inverse,
+	}
+}
+
+// probeDarkMode reads the current Dark-mode state via System Events. A non-zero
+// osascript exit — most commonly a denied Automation grant on first use — is
+// mapped to an actionable message rather than a bare AppleScript error.
+func probeDarkMode(ctx context.Context) (bool, error) {
+	res, err := runOsascript(ctx, readDarkModeScript)
+	if err != nil {
+		return false, err
+	}
+	if res.ExitCode != 0 {
+		return false, systemEventsScriptError("set_appearance", res.Stderr)
+	}
+	return strings.TrimSpace(res.Stdout) == "true", nil
+}
+
+// systemEventsScriptError surfaces the most likely cause of a failed System
+// Events script — Automation access to System Events not yet granted — with an
+// actionable hint pointing at the exact Settings pane, mirroring appScriptError
+// (builtins_apps.go). It is shared so every System-Events-backed capability
+// (set_appearance now; window management later) maps this failure identically.
+func systemEventsScriptError(op, stderr string) error {
+	stderr = strings.TrimSpace(stderr)
+	if stderr == "" {
+		stderr = "osascript reported a non-zero exit with no detail"
+	}
+	return fmt.Errorf("%s: controlling System Events failed (%s). If this is the first use, macOS may need you to grant this app access to System Events in System Settings → Privacy & Security → Automation", op, stderr)
+}
