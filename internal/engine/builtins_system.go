@@ -183,7 +183,9 @@ func bluetoothDeviceNames(devices []map[string]json.RawMessage) []string {
 	return names
 }
 
-// runPowerStatus reports power source, battery state, and Low Power Mode.
+// runPowerStatus reports power source, battery state, Low Power Mode, and —
+// on machines that have a battery — its health (condition, cycle count, and
+// maximum-capacity percentage from system_profiler's power data).
 func runPowerStatus(ctx context.Context, _ registry.Capability, _ map[string]any) (string, error) {
 	bin, err := policy.ResolveBinary("pmset")
 	if err != nil {
@@ -197,7 +199,58 @@ func runPowerStatus(ctx context.Context, _ registry.Capability, _ map[string]any
 	if err != nil {
 		return "", err
 	}
-	return renderPowerStatus(batt.Stdout, settings.Stdout), nil
+	status := renderPowerStatus(batt.Stdout, settings.Stdout)
+
+	// Battery health is best-effort: a desktop Mac has no battery, and a
+	// profiler hiccup should not fail the whole power answer.
+	if profiler, err := policy.ResolveBinary("system_profiler"); err == nil {
+		if power, err := runCommand(ctx, profiler, "SPPowerDataType", "-json"); err == nil {
+			if health := renderBatteryHealth(power.Stdout); health != "" {
+				status += "\n" + health
+			}
+		}
+	}
+	return status, nil
+}
+
+// renderBatteryHealth extracts the battery-health summary from system_profiler
+// SPPowerDataType -json output: condition (e.g. "Good"), cycle count, and the
+// maximum-capacity percentage. It returns "" when the machine reports no
+// battery or the JSON doesn't parse, letting the caller omit the line entirely.
+func renderBatteryHealth(powerJSON string) string {
+	var doc struct {
+		Items []struct {
+			HealthInfo *struct {
+				CycleCount  int    `json:"sppower_battery_cycle_count"`
+				Condition   string `json:"sppower_battery_health"`
+				MaxCapacity string `json:"sppower_battery_health_maximum_capacity"`
+			} `json:"sppower_battery_health_info"`
+		} `json:"SPPowerDataType"`
+	}
+	if err := json.Unmarshal([]byte(powerJSON), &doc); err != nil {
+		return ""
+	}
+	for _, item := range doc.Items {
+		if item.HealthInfo == nil {
+			continue
+		}
+		h := item.HealthInfo
+		parts := []string{}
+		if h.Condition != "" {
+			parts = append(parts, "condition "+h.Condition)
+		}
+		if h.CycleCount > 0 {
+			parts = append(parts, fmt.Sprintf("cycle count %d", h.CycleCount))
+		}
+		if h.MaxCapacity != "" {
+			parts = append(parts, "maximum capacity "+h.MaxCapacity)
+		}
+		if len(parts) == 0 {
+			return ""
+		}
+		return "Battery health: " + strings.Join(parts, ", ")
+	}
+	return ""
 }
 
 // renderPowerStatus is the pure formatting half of runPowerStatus. It passes

@@ -31,12 +31,52 @@
   },
   {
     "name": "power_status",
-    "summary": "Report power and battery state: the current power source, battery charge and charging status, and whether Low Power Mode is on.",
+    "summary": "Report power and battery state: the current power source, battery charge and charging status, whether Low Power Mode is on, and battery health (condition, cycle count, maximum capacity) on machines with a battery.",
     "category": "system",
     "binary": "pmset",
     "reversibility": "read_only",
     "risk": "low",
     "builder": "power_status",
+    "params": []
+  },
+  {
+    "name": "about_this_mac",
+    "summary": "Report what this Mac is: macOS version and build, model, chip/CPU, core count, memory, and serial number.",
+    "category": "system",
+    "binary": "sw_vers",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "about_this_mac",
+    "params": []
+  },
+  {
+    "name": "uptime",
+    "summary": "Report how long this Mac has been running since its last boot (plus load averages).",
+    "category": "system",
+    "binary": "uptime",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "params": []
+  },
+  {
+    "name": "disk_usage",
+    "summary": "Report every mounted volume with its total size, used space, and free space (what Finder shows, in SI units).",
+    "category": "system",
+    "binary": "df",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "disk_usage",
+    "params": []
+  },
+  {
+    "name": "software_update_check",
+    "summary": "Check Apple's update service for pending macOS/software updates (read-only — never downloads or installs; installing is an open_settings hand-off). Contacts Apple's servers and can take up to a minute.",
+    "category": "system",
+    "binary": "softwareupdate",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "software_update_check",
     "params": []
   },
   {

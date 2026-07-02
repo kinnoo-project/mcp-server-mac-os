@@ -68,6 +68,10 @@ var builtins = map[string]BuiltinFunc{
 	"bluetooth_status":    runBluetoothStatus,
 	"power_status":        runPowerStatus,
 
+	"about_this_mac":        runAboutThisMac,
+	"disk_usage":            runDiskUsage,
+	"software_update_check": runSoftwareUpdateCheck,
+
 	"capture_screen": runCaptureScreen,
 
 	"current_network": runCurrentNetwork,
