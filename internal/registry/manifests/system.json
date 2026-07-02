@@ -80,6 +80,26 @@
     "params": []
   },
   {
+    "name": "list_airplay_devices",
+    "summary": "List AirPlay receivers (Apple TVs, AirPlay-capable TVs/speakers, other Macs) reachable on the local network right now — answers 'what can I mirror or stream to?'. Read-only discovery; it does NOT start mirroring (there is no command line to begin it) — hand that off with open_settings (pane 'displays'). May be empty if no receivers are on, and the host app may need Local Network access on first use.",
+    "category": "system",
+    "binary": "dns-sd",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_airplay_devices",
+    "params": []
+  },
+  {
+    "name": "list_input_sources",
+    "summary": "List the enabled keyboard layouts and input methods (typing languages) and mark which one is currently active — answers 'what can I type in?'. Read-only. Adding/removing a language or switching the active source has no command line; hand that off with open_settings (pane 'keyboard').",
+    "category": "system",
+    "binary": "defaults",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "list_input_sources",
+    "params": []
+  },
+  {
     "name": "open_settings",
     "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly — because they need admin rights (connecting/re-enabling a printer, joining a Wi-Fi network, battery/Low-Power settings) or have no command line at all (pairing a Bluetooth device, signing into iCloud, toggling a Focus, adding a keyboard language, starting screen mirroring). ALWAYS tell the user the exact click-path to finish in the opened pane — e.g. bluetooth: 'put the device in pairing mode, then click Connect next to it under Nearby Devices'; apple_id: 'sign in or manage iCloud here'; focus: 'turn a Focus like Do Not Disturb on or off here'; keyboard: 'Text Input > Input Sources > Edit, then + to add a language'; displays: 'the AirPlay/mirroring control is the + dropdown here'. Runs immediately; cannot be undone (it just opens a window).",
     "category": "system",

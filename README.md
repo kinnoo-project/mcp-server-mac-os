@@ -151,6 +151,9 @@ it opens the exact pane *and* tells you what to click once you're there.
 - *"What Mac do I have — which chip, how much memory?"* · *"How long since my last reboot?"*
 - *"How much free disk space do I have?"* *(every mounted volume, sized like Finder shows)*
 - *"Am I up to date on macOS?"* *(read-only check — installing stays in System Settings)*
+- *"What can I mirror my screen to?"* *(finds AirPlay receivers — Apple TVs, TVs,
+  other Macs — on your network; starting the mirroring stays in the Displays pane)*
+- *"What keyboard languages / input sources do I have, and which is active?"*
 - **"Open System Settings to Wi-Fi."** *(opens the pane for you to finish)*
 - **"Pair my wireless mouse."** *(opens Bluetooth settings and walks you through pairing)*
 - **"Sign me into iCloud."** · **"Turn on Do Not Disturb."** · **"Add a Chinese

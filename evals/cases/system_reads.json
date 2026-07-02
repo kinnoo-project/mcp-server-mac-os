@@ -149,5 +149,32 @@
         "execute"
       ]
     }
+  },
+  {
+    "id": "list_input_sources",
+    "description": "Asking what typing languages/keyboards are enabled maps to the read list_input_sources (not the open_settings 'keyboard' hand-off, which is for ADDING one). CI-safe: every Mac has at least one input source, so the read succeeds.",
+    "prompt": "What keyboard input sources / typing languages do I have enabled right now?",
+    "expect": {
+      "tool": "system",
+      "operation": "list_input_sources",
+      "tool_succeeds": true,
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "list_airplay_devices",
+    "description": "Asking what's available to mirror/stream to maps to list_airplay_devices. Manual: it browses the local network for ~3 seconds and the result is hardware/network dependent (may be empty), so it is unsuitable for an unattended CI pass — assert only that the read succeeds.",
+    "manual": true,
+    "prompt": "What AirPlay devices can I mirror my screen to right now?",
+    "expect": {
+      "tool": "system",
+      "operation": "list_airplay_devices",
+      "tool_succeeds": true,
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   }
 ]
