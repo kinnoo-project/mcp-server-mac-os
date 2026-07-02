@@ -467,6 +467,9 @@ func TestStageWriteFile_Plan(t *testing.T) {
 	if strings.Contains(plan.Preview, "line two") {
 		t.Errorf("preview must not dump the full payload (only a first-line snippet): %q", plan.Preview)
 	}
+	if !plan.Forward.DiscardStdout {
+		t.Error("forward must discard tee's stdout echo of the written content")
+	}
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		t.Errorf("staging must not create the file; stat err = %v", err)
 	}
@@ -585,6 +588,11 @@ func TestStageAppendToFile_Plan(t *testing.T) {
 	if plan.Inverse == nil || !reflect.DeepEqual(plan.Inverse.Args, []string{"--", target}) || string(plan.Inverse.Stdin) != prior {
 		t.Errorf("inverse must rewrite the prior bytes exactly; got %+v", plan.Inverse)
 	}
+	// Both directions must suppress tee's echo: the forward echo is redundant,
+	// and the inverse echo would LEAK the file's prior contents to the client.
+	if !plan.Forward.DiscardStdout || !plan.Inverse.DiscardStdout {
+		t.Error("append forward and inverse must both discard tee's stdout echo")
+	}
 	if !strings.Contains(plan.Preview, "prior contents") {
 		t.Errorf("preview should state undo restores prior contents: %q", plan.Preview)
 	}
@@ -621,6 +629,27 @@ func TestStageAppendToFile_Rejects(t *testing.T) {
 				t.Fatalf("expected stageAppendToFile to reject %s", tc.name)
 			}
 		})
+	}
+}
+
+// TestRunCommand_DiscardStdoutSuppressesEcho proves the leak fix end to end: a
+// tee command that would echo its (potentially sensitive) stdin returns no
+// content when DiscardStdout is set — the file is still written, but nothing of
+// it comes back through the tool result.
+func TestRunCommand_DiscardStdoutSuppressesEcho(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "quiet.txt")
+	secret := "s3cret prior contents\n"
+	out, err := New().RunCommand(context.Background(), Command{
+		Binary: "tee", Args: []string{"--", target}, Stdin: []byte(secret), DiscardStdout: true,
+	})
+	if err != nil {
+		t.Fatalf("RunCommand: %v", err)
+	}
+	if strings.Contains(out, "s3cret") {
+		t.Errorf("stdout echo must be discarded; got %q", out)
+	}
+	if got, _ := os.ReadFile(target); string(got) != secret {
+		t.Errorf("file must still be written; got %q", got)
 	}
 }
 

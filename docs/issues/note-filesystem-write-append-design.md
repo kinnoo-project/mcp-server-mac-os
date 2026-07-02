@@ -5,10 +5,12 @@ the capability roadmap):
 - **`tee` as the writer.** The forward commands are `tee -- <path>` and
   `tee -a -- <path>` with the content on `Command.Stdin` — a pure data sink, so
   model-controlled content can never be parsed as flags, paths, or code (see
-  `docs/issues/note-engine-stdin-commands.md`). `tee` echoes what it writes to
-  stdout; that echo flows back through the normal output compaction (32 KB
-  head/tail), which is harmless and gives the model confirmation of what
-  landed.
+  `docs/issues/note-engine-stdin-commands.md`). `tee` echoes every byte it
+  writes to stdout, and that echo is **suppressed** via `Command.DiscardStdout`
+  on all three tee commands: for a forward it is redundant (the caller supplied
+  the content), and for the append inverse it would leak the file's *prior*
+  contents — data the client never read through any approved operation — into
+  the undo response. Stderr and the exit code still surface normally.
 - **write_file is create-only.** Staging refuses an occupied path — including a
   dangling symlink, checked with `Lstat`, since writing through one would create
   a file somewhere the preview never named. Overwrite-by-intent is expressed as

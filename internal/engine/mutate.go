@@ -64,6 +64,13 @@ type Command struct {
 	// stage time — including prior state baked into an inverse — flows through
 	// commit and undo untouched.
 	Stdin []byte
+	// DiscardStdout drops the child's stdout from the rendered result (stderr
+	// and the exit code still surface). Data-sink utilities like tee echo every
+	// byte they write; that echo is redundant for a forward command (the caller
+	// supplied the content) and an outright leak for an inverse baked from a
+	// file's PRIOR contents — undo would otherwise return data to the client
+	// that it never read through any approved operation.
+	DiscardStdout bool
 }
 
 // StagedPlan is the product of staging a mutating capability: everything needed
@@ -194,6 +201,9 @@ func (e *Engine) RunCommand(ctx context.Context, cmd Command) (string, error) {
 	res, err := execCommand(ctx, bin, cmd.Stdin, cmd.Args...)
 	if err != nil {
 		return "", err
+	}
+	if cmd.DiscardStdout {
+		res.Stdout = ""
 	}
 	return formatRunResult(res), nil
 }

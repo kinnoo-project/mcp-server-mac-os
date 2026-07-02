@@ -367,7 +367,7 @@ func stageWriteFile(_ context.Context, _ registry.Capability, in map[string]any)
 	return &StagedPlan{
 		Preview: fmt.Sprintf("Create file %s with content %s. Undo will move it to the Trash (%s).",
 			abs, previewSnippet([]byte(content)), trashDest),
-		Forward: Command{Binary: "tee", Args: []string{"--", abs}, Stdin: []byte(content)},
+		Forward: Command{Binary: "tee", Args: []string{"--", abs}, Stdin: []byte(content), DiscardStdout: true},
 		Inverse: &Command{Binary: "mv", Args: []string{"--", abs, trashDest}},
 	}, nil
 }
@@ -415,11 +415,18 @@ func stageAppendToFile(_ context.Context, _ registry.Capability, in map[string]a
 	if err != nil {
 		return nil, fmt.Errorf("append_to_file: reading current contents of %q for undo: %w", abs, err)
 	}
+	// Re-check the cap on the bytes actually read: the file can grow between the
+	// Stat above and the ReadFile (TOCTOU), and it is the read payload — not the
+	// earlier stat size — that would sit in the undo token store.
+	if len(prior) > maxAppendTargetBytes {
+		return nil, fmt.Errorf("append_to_file: %q is %d bytes, larger than the %d-byte limit (undo must hold the file's full prior contents)",
+			abs, len(prior), maxAppendTargetBytes)
+	}
 	return &StagedPlan{
 		Preview: fmt.Sprintf("Append %s to %s. Undo will restore the file's prior contents (%d bytes), discarding any edits made after this append.",
 			previewSnippet([]byte(content)), abs, len(prior)),
-		Forward: Command{Binary: "tee", Args: []string{"-a", "--", abs}, Stdin: []byte(content)},
-		Inverse: &Command{Binary: "tee", Args: []string{"--", abs}, Stdin: prior},
+		Forward: Command{Binary: "tee", Args: []string{"-a", "--", abs}, Stdin: []byte(content), DiscardStdout: true},
+		Inverse: &Command{Binary: "tee", Args: []string{"--", abs}, Stdin: prior, DiscardStdout: true},
 	}, nil
 }
 
