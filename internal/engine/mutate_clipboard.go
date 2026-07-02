@@ -43,6 +43,18 @@ func stageWriteClipboard(ctx context.Context, _ registry.Capability, in map[stri
 	// Probe the current clipboard text for the inverse. This is a read-only
 	// operation (no state change), exactly what a mutator is permitted to do at
 	// stage time. A fixed pbpaste argv means there is no input to guard here.
+	//
+	// We read pbpaste's full stdout and then bound it in planWriteClipboard
+	// (declining undo when it exceeds maxClipboardBytes), rather than streaming a
+	// capped read. This is the same buffer-then-check shape the pipeline's
+	// intermediate-size cap uses (pipeline.go), and it keeps this probe on the
+	// shared, context-bound execCommand path that every other read in the engine
+	// uses (including read_clipboard, which reads this same pbpaste output). The
+	// only cost is transiently buffering an unusually large text clipboard before
+	// discarding it; the correct outcome (no undo offered) is unaffected. A
+	// streaming capped-exec helper would be a reasonable cross-cutting change, but
+	// single-casing it here would diverge from that shared path for a marginal,
+	// pathological case.
 	pbpaste, err := policy.ResolveBinary("pbpaste")
 	if err != nil {
 		return nil, err
