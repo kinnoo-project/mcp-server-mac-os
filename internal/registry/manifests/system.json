@@ -98,5 +98,51 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "notify",
+    "summary": "Post a macOS notification banner to get the user's attention — e.g. to signal that a long-running task finished or that you need input. Runs immediately; cannot be undone (a shown notification can't be recalled). If nothing appears, the host app needs Notifications enabled in System Settings > Notifications.",
+    "category": "system",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "notify",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "message",
+        "type": "string",
+        "required": true,
+        "description": "The notification body text.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "default": "Notification",
+        "description": "The bold title line shown above the message.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "speak",
+    "summary": "Speak text aloud through the Mac's speakers using the system voice (text-to-speech). Use to get the user's attention audibly. Runs immediately; cannot be undone (audio plays at once). Text is capped at 2000 characters.",
+    "category": "system",
+    "binary": "say",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "speak",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "description": "The text to speak aloud (up to 2000 characters).",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]

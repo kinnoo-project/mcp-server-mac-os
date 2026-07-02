@@ -1,7 +1,8 @@
-// mutate_system.go implements open_settings: the guided-fallback action that
-// opens a specific pane of System Settings for the user.
+// mutate_system.go implements the `system` domain's mutating capabilities:
+// open_settings (the guided System-Settings hand-off) and the two agent→human
+// back-channels notify (a Notification Center banner) and speak (text-to-speech).
 //
-// # Why this exists
+// # open_settings — why it exists
 //
 // Several system toggles a "command center" would want — connecting/re-enabling
 // a printer, joining a Wi-Fi network, turning Bluetooth on/off, changing battery
@@ -35,6 +36,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"unicode/utf8"
 
 	"mcp-server-mac-os/internal/registry"
 )
@@ -89,4 +91,101 @@ func SettingsPaneKeys() []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// The agent→human back-channels (notify, speak) exist so a long-running or
+// background task can get the user's attention — "the export finished", "I need
+// input" — without them watching the transcript. Both are one-shot side effects
+// with nothing to undo (a banner has already been posted; audio has already
+// played), so both are irreversible and run in the auto-commit lane: forcing a
+// stage→execute round-trip on a harmless "ping the user" would be pure friction.
+// The auto-commit lane still renders "this cannot be undone" from the nil Inverse.
+const (
+	// maxNotifyMessageBytes / maxNotifyTitleBytes bound the two notification
+	// strings. Notification Center itself truncates long banners, so these caps
+	// are about keeping the staged plan and its preview small, not fidelity.
+	maxNotifyMessageBytes = 1000
+	maxNotifyTitleBytes   = 200
+	// maxSpeakChars bounds spoken text. `say` runs under the engine's 2-minute
+	// subprocess kill; ~2000 characters is well under a minute of speech at the
+	// default rate, so normal use never approaches the deadline. If the request is
+	// cancelled (client drops the socket), the context binding stops playback.
+	maxSpeakChars = 2000
+)
+
+// notifyAppleScript posts a Notification Center banner. Argv layout (fixed, not
+// model-controlled): item 1 = message body, item 2 = title. Both arrive as data
+// bound to `on run argv`; osascriptCommand inserts the "--" terminator ahead of
+// them, so a value like a title of "-e" reaches the script as text, never as an
+// osascript option (the option-injection guard in applescript.go / CLAUDE.md §4).
+const notifyAppleScript = `on run argv
+	display notification (item 1 of argv) with title (item 2 of argv)
+end run`
+
+// stageNotify stages (for immediate auto-commit) a Notification Center banner.
+// There is no inverse — a posted notification cannot be recalled — so the plan
+// carries a nil Inverse and the preview says the action cannot be undone.
+//
+// No Automation (Apple Events) grant is needed to post a notification; whether
+// the banner is actually shown is governed by the HOST MCP CLIENT's own
+// Notifications permission (System Settings → Notifications), which the tool
+// description points the user at if nothing appears.
+func stageNotify(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	message, _ := getString(in, "message")
+	title, _ := getString(in, "title")
+
+	if message == "" {
+		return nil, fmt.Errorf("notify: 'message' is required")
+	}
+	if len(message) > maxNotifyMessageBytes {
+		return nil, fmt.Errorf("notify: message is %d bytes, exceeding the %d-byte limit", len(message), maxNotifyMessageBytes)
+	}
+	if len(title) > maxNotifyTitleBytes {
+		return nil, fmt.Errorf("notify: title is %d bytes, exceeding the %d-byte limit", len(title), maxNotifyTitleBytes)
+	}
+
+	return &StagedPlan{
+		// The reason (a shown notification cannot be recalled) enriches the preview,
+		// but we deliberately do NOT repeat the phrase "cannot be undone": the
+		// auto-commit path appends its own "Done: <name>. This cannot be undone."
+		// suffix for a nil-inverse op (server.autoCommitMutation), so including it
+		// here too would read as duplicated output. open_settings' preview omits it
+		// for the same reason.
+		Preview: fmt.Sprintf("Post a macOS notification titled %q: %q. A shown notification cannot be recalled.", title, message),
+		// Argv order mirrors the script's item indices: message first, title second.
+		Forward: osascriptCommand(notifyAppleScript, message, title),
+		Inverse: nil, // irreversible: a shown notification cannot be recalled
+	}, nil
+}
+
+// stageSpeak stages (for immediate auto-commit) speaking text aloud via `say`.
+// There is no inverse — audio, once played, cannot be unheard — so the plan
+// carries a nil Inverse and the preview says the action cannot be undone.
+//
+// Injection: the text is passed as a single positional operand AFTER a "--"
+// end-of-options terminator, so a value beginning with "-" (e.g. "-v Alex", which
+// `say` would otherwise read as its voice flag) is treated strictly as text to
+// speak. This mirrors the osascript "--" discipline; `say` honours "--" (verified
+// in mutate_system_test.go's dash-leading regression case).
+func stageSpeak(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	text, _ := getString(in, "text")
+
+	if text == "" {
+		return nil, fmt.Errorf("speak: 'text' is required")
+	}
+	// Count characters (not bytes) so the cap matches the human notion of "2000
+	// characters"; the point is bounding speech duration under the 2-minute kill.
+	if n := utf8.RuneCountInString(text); n > maxSpeakChars {
+		return nil, fmt.Errorf("speak: text is %d characters, exceeding the %d-character limit", n, maxSpeakChars)
+	}
+
+	return &StagedPlan{
+		// As with notify, keep the reason (audio plays at once) but not the phrase
+		// "cannot be undone" — the auto-commit path appends that suffix itself for a
+		// nil-inverse op, so repeating it here would duplicate the message.
+		Preview: fmt.Sprintf("Speak this text aloud through the Mac's speakers: %q. Audio plays immediately.", text),
+		// "--" makes the (possibly dash-leading) text a pure positional operand.
+		Forward: Command{Binary: "say", Args: []string{"--", text}},
+		Inverse: nil, // irreversible: audio, once played, cannot be unheard
+	}, nil
 }
