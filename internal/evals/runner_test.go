@@ -135,3 +135,15 @@ func TestCheckExpectation_ToolSucceedsUnsetIgnoresErrors(t *testing.T) {
 		t.Errorf("expected no error when tool_succeeds is unset, got %v", err)
 	}
 }
+
+// TestCheckExpectation_ToolSucceedsWithoutToolFailsFast confirms a mis-specified
+// case — tool_succeeds:true but no tool — is rejected rather than silently
+// passing (a bare erroredSet[""] membership would be a no-op).
+func TestCheckExpectation_ToolSucceedsWithoutToolFailsFast(t *testing.T) {
+	yes := true
+	exp := Expectation{ToolSucceeds: &yes} // Tool omitted
+	// Even with no tools called at all, this must error on the mis-specification.
+	if err := CheckExpectation(exp, TurnOutcome{}); err == nil {
+		t.Fatal("expected an error: tool_succeeds set without a tool")
+	}
+}

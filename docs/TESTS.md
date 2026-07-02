@@ -254,11 +254,12 @@ keep working unchanged):
 - **`tool_succeeds: true`** on an expectation asserts the chosen tool's result
   wasn't an error block (backed by `TurnOutcome.ErroredTools`), so "the model
   called `move` but it failed and it narrated around it" no longer passes.
-- **`setup`/`teardown`** stage a per-case scratch directory
-  (`/tmp/mcp-eval-<unique>-<scratch>`) with fake input files, created with stdlib
-  `os` only (no shell) and removed after the case even on failure. The resolved
-  path substitutes into prompts and assertions as `{{scratch}}` (alongside the
-  existing `{{unique}}`).
+- **`setup`/`teardown`** stage a per-case scratch directory under the system
+  temp dir (`os.TempDir()`, which honors `$TMPDIR` — typically `/var/folders/…`
+  on macOS, not `/tmp`) named `mcp-eval-<unique>-<scratch>`, with fake input
+  files, created with stdlib `os` only (no shell) and removed after the case even
+  on failure. The resolved path substitutes into prompts and assertions as
+  `{{scratch}}` (alongside the existing `{{unique}}`).
 - **`state`** (`exists`/`absent`/`is_dir`) runs an `os.Stat` post-condition pass
   after a turn (see `CheckState`), naming the *intended* final paths. This is the
   assertion that fails on the screenshot-move bug and passes on the fix

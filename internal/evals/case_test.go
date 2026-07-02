@@ -184,8 +184,19 @@ func TestApplySetup_CreatesAndConfines(t *testing.T) {
 			t.Errorf("expected applySetup to reject scratch name %q", bad)
 		}
 	}
-	// A file entry escaping via ".." must be rejected too.
-	if _, err := applySetup(&Setup{Scratch: "ok", Files: []string{"../escape.txt"}}, "deadbeef"); err == nil {
+	// A file entry escaping via ".." must be rejected too — and the partially
+	// created scratch tree must be cleaned up, with "" returned, so a setup error
+	// leaves no residue on disk.
+	bad, err := applySetup(&Setup{Scratch: "escapecase", Files: []string{"../escape.txt"}}, "deadbeef")
+	if err == nil {
 		t.Error("expected applySetup to reject a fixture file escaping the scratch dir")
+	}
+	if bad != "" {
+		t.Errorf("expected empty scratch path on error, got %q", bad)
+	}
+	leftover := filepath.Join(os.TempDir(), "mcp-eval-deadbeef-escapecase")
+	if _, statErr := os.Stat(leftover); statErr == nil {
+		os.RemoveAll(leftover)
+		t.Errorf("expected scratch dir %q to be removed after a setup error", leftover)
 	}
 }

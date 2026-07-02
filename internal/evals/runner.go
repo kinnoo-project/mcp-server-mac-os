@@ -194,37 +194,51 @@ func runCase(ctx context.Context, client *anthropicClient, model string, cs *mcp
 }
 
 // applySetup materializes a case's fixtures and returns the scratch directory
-// path (empty when setup is nil). It creates the scratch dir at
-// /tmp/mcp-eval-<unique>-<scratch> and each declared file empty inside it, using
-// stdlib os only — never a shell, per .claude/rules/darwin-execution.md.
+// path (empty when setup is nil). It creates the scratch dir under the system
+// temp directory (os.TempDir(), which honors $TMPDIR — typically /var/folders/…
+// on macOS, not /tmp) as mcp-eval-<unique>-<scratch>, then each declared file
+// empty inside it, using stdlib os only — never a shell, per
+// .claude/rules/darwin-execution.md.
 //
 // The scratch segment is validated to a single plain path component (no
 // separators, no "..", not absolute): this is the guardrail that keeps a case
 // file from steering fixture creation — and, via Teardown, deletion — at an
 // arbitrary location on disk.
-func applySetup(s *Setup, unique string) (string, error) {
+//
+// If any step after the scratch dir is created fails, the partially-built
+// scratch tree is removed before returning, so a setup error never leaves
+// residue behind (the caller only defers teardown on success).
+func applySetup(s *Setup, unique string) (scratch string, err error) {
 	if s == nil {
 		return "", nil
 	}
 	if err := validateScratchName(s.Scratch); err != nil {
 		return "", fmt.Errorf("evals: setup: %w", err)
 	}
-	scratch := filepath.Join(os.TempDir(), fmt.Sprintf("mcp-eval-%s-%s", unique, s.Scratch))
+	scratch = filepath.Join(os.TempDir(), fmt.Sprintf("mcp-eval-%s-%s", unique, s.Scratch))
 	if err := os.MkdirAll(scratch, 0o755); err != nil {
 		return "", fmt.Errorf("evals: creating scratch dir %q: %w", scratch, err)
 	}
+	// From here on the scratch dir exists; on any failure remove it so a
+	// half-staged fixture set is not left on disk.
+	defer func() {
+		if err != nil {
+			os.RemoveAll(scratch)
+			scratch = ""
+		}
+	}()
 	for _, name := range s.Files {
 		path := filepath.Join(scratch, name)
 		// Confine every fixture file to the scratch tree: a file entry may name
 		// subdirectories but must not escape via "..".
 		if !strings.HasPrefix(filepath.Clean(path)+string(os.PathSeparator), scratch+string(os.PathSeparator)) {
-			return "", fmt.Errorf("evals: setup file %q escapes the scratch directory", name)
+			return scratch, fmt.Errorf("evals: setup file %q escapes the scratch directory", name)
 		}
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			return "", fmt.Errorf("evals: creating fixture parent for %q: %w", name, err)
+			return scratch, fmt.Errorf("evals: creating fixture parent for %q: %w", name, err)
 		}
 		if err := os.WriteFile(path, []byte{}, 0o644); err != nil {
-			return "", fmt.Errorf("evals: creating fixture file %q: %w", name, err)
+			return scratch, fmt.Errorf("evals: creating fixture file %q: %w", name, err)
 		}
 	}
 	return scratch, nil

@@ -78,6 +78,12 @@ func CheckExpectation(exp Expectation, outcome TurnOutcome) error {
 	// not have come back as an error block. This catches "right op, but it
 	// failed" — the model narrating around a move that actually errored.
 	if exp.ToolSucceeds != nil && *exp.ToolSucceeds {
+		// Fail fast on a mis-specified case: with no Tool, there is nothing to
+		// check succeeded, and a bare erroredSet[""] membership test would be a
+		// silent no-op that lets the case pass without asserting anything.
+		if exp.Tool == "" {
+			return fmt.Errorf("tool_succeeds requires a tool to be set")
+		}
 		if outcome.erroredSet()[exp.Tool] {
 			return fmt.Errorf("expected tool %q to succeed, but its result was an error block", exp.Tool)
 		}

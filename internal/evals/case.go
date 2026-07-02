@@ -91,10 +91,12 @@ type Case struct {
 }
 
 // Setup declares the fixtures a case needs before its turns run. The scratch
-// directory is created at /tmp/mcp-eval-<unique>-<Scratch>, where <unique> is
-// the same per-case random token used for "{{unique}}" substitution, so repeat
-// or concurrent runs never collide. The resolved path is exposed to prompts and
-// to State post-condition paths as "{{scratch}}".
+// directory is created under the system temp directory (os.TempDir(), which
+// honors $TMPDIR — typically /var/folders/… on macOS, not /tmp) as
+// mcp-eval-<unique>-<Scratch>, where <unique> is the same per-case random token
+// used for "{{unique}}" substitution, so repeat or concurrent runs never
+// collide. The resolved path is exposed to prompts and to State post-condition
+// paths as "{{scratch}}".
 type Setup struct {
 	// Scratch is the trailing, caller-chosen segment of the scratch directory
 	// name (e.g. "screenshots"). It must be a single plain path segment: no
