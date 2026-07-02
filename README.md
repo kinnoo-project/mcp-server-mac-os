@@ -50,6 +50,8 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 - **"Create a folder called `drafts` in my Documents."** *(previewed; undoable)*
 - **"Move `test.txt` from Downloads to the Desktop."** · **"Move all the screenshots on my Desktop into `~/Desktop/screenshots`."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
 - **"Delete `old-draft.txt`."** *(moved to the Trash, never hard-deleted — previewed; undoable)*
+- **"Create a file called `notes.txt` in my Documents with these three lines."** *(previewed; creates new files only — never overwrites; undo trashes it)*
+- **"Add 'call the plumber' to the end of my `todo.txt`."** *(previewed; undo restores the file byte-for-byte)*
 
 ### ✉️ Mail
 

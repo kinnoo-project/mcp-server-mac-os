@@ -507,5 +507,55 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "write_file",
+    "summary": "Create a NEW text file with the given content (never overwrites an existing file). Reversible: undo moves the created file to the Trash.",
+    "category": "filesystem",
+    "binary": "tee",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "write_file",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "Path of the file to create. Leading ~ ok; must not start with '-' (use ./). Parent directory must exist; target must not.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "content",
+        "type": "string",
+        "required": true,
+        "description": "Full text content of the new file (may be empty for an empty file; max 1 MiB). Delivered to the file verbatim as data — never parsed as flags or code.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "append_to_file",
+    "summary": "Append text to an EXISTING file. Reversible: undo restores the file's prior contents byte-for-byte.",
+    "category": "filesystem",
+    "binary": "tee",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "append_to_file",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "Existing regular file to append to (max 8 MiB — undo stores the prior contents). Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "content",
+        "type": "string",
+        "required": true,
+        "description": "Text to append (max 1 MiB, not empty). Delivered verbatim as data; include a leading newline yourself if the file should end its current line first.",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]
