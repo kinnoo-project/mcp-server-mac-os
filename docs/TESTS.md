@@ -190,6 +190,24 @@ message are asserted directly. Its live toggle+undo is a manual case
 (`m_set_appearance_then_undo`), since it is auto_commit and needs the System
 Events Automation grant. See `docs/issues/note-system-events-tcc-permission.md`.
 
+The window-management operations (`list_windows`, `move_window`, `resize_window`,
+`minimize_window`) follow the same discipline. Their tests
+(`builtins_windowing_test.go`, `mutate_windowing_test.go`) never drive a live
+window or the Accessibility-gated System Events probe: the pure
+`renderWindowList` formatter, the `parseGeometry` probe-output parser, the
+`parseWindowTarget`/`positiveDimension` input guards (dash-leading app,
+zero/negative index, non-positive or oversized dimensions), and the pure
+`planMoveWindow`/`planResizeWindow`/`planMinimizeWindow` builders (forward/inverse
+argv, the prior geometry/minimized-state baked into the inverse, and the
+"already minimized → no undo" branch) are all asserted directly. A dedicated
+`-e`-style regression proves the process name lands after the osascript `--`
+terminator as inert data, and `windowScriptError` is checked to route an
+"assistive access" denial to the Accessibility pane and every other denial to the
+Automation hint. The live move/resize/minimize+undo paths are manual cases
+(`m_app_move_window_then_undo`, `m_app_minimize_window`), since they auto_commit
+against a real window and need the Accessibility grant. See
+`docs/issues/note-window-management-design.md`.
+
 This is a fairly classic test pyramid for this kind of system: pure-data/pure-function
 layers get exhaustive unit coverage, and the top layer gets a smaller number of
 high-value, protocol-real integration tests rather than re-testing every
@@ -297,7 +315,9 @@ The everyday corpus is split into two buckets:
   `pipeline_and_routing.json`, `screenshot.json` (selection-only — a real capture
   needs Screen Recording), `clipboard.json` (read_clipboard selection — reading
   the pasteboard always succeeds on a live session; the write+undo path is manual
-  because it clobbers the live clipboard).
+  because it clobbers the live clipboard), `domain_selection.json` (routing checks,
+  incl. `list_windows_routing` — "what windows are open?" selects
+  `application/list_windows`; selection-only, so no Accessibility grant is needed).
 - **Manual (M)** — cases tagged `"manual": true` (e.g. `manual_smoke.json`, plus
   `lan_scan_manual`) that need a permission grant, a signed-in account, or real
   hardware. They are **skipped by the default run** and listed in `-dry-run` as
@@ -308,4 +328,8 @@ The everyday corpus is split into two buckets:
   back-channel routing checks (`m_system_notify_banner`, `m_system_speak_aloud`)
   are manual because `notify`/`speak` are auto_commit — invoking the tool commits
   the side effect at once (a real banner, real audio), so there is no CI-safe
-  selection-only call the way a staged mutation has.
+  selection-only call the way a staged mutation has. The window-management checks
+  (`m_app_list_windows_readonly`, `m_app_move_window_then_undo`,
+  `m_app_minimize_window`) are manual for the same reason plus a second grant:
+  they need Accessibility access, and the move/minimize ops auto_commit against a
+  real on-screen window (`m_app_move_window_then_undo` then undoes the move).

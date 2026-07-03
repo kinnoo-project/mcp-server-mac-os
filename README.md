@@ -118,6 +118,9 @@ See what's installed and what's open, and drive your apps.
 - **"Open this PDF."** *(no app named — opens in your default app for that type)*
 - **"Open YouTube."** · **"Open CNN.com."** · **"Open YouTube on Chrome."** *(opens a website in your browser — previewed first; uses the default browser unless you name one)*
 - **"Quit Mail."** *(previewed first — unsaved work matters)*
+- *"What windows do I have open, and where are they?"* *(lists each app's windows with position and size)*
+- **"Move the Safari window to the top-left."** · **"Make it 1200 × 800."** · **"Minimize the TextEdit window."** *(run immediately, and undo puts the window back)*
+- Window control uses the **Accessibility** permission (separate from Automation) — it says so plainly the first time if it isn't granted yet.
 
 ### 📸 Screenshots
 

@@ -206,5 +206,34 @@
         "expect": {"tool": "undo", "tool_succeeds": true}
       }
     ]
+  },
+  {
+    "id": "m_app_list_windows_readonly",
+    "description": "MANUAL (needs Accessibility + Automation grant; reads real on-screen windows). Listing open windows maps to application/list_windows and runs immediately as a read.",
+    "manual": true,
+    "prompt": "List the windows that Safari currently has open.",
+    "expect": {"tool": "application", "operation": "list_windows", "tool_succeeds": true}
+  },
+  {
+    "id": "m_app_move_window_then_undo",
+    "description": "MANUAL (Accessibility grant; moves a real window). Open TextEdit first. move_window auto-commits and returns an undo token — confirm the window jumps to the top-left, then undo restores its prior position.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Move the TextEdit window to the top-left corner of the screen, at position 0, 0.",
+        "expect": {"tool": "application", "operation": "move_window", "tool_succeeds": true}
+      },
+      {
+        "prompt": "Undo that — put the window back where it was.",
+        "expect": {"tool": "undo", "tool_succeeds": true}
+      }
+    ]
+  },
+  {
+    "id": "m_app_minimize_window",
+    "description": "MANUAL (Accessibility grant; minimizes a real window). Open TextEdit first. minimize_window auto-commits and (when the window was not already minimized) offers an undo that un-minimizes it.",
+    "manual": true,
+    "prompt": "Minimize the TextEdit window to the Dock.",
+    "expect": {"tool": "application", "operation": "minimize_window", "tool_succeeds": true}
   }
 ]

@@ -16,5 +16,11 @@
     "description": "There is no discovery tool any more (Pattern A was replaced by domain tools whose descriptions embed the full menu) -- the model should be able to answer 'what can you do' from the tool descriptions it already has, without calling anything.",
     "prompt": "Without doing anything yet, what kinds of things can you help me with on this Mac?",
     "expect": { "tool": "" }
+  },
+  {
+    "id": "list_windows_routing",
+    "description": "Asking which windows are open on screen should select application/list_windows (the window inspector), not list_running_applications (which only names running apps, without windows/positions).",
+    "prompt": "What windows do I have open on screen right now, and where are they positioned?",
+    "expect": { "tool": "application", "operation": "list_windows" }
   }
 ]

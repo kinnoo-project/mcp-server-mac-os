@@ -63,6 +63,7 @@ var reviewedFreeTextBuiltins = map[string]string{
 	"capture_screen":      "screencapture: output_path rejected if dash-leading and only ever used to CREATE a file (never overwrite); see builtins_screenshot_test.go",
 	"list_applications":   "mdfind: dash-leading query rejected (mdfind has no '--'); see builtins_apps_test.go",
 	"search_applications": "mdfind: dash-leading query rejected; see builtins_apps_test.go",
+	"list_windows":        "osascript via runOsascript: app filter passed as argv data after '--'; dash-leading/control-char rejected by validateAppNameValue; see builtins_windowing_test.go",
 	"query_events":        "dates parsed via time.Parse; calendar name passed as osascript argv data after '--'; see builtins_calendar_test.go",
 	"search_mail":         "mdfind: dash-leading query rejected (no '--' terminator); see builtins_mail_test.go",
 	"list_inbox":          "osascript via runOsascript: mailbox passed as argv data after '--'; see builtins_mail_reads_test.go",
