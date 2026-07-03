@@ -166,5 +166,132 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "list_windows",
+    "summary": "List the on-screen windows of foreground apps (title, top-left position, and size in pixels). Omit 'app' for every app's windows, or pass an app name to narrow to one. Uses System Events, so it needs Accessibility (and Automation) access.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_windows",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": false,
+        "description": "App (process) name to narrow to, e.g. 'Safari'. Omit to list windows of every foreground app.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "move_window",
+    "summary": "Move an app's window to a new top-left screen position (x, y in pixels). Runs immediately; undo moves it back to where it was. Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events — needs Accessibility access.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "reversible",
+    "risk": "low",
+    "auto_commit": true,
+    "builder": "move_window",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": true,
+        "description": "App (process) name whose window to move, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "x",
+        "type": "int",
+        "required": true,
+        "description": "New left edge in screen pixels (0 = left of the main display; may be negative on a multi-monitor setup).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "y",
+        "type": "int",
+        "required": true,
+        "description": "New top edge in screen pixels (0 = top of the main display).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "window_index",
+        "type": "int",
+        "required": false,
+        "default": 1,
+        "description": "Which window (1 = frontmost, 2 = next, ...). Defaults to the front window.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "resize_window",
+    "summary": "Resize an app's window to a new width and height in pixels. Runs immediately; undo restores the prior size. Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events — needs Accessibility access.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "reversible",
+    "risk": "low",
+    "auto_commit": true,
+    "builder": "resize_window",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": true,
+        "description": "App (process) name whose window to resize, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "width",
+        "type": "int",
+        "required": true,
+        "description": "New window width in pixels (must be at least 1).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "height",
+        "type": "int",
+        "required": true,
+        "description": "New window height in pixels (must be at least 1).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "window_index",
+        "type": "int",
+        "required": false,
+        "default": 1,
+        "description": "Which window (1 = frontmost, 2 = next, ...). Defaults to the front window.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "minimize_window",
+    "summary": "Minimize an app's window to the Dock. Runs immediately; undo un-minimizes it (only when it was not already minimized). Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events — needs Accessibility access.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "reversible",
+    "risk": "low",
+    "auto_commit": true,
+    "builder": "minimize_window",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": true,
+        "description": "App (process) name whose window to minimize, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "window_index",
+        "type": "int",
+        "required": false,
+        "default": 1,
+        "description": "Which window (1 = frontmost, 2 = next, ...). Defaults to the front window.",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]
