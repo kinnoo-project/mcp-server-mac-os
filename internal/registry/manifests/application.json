@@ -187,7 +187,7 @@
   },
   {
     "name": "move_window",
-    "summary": "Move an app's window to a new top-left screen position (x, y in pixels). Runs immediately; undo moves it back to where it was. Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events — needs Accessibility access.",
+    "summary": "Move an app's window to a new top-left screen position (x, y in pixels). Runs immediately; undo moves it back to where it was. Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events, so on first use macOS asks for BOTH Accessibility and Automation access.",
     "category": "application",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -228,7 +228,7 @@
   },
   {
     "name": "resize_window",
-    "summary": "Resize an app's window to a new width and height in pixels. Runs immediately; undo restores the prior size. Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events — needs Accessibility access.",
+    "summary": "Resize an app's window to a new width and height in pixels. Runs immediately; undo restores the prior size. Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events, so on first use macOS asks for BOTH Accessibility and Automation access.",
     "category": "application",
     "binary": "osascript",
     "reversibility": "reversible",
@@ -269,7 +269,7 @@
   },
   {
     "name": "minimize_window",
-    "summary": "Minimize an app's window to the Dock. Runs immediately; undo un-minimizes it (only when it was not already minimized). Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events — needs Accessibility access.",
+    "summary": "Minimize an app's window to the Dock. Runs immediately; undo un-minimizes it (only when it was not already minimized). Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events, so on first use macOS asks for BOTH Accessibility and Automation access.",
     "category": "application",
     "binary": "osascript",
     "reversibility": "reversible",

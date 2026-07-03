@@ -1,4 +1,4 @@
-// mutate_windows.go implements the mutating window-management operations —
+// mutate_windowing.go implements the mutating window-management operations —
 // move_window, resize_window, and minimize_window — that reposition, resize, or
 // minimize a foreground app's window through the macOS Accessibility API (driven
 // via System Events / osascript).
@@ -16,7 +16,7 @@
 // # Addressing and safety
 //
 // A window is identified by its owning process name plus a 1-based front-to-back
-// index (1 = frontmost), matching list_windows (builtins_windows.go). The process
+// index (1 = frontmost), matching list_windows (builtins_windowing.go). The process
 // name reaches every script as DATA bound to `on run argv` after the "--"
 // terminator (applescript.go), and the index/coordinates are validated ints
 // rendered to argv strings, so neither shell nor osascript option injection is

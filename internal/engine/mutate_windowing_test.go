@@ -147,10 +147,18 @@ func TestPlanMinimizeWindow_Undo(t *testing.T) {
 // osascript option even though it flows through as the process name.
 func TestWindowMutators_HostileAppLandsAsData(t *testing.T) {
 	for _, h := range hostileValues {
-		// Exercise every window script through its plan builder / command form.
-		plan := planMoveWindow(windowTarget{app: h, index: 1}, 0, 0, 0, 0)
-		if got := plan.Forward.Args; got[2] != "--" || got[3] != h {
-			t.Errorf("move: app %q not after '--' terminator: %q", h, got)
+		tgt := windowTarget{app: h, index: 1}
+		// Every window mutator's forward command must place the (hostile) app name
+		// after the "--" terminator as inert data.
+		forwards := map[string]Command{
+			"move":     planMoveWindow(tgt, 0, 0, 0, 0).Forward,
+			"resize":   planResizeWindow(tgt, 1, 1, 1, 1).Forward,
+			"minimize": planMinimizeWindow(tgt, false).Forward,
+		}
+		for op, cmd := range forwards {
+			if got := cmd.Args; len(got) < 4 || got[2] != "--" || got[3] != h {
+				t.Errorf("%s: app %q not immediately after '--' terminator: %q", op, h, got)
+			}
 		}
 	}
 }

@@ -1,5 +1,5 @@
-// builtins_windows.go implements the read-only window inspection builtin
-// (list_windows) that the window-management mutators (mutate_windows.go) act on.
+// builtins_windowing.go implements the read-only window inspection builtin
+// (list_windows) that the window-management mutators (mutate_windowing.go) act on.
 //
 // Windows are enumerated through the macOS Accessibility API, which System Events
 // exposes to AppleScript. This is the same "what is on screen right now" read
@@ -8,7 +8,7 @@
 // by its 1-based front-to-back index. Because this reaches into other apps'
 // UI, it requires BOTH Automation access (to talk to System Events) AND
 // Accessibility access (assistive access to read window geometry); a missing
-// grant is mapped to an actionable hint by windowScriptError (mutate_windows.go).
+// grant is mapped to an actionable hint by windowScriptError (mutate_windowing.go).
 package engine
 
 import (
@@ -23,8 +23,10 @@ import (
 // It is the ASCII Unit Separator (0x1f) — the same choice asFieldSep makes for
 // single-record probes — because a window TITLE is arbitrary user text that can
 // contain tabs or other punctuation, and only a separator that cannot plausibly
-// appear inside a title keeps the one-row-per-window parsing unambiguous. The
-// AppleScript side emits it as `(character id 31)`.
+// appear inside a title keeps the FIELD split unambiguous. (The ROW split is a
+// linefeed, so listWindowsScript additionally flattens any tab/return/linefeed
+// inside a title to spaces before emitting it, so a title with an embedded
+// newline cannot split a row.) The AppleScript side emits it as `(character id 31)`.
 const windowFieldSep = "\x1f"
 
 // listWindowsScript emits one row per on-screen window as
@@ -55,6 +57,15 @@ const listWindowsScript = `on run argv
 					set wtitle to name of w
 				end try
 				if wtitle is missing value then set wtitle to ""
+				-- Flatten any tab/return/linefeed inside the title to single spaces
+				-- so an embedded newline in a window title cannot split the
+				-- one-row-per-window output the Go parser relies on (mirrors _clean).
+				set savedTID to AppleScript's text item delimiters
+				set AppleScript's text item delimiters to {tab, return, linefeed}
+				set wtitleParts to text items of (wtitle as string)
+				set AppleScript's text item delimiters to " "
+				set wtitle to wtitleParts as string
+				set AppleScript's text item delimiters to savedTID
 				set px to "?"
 				set py to "?"
 				set pw to "?"
