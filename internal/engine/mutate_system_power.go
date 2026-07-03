@@ -87,6 +87,13 @@ func stageWifiSetPower(ctx context.Context, _ registry.Capability, in map[string
 	if err != nil {
 		return nil, err
 	}
+	// A non-zero exit surfaces in ExitCode, not err. Surface it before parsing:
+	// otherwise a genuine failure (empty stdout) would be misread as "no Wi-Fi
+	// interface found", masking the real cause — the same ExitCode discipline
+	// probeWifiPower already applies below.
+	if ports.ExitCode != 0 {
+		return nil, fmt.Errorf("wifi_set_power: could not list hardware ports: exit %d: %s", ports.ExitCode, strings.TrimSpace(ports.Stderr))
+	}
 	dev := parseWifiDevice(ports.Stdout)
 	if dev == "" {
 		return nil, fmt.Errorf("wifi_set_power: no Wi-Fi interface was found on this Mac")
