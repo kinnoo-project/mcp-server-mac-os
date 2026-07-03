@@ -94,11 +94,16 @@ func stageCreateContact(_ context.Context, _ registry.Capability, in map[string]
 	if first == "" && last == "" && org == "" {
 		return nil, fmt.Errorf("create_contact: provide at least one of 'first_name', 'last_name', or 'organization'")
 	}
-	// Reject control characters in the free-text identity fields (the "--"
-	// terminator already defeats option injection; this guards data quality and
-	// the one-line preview).
-	for field, val := range map[string]string{"first_name": first, "last_name": last, "organization": org} {
-		if err := rejectControlChars("create_contact", field, val); err != nil {
+	// Reject control characters in EVERY free-text field (the "--" terminator
+	// already defeats option injection; this guards data quality and the one-line
+	// preview, and closes the gap that plausibleEmail's regex would let a NUL or
+	// other control byte through in an email). Ordered, not a map, so the field
+	// named in the error is deterministic.
+	for _, f := range []struct{ name, val string }{
+		{"first_name", first}, {"last_name", last}, {"organization", org},
+		{"phone", phone}, {"email", email},
+	} {
+		if err := rejectControlChars("create_contact", f.name, f.val); err != nil {
 			return nil, err
 		}
 	}
@@ -129,18 +134,26 @@ func stageCreateContact(_ context.Context, _ registry.Capability, in map[string]
 
 // validateContactPhone accepts a phone number in human form (digits, an optional
 // leading '+', and spaces/dashes/parentheses/dots) and rejects anything with
-// letters or a control character. Unlike the `call` mutator it does NOT strip
-// formatting — a contact card should keep the number as the user wrote it — so it
-// validates in place and preserves the original string.
+// letters, a control character, or an implausible digit count. Unlike the `call`
+// mutator it does NOT strip formatting — a contact card should keep the number as
+// the user wrote it — so it validates in place and preserves the original string.
+// It still enforces the same 3–15 digit range as canonicalizePhoneNumber so a
+// value made only of separators (e.g. "()" or "--") that carries no actual digits
+// cannot be staged as a "phone number".
 func validateContactPhone(raw string) error {
+	digits := 0
 	for i, r := range raw {
 		switch {
 		case r >= '0' && r <= '9':
+			digits++
 		case r == '+' && i == 0:
 		case r == ' ' || r == '-' || r == '(' || r == ')' || r == '.':
 		default:
-			return fmt.Errorf("create_contact: %q is not a valid phone number (only digits, an optional leading '+', and spaces/dashes/parentheses are allowed)", raw)
+			return fmt.Errorf("create_contact: %q is not a valid phone number (only digits, an optional leading '+', and spaces/dashes/dots/parentheses are allowed)", raw)
 		}
+	}
+	if digits < 3 || digits > 15 {
+		return fmt.Errorf("create_contact: %q does not have a plausible number of digits (3–15)", raw)
 	}
 	return nil
 }

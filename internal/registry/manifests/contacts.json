@@ -59,7 +59,7 @@
         "name": "phone",
         "type": "string",
         "required": false,
-        "description": "A phone number for the contact. Digits with an optional leading '+' and spaces/dashes/parentheses; no letters.",
+        "description": "A phone number for the contact. Digits (3–15 of them) with an optional leading '+' and spaces/dashes/dots/parentheses; no letters.",
         "arg": { "kind": "none" }
       },
       {

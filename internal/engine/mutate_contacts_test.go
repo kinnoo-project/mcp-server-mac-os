@@ -95,8 +95,10 @@ func TestStageCreateContact_Validation(t *testing.T) {
 		{"all blank", map[string]any{}, "at least one of"},
 		{"blank whitespace", map[string]any{"first_name": "   "}, "at least one of"},
 		{"phone with letters", map[string]any{"first_name": "Jane", "phone": "call-me"}, "valid phone number"},
+		{"phone with no digits", map[string]any{"first_name": "Jane", "phone": "()--"}, "plausible number of digits"},
 		{"bad email", map[string]any{"first_name": "Jane", "email": "not-an-email"}, "valid email"},
 		{"control char in name", map[string]any{"first_name": "Ja\x00ne"}, "control characters"},
+		{"control char in email", map[string]any{"first_name": "Jane", "email": "jane\x00@example.com"}, "control characters"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
