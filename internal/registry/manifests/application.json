@@ -166,5 +166,177 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "search_app_store",
+    "summary": "Search the Mac App Store for apps by name (e.g. 'Slack', 'Xcode'), returning each match's name, seller, price, and App Store id. Use this for 'download/install X': FIRST check search_applications (is it already installed?), then search_app_store; open a result's page with open_app_store_page (pass its id). If the app isn't on the App Store, fall back to open_website to the vendor's download page. Needs an internet connection.",
+    "category": "application",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "search_app_store",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "description": "App name to search for, e.g. 'Slack', 'Microsoft Word'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 10,
+        "description": "Max results to return (default 10, max 25).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "open_app_store_page",
+    "summary": "Open a specific app's page in the App Store app, given its numeric App Store id (from search_app_store). Runs immediately and just opens a window; installing or purchasing stays the user's click — it is never automated. For a plain web address use open_website instead.",
+    "category": "application",
+    "binary": "open",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "open_app_store_page",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "track_id",
+        "type": "int",
+        "required": true,
+        "description": "The app's numeric App Store id, e.g. 803453959 (taken from a search_app_store result).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "list_windows",
+    "summary": "List the on-screen windows of foreground apps (title, top-left position, and size in pixels). Omit 'app' for every app's windows, or pass an app name to narrow to one. Uses System Events, so it needs Accessibility (and Automation) access.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_windows",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": false,
+        "description": "App (process) name to narrow to, e.g. 'Safari'. Omit to list windows of every foreground app.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "move_window",
+    "summary": "Move an app's window to a new top-left screen position (x, y in pixels). Runs immediately; undo moves it back to where it was. Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events, so on first use macOS asks for BOTH Accessibility and Automation access.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "reversible",
+    "risk": "low",
+    "auto_commit": true,
+    "builder": "move_window",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": true,
+        "description": "App (process) name whose window to move, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "x",
+        "type": "int",
+        "required": true,
+        "description": "New left edge in screen pixels (0 = left of the main display; may be negative on a multi-monitor setup).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "y",
+        "type": "int",
+        "required": true,
+        "description": "New top edge in screen pixels (0 = top of the main display).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "window_index",
+        "type": "int",
+        "required": false,
+        "default": 1,
+        "description": "Which window (1 = frontmost, 2 = next, ...). Defaults to the front window.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "resize_window",
+    "summary": "Resize an app's window to a new width and height in pixels. Runs immediately; undo restores the prior size. Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events, so on first use macOS asks for BOTH Accessibility and Automation access.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "reversible",
+    "risk": "low",
+    "auto_commit": true,
+    "builder": "resize_window",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": true,
+        "description": "App (process) name whose window to resize, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "width",
+        "type": "int",
+        "required": true,
+        "description": "New window width in pixels (must be at least 1).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "height",
+        "type": "int",
+        "required": true,
+        "description": "New window height in pixels (must be at least 1).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "window_index",
+        "type": "int",
+        "required": false,
+        "default": 1,
+        "description": "Which window (1 = frontmost, 2 = next, ...). Defaults to the front window.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "minimize_window",
+    "summary": "Minimize an app's window to the Dock. Runs immediately; undo un-minimizes it (only when it was not already minimized). Targets the front window by default, or pass 'window_index' (1 = frontmost). Uses System Events, so on first use macOS asks for BOTH Accessibility and Automation access.",
+    "category": "application",
+    "binary": "osascript",
+    "reversibility": "reversible",
+    "risk": "low",
+    "auto_commit": true,
+    "builder": "minimize_window",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": true,
+        "description": "App (process) name whose window to minimize, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "window_index",
+        "type": "int",
+        "required": false,
+        "default": 1,
+        "description": "Which window (1 = frontmost, 2 = next, ...). Defaults to the front window.",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]

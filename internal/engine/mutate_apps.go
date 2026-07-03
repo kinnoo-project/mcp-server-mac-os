@@ -440,6 +440,37 @@ func isAllDigits(s string) bool {
 	return true
 }
 
+// stageOpenAppStorePage stages (for immediate auto-commit) opening a specific
+// app's page in the App Store app. It is the outbound half of the download flow:
+// search_app_store finds the app and its numeric id, and this opens that app's
+// store page so the user can click "Get"/"Buy" themselves — installing is never
+// automated (no first-party CLI, and a purchase needs an Apple ID interaction).
+//
+// Like open_settings it just opens a window, so it is auto-commit and
+// irreversible (there is nothing to undo). The forward URL is built entirely in
+// Go from a validated NUMERIC id: track_id is an int parameter, so the normalizer
+// has already constrained it to a whole number before we ever see it. There is
+// therefore no free text in the URL and no injection surface — the value can only
+// be digits, and the scheme/host/path are constants. This is why the op takes an
+// int id rather than a name: it keeps the URL injection-inert (unlike open_website,
+// whose free-form URL is why that op stays staged behind the execute gate).
+func stageOpenAppStorePage(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	id, ok := getInt(in, "track_id")
+	if !ok {
+		return nil, fmt.Errorf("open_app_store_page: 'track_id' is required (the numeric App Store id from search_app_store)")
+	}
+	if id <= 0 {
+		return nil, fmt.Errorf("open_app_store_page: track_id must be a positive App Store id, got %d", id)
+	}
+	// Built Go-side from an integer: no model-controlled text reaches the URL.
+	appStoreURL := fmt.Sprintf("macappstore://apps.apple.com/app/id%d", id)
+	return &StagedPlan{
+		Preview: fmt.Sprintf("Open the App Store to the app with id %d. Installing or buying it stays your click — this only opens its page.", id),
+		Forward: Command{Binary: "open", Args: []string{appStoreURL}},
+		Inverse: nil, // nothing to undo: it just opens a window
+	}, nil
+}
+
 // stageFocusApplication stages (for immediate auto-commit) bringing an app to the
 // front. Focus has no meaningful inverse, so the plan is irreversible.
 func stageFocusApplication(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {

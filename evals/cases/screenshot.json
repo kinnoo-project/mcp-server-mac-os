@@ -4,5 +4,17 @@
     "description": "A screenshot request should select the screenshot domain's capture_screen with the given output path. Selection-only on purpose: a real capture needs the Screen Recording permission, which an unattended CI pass cannot grant, so this case does NOT assert tool_succeeds or a created file (that file-created check lives in the manual smoke list). It only proves the model routes to the screenshot tool rather than, say, a shell capture.",
     "prompt": "Take a screenshot and save it to /tmp/mcp-eval-shot-{{unique}}.png.",
     "expect": {"tool": "screenshot", "operation": "capture_screen"}
+  },
+  {
+    "id": "capture_region_routing",
+    "description": "A request to grab a specific rectangle of the screen should route to the screenshot domain's capture_region (not the whole-desktop capture_screen). Selection-only: a real capture needs the Screen Recording permission CI cannot grant, so this asserts routing only, not a created file (that lives in the manual smoke list).",
+    "prompt": "Take a screenshot of just the 400x300 region starting at the top-left corner (x=0, y=0) and save it to /tmp/mcp-eval-region-{{unique}}.png.",
+    "expect": {"tool": "screenshot", "operation": "capture_region"}
+  },
+  {
+    "id": "capture_window_routing",
+    "description": "A request to screenshot a specific app's window should route to the screenshot domain's capture_window. Selection-only: a real capture needs Screen Recording + Accessibility + Automation grants CI cannot provide, so this asserts routing only.",
+    "prompt": "Take a screenshot of the Safari window and save it to /tmp/mcp-eval-window-{{unique}}.png.",
+    "expect": {"tool": "screenshot", "operation": "capture_window"}
   }
 ]

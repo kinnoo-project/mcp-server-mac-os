@@ -1,5 +1,67 @@
 [
   {
+    "name": "read_setting",
+    "summary": "Read the current value of a curated, known-safe macOS preference (the same settings write_setting can change, e.g. whether Finder shows hidden files or the Dock auto-hides). Read-only: reports on/off/unset, changes nothing.",
+    "category": "preferences",
+    "binary": "defaults",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "read_setting",
+    "params": [
+      {
+        "name": "setting",
+        "type": "enum",
+        "required": true,
+        "enum": [
+          "finder_show_hidden_files",
+          "finder_show_all_extensions",
+          "finder_show_path_bar",
+          "finder_show_status_bar",
+          "finder_warn_on_extension_change",
+          "dock_autohide",
+          "dock_show_recents",
+          "dock_minimize_to_app_icon",
+          "dock_show_process_indicators",
+          "screenshot_disable_shadow",
+          "global_press_and_hold_accents",
+          "global_autocorrect",
+          "global_smart_quotes",
+          "global_smart_dashes",
+          "global_period_substitution",
+          "accessibility_reduce_motion",
+          "accessibility_reduce_transparency",
+          "accessibility_increase_contrast",
+          "accessibility_differentiate_without_color"
+        ],
+        "description": "Which curated setting to read. The same closed list write_setting can change.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "set_appearance",
+    "summary": "Switch the system-wide appearance between Dark and Light mode (the Appearance setting in System Settings). Reversible: undo restores the prior appearance. Uses System Events, so on first use macOS asks you to grant this app Automation access.",
+    "category": "preferences",
+    "binary": "osascript",
+    "reversibility": "reversible",
+    "risk": "low",
+    "auto_commit": true,
+    "builder": "set_appearance",
+    "params": [
+      {
+        "name": "mode",
+        "type": "enum",
+        "required": true,
+        "enum": [
+          "dark",
+          "light"
+        ],
+        "description": "The appearance to switch to: 'dark' for Dark mode, 'light' for Light mode.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
     "name": "write_setting",
     "summary": "Toggle a curated, known-safe macOS preference (e.g. show hidden files in Finder, auto-hide the Dock). Reversible: undo restores the prior value, or removes the key if it was unset.",
     "category": "preferences",

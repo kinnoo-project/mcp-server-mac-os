@@ -35,28 +35,38 @@ import (
 	"mcp-server-mac-os/internal/policy"
 )
 
+// osascriptArgv assembles the tokenized argument vector both osascript paths
+// share: the fixed script under "-e", then the "--" end-of-options terminator,
+// then every model-supplied data value. Extracting it into one function is what
+// makes the "-- terminator is always present" guarantee STRUCTURAL rather than
+// duplicated at two call sites — the mutating path (osascriptCommand) and the
+// read path (runOsascript) cannot drift apart, and the hardening is unit-tested
+// in one place (see applescript_test.go / injection_sweep_test.go).
+func osascriptArgv(script string, args ...string) []string {
+	argv := make([]string, 0, len(args)+3)
+	argv = append(argv, "-e", script, "--")
+	return append(argv, args...)
+}
+
 // osascriptCommand assembles a fully-tokenized osascript invocation that runs a
 // fixed script with the given data arguments bound to its `on run argv`. The
 // "--" terminator is inserted unconditionally (see the file header).
 func osascriptCommand(script string, args ...string) Command {
-	argv := make([]string, 0, len(args)+3)
-	argv = append(argv, "-e", script, "--")
-	argv = append(argv, args...)
-	return Command{Binary: "osascript", Args: argv}
+	return Command{Binary: "osascript", Args: osascriptArgv(script, args...)}
 }
 
 // runOsascript runs a read-only osascript script in-process for a read builtin,
-// applying the same fixed-script + "--"-terminator hardening as osascriptCommand.
-// It returns the raw runResult so the caller can inspect the exit code/stderr
-// (an AppleScript error, e.g. a denied automation permission, surfaces as a
-// non-zero exit with an explanatory stderr) before parsing stdout.
+// applying the same fixed-script + "--"-terminator hardening as osascriptCommand
+// (both build their argv through osascriptArgv). It returns the raw runResult so
+// the caller can inspect the exit code/stderr (an AppleScript error, e.g. a
+// denied automation permission, surfaces as a non-zero exit with an explanatory
+// stderr) before parsing stdout.
 func runOsascript(ctx context.Context, script string, args ...string) (*runResult, error) {
 	bin, err := policy.ResolveBinary("osascript")
 	if err != nil {
 		return nil, err
 	}
-	argv := append([]string{"-e", script, "--"}, args...)
-	return runCommand(ctx, bin, argv...)
+	return runCommand(ctx, bin, osascriptArgv(script, args...)...)
 }
 
 // asDateHelpers is a reusable block of top-level AppleScript handlers that every

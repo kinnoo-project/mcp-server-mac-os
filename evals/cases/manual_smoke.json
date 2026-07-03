@@ -114,6 +114,28 @@
     "expect": {"tool": "application-mail", "operation": "search_mail", "forbid_tools": ["execute"]}
   },
   {
+    "id": "m_mail_list_inbox_readonly",
+    "description": "MANUAL (a configured Mail account; reads real inbox content, so it is not CI-safe). Asking for recent emails maps to list_inbox. Read-only: forbids execute; this suite NEVER automates a send.",
+    "manual": true,
+    "prompt": "Show me my 5 most recent emails.",
+    "expect": {"tool": "application-mail", "operation": "list_inbox", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_mail_read_message",
+    "description": "MANUAL (a configured Mail account; reads a real message body). Two turns: list the inbox, then read the top message by the id list_inbox returned. Turn 2 depends on a live id, so this only works in a manual run against a real mailbox. Read-only throughout — forbids execute.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "List my most recent emails.",
+        "expect": {"tool": "application-mail", "operation": "list_inbox", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Open the top one and read it to me.",
+        "expect": {"tool": "application-mail", "operation": "read_message", "forbid_tools": ["execute"]}
+      }
+    ]
+  },
+  {
     "id": "m_phone_find_contact",
     "description": "MANUAL (Contacts permission). Looking up a contact's number maps to find_contact. Uses the obviously-fake 'Jane Doe' (no real PII). This suite NEVER automates placing a call.",
     "manual": true,
@@ -140,5 +162,192 @@
     "manual": true,
     "prompt": "Quit the Calculator app.",
     "expect": {"tool": "process", "operation": "quit_process", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_clipboard_write_then_undo",
+    "description": "MANUAL (clobbers the live clipboard mid-run). write_clipboard is auto_commit, so the copy runs immediately and returns an undo_token — it does NOT stage. To make the undo restorable, put some ordinary TEXT on the clipboard before running this (so the prior contents are text, not an image). Turn 1 replaces the clipboard; turn 2 restores the prior text. No real PII in the copied value.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Copy the text 'MCP eval {{unique}}' to my clipboard.",
+        "expect": {"tool": "clipboard", "operation": "write_clipboard", "tool_succeeds": true}
+      },
+      {
+        "prompt": "Actually, undo that — put back what was there before.",
+        "expect": {"tool": "undo", "tool_succeeds": true}
+      }
+    ]
+  },
+  {
+    "id": "m_system_notify_banner",
+    "description": "MANUAL (posts a real Notification Center banner). notify is auto_commit — it fires immediately, no stage/execute. Routing check: 'let me know with a notification' maps to the system tool's notify op. Watch for the banner titled 'MCP eval'. If none appears, the host app lacks Notifications permission (System Settings > Notifications). Nothing to undo.",
+    "manual": true,
+    "prompt": "Send me a macOS notification titled 'MCP eval' that says the export finished.",
+    "expect": {"tool": "system", "operation": "notify", "tool_succeeds": true}
+  },
+  {
+    "id": "m_system_speak_aloud",
+    "description": "MANUAL (plays audio through the speakers). speak is auto_commit — it fires immediately, no stage/execute. Routing check: 'say it out loud' maps to the system tool's speak op. You should hear the text spoken. Nothing to undo.",
+    "manual": true,
+    "prompt": "Say out loud: the backup is complete.",
+    "expect": {"tool": "system", "operation": "speak", "tool_succeeds": true}
+  },
+  {
+    "id": "m_set_appearance_then_undo",
+    "description": "MANUAL (flips the whole screen's appearance; needs Automation access to System Events on first use). set_appearance is auto_commit, so the switch runs immediately and returns an undo_token — it does NOT stage. Turn 1 switches to Dark mode; turn 2 restores the appearance that was active before. If turn 1 errors, grant the host app System Events access in System Settings > Privacy & Security > Automation and retry.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Switch my Mac to Dark mode.",
+        "expect": {"tool": "preferences", "operation": "set_appearance", "tool_succeeds": true}
+      },
+      {
+        "prompt": "Actually, undo that — put my appearance back the way it was.",
+        "expect": {"tool": "undo", "tool_succeeds": true}
+      }
+    ]
+  },
+  {
+    "id": "m_app_list_windows_readonly",
+    "description": "MANUAL (needs Accessibility + Automation grant; reads real on-screen windows). Listing open windows maps to application/list_windows and runs immediately as a read.",
+    "manual": true,
+    "prompt": "List the windows that Safari currently has open.",
+    "expect": {"tool": "application", "operation": "list_windows", "tool_succeeds": true}
+  },
+  {
+    "id": "m_app_move_window_then_undo",
+    "description": "MANUAL (Accessibility grant; moves a real window). Open TextEdit first. move_window auto-commits and returns an undo token — confirm the window jumps to the top-left, then undo restores its prior position.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Move the TextEdit window to the top-left corner of the screen, at position 0, 0.",
+        "expect": {"tool": "application", "operation": "move_window", "tool_succeeds": true}
+      },
+      {
+        "prompt": "Undo that — put the window back where it was.",
+        "expect": {"tool": "undo", "tool_succeeds": true}
+      }
+    ]
+  },
+  {
+    "id": "m_app_minimize_window",
+    "description": "MANUAL (Accessibility grant; minimizes a real window). Open TextEdit first. minimize_window auto-commits and (when the window was not already minimized) offers an undo that un-minimizes it.",
+    "manual": true,
+    "prompt": "Minimize the TextEdit window to the Dock.",
+    "expect": {"tool": "application", "operation": "minimize_window", "tool_succeeds": true}
+  },
+  {
+    "id": "m_screenshot_region",
+    "description": "MANUAL (Screen Recording permission; writes a real image file). Capturing a specific rectangle of the screen maps to the screenshot domain's capture_region and runs immediately as a read. Confirm a non-empty PNG lands at the given path.",
+    "manual": true,
+    "prompt": "Take a screenshot of the 500x400 region at the top-left of my screen (x=0, y=0) and save it to /tmp/mcp-smoke-region-{{unique}}.png.",
+    "expect": {"tool": "screenshot", "operation": "capture_region", "tool_succeeds": true}
+  },
+  {
+    "id": "m_screenshot_window",
+    "description": "MANUAL (Screen Recording + Accessibility + Automation grants; writes a real image file). Open TextEdit first. Capturing a single app window maps to the screenshot domain's capture_window, which reads the window's bounds via System Events and photographs that rectangle. Confirm a non-empty PNG lands at the given path.",
+    "manual": true,
+    "prompt": "Take a screenshot of the TextEdit window and save it to /tmp/mcp-smoke-window-{{unique}}.png.",
+    "expect": {"tool": "screenshot", "operation": "capture_window", "tool_succeeds": true}
+  },
+  {
+    "id": "m_safari_list_tabs",
+    "description": "MANUAL (needs Safari running with a tab or two open + Automation grant for Safari; reads live tab URLs, so it surfaces real browsing and must never run in CI). Open Safari with at least one tab first. Asking what tabs are open maps to application-safari/list_tabs; confirm the response names the open pages' titles/URLs grouped by window.",
+    "manual": true,
+    "prompt": "What tabs do I have open in Safari?",
+    "expect": {"tool": "application-safari", "operation": "list_tabs", "tool_succeeds": true}
+  },
+  {
+    "id": "m_safari_current_tab",
+    "description": "MANUAL (needs Safari running with a front window + Automation grant for Safari; reads the live active-tab URL). Open Safari and navigate to any page first. Asking what page you're looking at maps to application-safari/current_tab; confirm the response shows that page's title and URL.",
+    "manual": true,
+    "prompt": "What web page am I currently looking at in Safari?",
+    "expect": {"tool": "application-safari", "operation": "current_tab", "tool_succeeds": true}
+  },
+  {
+    "id": "m_contacts_get_card",
+    "description": "MANUAL (Automation grant for Contacts; reads a real contact card, so it surfaces personal data and must never run in CI). Have at least one person in Contacts, then substitute a real name for the placeholder when running by hand. Asking for someone's full details maps to application-contacts/get_contact; confirm the response shows the card's fields (phones/emails/etc.), not just a number.",
+    "manual": true,
+    "prompt": "Show me the full contact card for Jane Doe.",
+    "expect": {"tool": "application-contacts", "operation": "get_contact", "tool_succeeds": true}
+  },
+  {
+    "id": "m_contacts_create_then_undo",
+    "description": "MANUAL (Automation grant for Contacts; creates then deletes a REAL contact). Self-cleans: create_contact stages, execute adds the card, undo deletes exactly that card (matched by the hidden unique marker). Fake placeholder identity only — no real PII. If turn 2 errors, grant the host app Contacts access under System Settings > Privacy & Security > Automation and retry.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Create a new contact for Jane Doe at Example Corp, phone +15555550123, email jane@example.com.",
+        "expect": {"tool": "application-contacts", "operation": "create_contact", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, create it.", "expect": {"tool": "execute"}},
+      {
+        "prompt": "Actually, undo that — remove the contact you just created.",
+        "expect": {"tool": "undo", "tool_succeeds": true}
+      }
+    ]
+  },
+  {
+    "id": "m_display_sleep",
+    "description": "MANUAL (actually turns the screen off). display_sleep is auto_commit — it fires immediately, no stage/execute. Routing check: 'turn off my screen' maps to the system tool's display_sleep op. The display sleeps at once; wake it by pressing a key or moving the mouse. Nothing to undo from software.",
+    "manual": true,
+    "prompt": "Turn off my display but keep everything running.",
+    "expect": {"tool": "system", "operation": "display_sleep", "tool_succeeds": true}
+  },
+  {
+    "id": "m_wifi_set_power_stages_only",
+    "description": "MANUAL (would toggle the Wi-Fi radio). A turn-Wi-Fi-off request must STAGE, not fire — asserted by forbid_tools execute. Kept stage-only ON PURPOSE so even a manual run never actually severs this Mac's connectivity (which could cut the eval runner's own network); executing the staged toggle, and then undoing it to restore the prior power state, is a deliberate human step outside this case. Confirm the preview names the current state and says undo restores it.",
+    "manual": true,
+    "prompt": "Turn my Wi-Fi off.",
+    "expect": {"tool": "system", "operation": "wifi_set_power", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_music_now_playing",
+    "description": "MANUAL (needs Music.app running with a track playing or paused + Automation grant for Music; reads live playback, so it surfaces what the user is listening to and must never run in CI). Open Music and start a song first. Asking what's playing maps to application-music/now_playing; confirm the response names the current track/artist and its state. With Music CLOSED, it should report cleanly that Music is not running (and must NOT launch it).",
+    "manual": true,
+    "prompt": "What song am I listening to right now?",
+    "expect": {"tool": "application-music", "operation": "now_playing", "tool_succeeds": true}
+  },
+  {
+    "id": "m_music_play_pause",
+    "description": "MANUAL (actually toggles playback). play_pause is auto_commit — it fires immediately, no stage/execute. Open Music and start a track first. 'Pause my music' maps to application-music/play_pause; confirm playback toggled. Re-running toggles it back (play/pause is its own manual reversal — there is no undo token). With Music CLOSED it should fail cleanly ('Music is not running') and must NOT launch Music.",
+    "manual": true,
+    "prompt": "Pause my music.",
+    "expect": {"tool": "application-music", "operation": "play_pause", "tool_succeeds": true}
+  },
+  {
+    "id": "m_music_next_track",
+    "description": "MANUAL (actually skips the track). next_track is auto_commit — fires immediately. Open Music and start a queue/playlist first. 'Skip this song' maps to application-music/next_track; confirm the track advanced. previous_track reverses it. With Music CLOSED it should fail cleanly and must NOT launch Music.",
+    "manual": true,
+    "prompt": "Skip to the next song.",
+    "expect": {"tool": "application-music", "operation": "next_track", "tool_succeeds": true}
+  },
+  {
+    "id": "m_music_previous_track",
+    "description": "MANUAL (actually changes the track). previous_track is auto_commit — fires immediately. Open Music and start a queue/playlist first. 'Go back a track' maps to application-music/previous_track; confirm the track changed (Music restarts the current track or steps back, matching its own behaviour). With Music CLOSED it should fail cleanly and must NOT launch Music.",
+    "manual": true,
+    "prompt": "Go back to the previous song.",
+    "expect": {"tool": "application-music", "operation": "previous_track", "tool_succeeds": true}
+  },
+  {
+    "id": "m_app_store_search_slack",
+    "description": "MANUAL (needs internet — makes a live request to Apple's iTunes Search API). 'Search the Mac App Store for Slack' maps to application/search_app_store; confirm the result lists Slack with its seller, price, and a numeric App Store id (the id feeds open_app_store_page). Read-only, opens nothing.",
+    "manual": true,
+    "prompt": "Search the Mac App Store for Slack.",
+    "expect": {"tool": "application", "operation": "search_app_store", "tool_succeeds": true}
+  },
+  {
+    "id": "m_app_store_download_flow",
+    "description": "MANUAL (needs internet; the final step OPENS the App Store window). Full download flow: 'Download Slack' should first check search_applications (already installed?), then application/search_app_store to find it and its id, then application/open_app_store_page with that id — which fires immediately (auto_commit) and opens Slack's page in the App Store. Installing stays the user's click; confirm the App Store opens to the Slack page and nothing is purchased automatically.",
+    "manual": true,
+    "prompt": "Download Slack.",
+    "expect": {"tool": "application", "operation": "open_app_store_page", "tool_succeeds": true}
+  },
+  {
+    "id": "m_app_store_not_in_store_fallback",
+    "description": "MANUAL (needs internet; stages an open_website but do NOT execute). For an app that is NOT on the Mac App Store (e.g. a browser like Firefox), 'Download Firefox' should try application/search_app_store, find nothing, and fall back to application/open_website STAGED to the vendor's download page (mozilla.org) — previewed behind the execute gate, never auto-opened. Confirm it stages open_website rather than open_app_store_page.",
+    "manual": true,
+    "prompt": "Download Firefox for me.",
+    "expect": {"tool": "application", "operation": "open_website", "forbid_tools": ["execute"]}
   }
 ]

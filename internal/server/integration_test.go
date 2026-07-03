@@ -50,16 +50,16 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "application-photos", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "clipboard", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "application-photos", "application-safari", "application-contacts", "application-music", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 18 {
-		t.Errorf("expected exactly 18 tools (filesystem, preferences, application, printer, system, network, process, screenshot, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 22 {
+		t.Errorf("expected exactly 22 tools (filesystem, preferences, application, printer, system, network, process, screenshot, clipboard, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, application-safari, application-contacts, application-music, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
-	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
+	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head", "compress", "extract"} {
 		if !strings.Contains(descs["filesystem"], op) {
 			t.Errorf("filesystem tool description missing operation %q", op)
 		}
@@ -97,7 +97,22 @@ func TestIntegration_ToolSurface(t *testing.T) {
 			t.Errorf("application-notes tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"list_applications", "search_applications", "list_running_applications", "open_application", "focus_application", "quit_application"} {
+	for _, op := range []string{"list_tabs", "current_tab"} {
+		if !strings.Contains(descs["application-safari"], op) {
+			t.Errorf("application-safari tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"get_contact", "create_contact"} {
+		if !strings.Contains(descs["application-contacts"], op) {
+			t.Errorf("application-contacts tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"now_playing", "play_pause", "next_track", "previous_track"} {
+		if !strings.Contains(descs["application-music"], op) {
+			t.Errorf("application-music tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_applications", "search_applications", "search_app_store", "open_app_store_page", "list_running_applications", "open_application", "focus_application", "quit_application"} {
 		if !strings.Contains(descs["application"], op) {
 			t.Errorf("application tool description missing operation %q", op)
 		}
@@ -377,6 +392,43 @@ func TestDefaultsAllowlist_MatchesManifestEnum(t *testing.T) {
 	}
 }
 
+// TestReadSettingEnum_MatchesDefaultsAllowlist guards the read side of the
+// curated-preferences allowlist: read_setting shares write_setting's setting
+// enum and the engine's defaultsAllowlist map, so its manifest enum must match
+// the allowlist exactly. Without this, a setting could be writable but not
+// readable (or vice versa) if the two manifest enums drifted apart.
+func TestReadSettingEnum_MatchesDefaultsAllowlist(t *testing.T) {
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatalf("registry.Load(): %v", err)
+	}
+	capability, ok := reg.Lookup("read_setting")
+	if !ok {
+		t.Fatal("read_setting capability not found in registry")
+	}
+	var manifestEnum []string
+	for _, p := range capability.Params {
+		if p.Name == "setting" {
+			manifestEnum = p.Enum
+		}
+	}
+	if manifestEnum == nil {
+		t.Fatal("read_setting manifest entry has no 'setting' param with an enum")
+	}
+	sort.Strings(manifestEnum)
+	engineKeys := engine.DefaultsAllowlistKeys() // already sorted
+
+	if len(manifestEnum) != len(engineKeys) {
+		t.Fatalf("read_setting enum has %d settings, engine allowlist has %d: manifest=%v engine=%v",
+			len(manifestEnum), len(engineKeys), manifestEnum, engineKeys)
+	}
+	for i := range manifestEnum {
+		if manifestEnum[i] != engineKeys[i] {
+			t.Fatalf("read_setting enum and engine allowlist diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
+		}
+	}
+}
+
 // TestSettingsPanes_MatchManifestEnum guards against the open_settings pane list
 // being declared twice (once as the manifest's "pane" enum, once as the engine's
 // settingsPaneURLs map) and the two drifting apart — which would let the enum
@@ -467,6 +519,71 @@ func TestIntegration_MutationLifecycle(t *testing.T) {
 	}
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		t.Errorf("undo should have removed the directory; stat err = %v", err)
+	}
+}
+
+// TestIntegration_WriteFileLifecycle drives write_file through the real MCP
+// protocol: stage (nothing on disk, token returned), execute (the file appears
+// with the exact bytes — proving the stdin payload survives the token store),
+// undo (the file is recycled into the sandbox Trash). $HOME is redirected so
+// the Trash-routed inverse never touches the real Trash.
+func TestIntegration_WriteFileLifecycle(t *testing.T) {
+	home := t.TempDir()
+	if err := os.Mkdir(filepath.Join(home, ".Trash"), 0o755); err != nil {
+		t.Fatalf("creating sandbox Trash: %v", err)
+	}
+	t.Setenv("HOME", home)
+
+	cs := connectClient(t)
+	ctx := context.Background()
+	target := filepath.Join(t.TempDir(), "written-by-mcp.txt")
+	content := "first line\nsecond line\n"
+
+	staged, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "filesystem",
+		Arguments: map[string]any{"operation": "write_file", "params": map[string]any{"path": target, "content": content}},
+	})
+	if err != nil {
+		t.Fatalf("CallTool stage write_file: %v", err)
+	}
+	if staged.IsError {
+		t.Fatalf("stage write_file returned error: %s", textOf(staged))
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Fatalf("staging must not create the file; stat err = %v", err)
+	}
+	token := extractToken(t, textOf(staged), "req_")
+
+	executed, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "execute",
+		Arguments: map[string]any{"token": token},
+	})
+	if err != nil {
+		t.Fatalf("CallTool execute: %v", err)
+	}
+	if executed.IsError {
+		t.Fatalf("execute returned error: %s", textOf(executed))
+	}
+	if got, err := os.ReadFile(target); err != nil || string(got) != content {
+		t.Fatalf("execute should have written the exact bytes; got %q (err %v)", got, err)
+	}
+	undoToken := extractToken(t, textOf(executed), "undo_")
+
+	undone, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "undo",
+		Arguments: map[string]any{"undo_token": undoToken},
+	})
+	if err != nil {
+		t.Fatalf("CallTool undo: %v", err)
+	}
+	if undone.IsError {
+		t.Fatalf("undo returned error: %s", textOf(undone))
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("undo should have removed the created file; stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".Trash", "written-by-mcp.txt")); err != nil {
+		t.Errorf("undo should have recycled the file into the sandbox Trash: %v", err)
 	}
 }
 

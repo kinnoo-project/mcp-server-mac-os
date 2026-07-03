@@ -92,6 +92,39 @@
     ]
   },
   {
+    "name": "spotlight_search",
+    "summary": "Search this Mac with Spotlight (content AND metadata, like the magnifying glass in the menu bar). Use this for 'find that presentation about Q3' or 'the invoice PDF from last month' — questions about a file's meaning or contents, not its exact name. For an exact name/extension/type match use find; to grep inside known files use grep.",
+    "category": "filesystem",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "spotlight_search",
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "description": "Free-text search terms (e.g. \"quarterly report\"). Matched against indexed file contents and metadata. Must not begin with '-'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "dir",
+        "type": "path",
+        "required": false,
+        "description": "Restrict the search to this directory tree (default: everywhere Spotlight indexes). Leading ~ ok.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 30,
+        "description": "Maximum number of matching paths to return (default 30, max 200).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
     "name": "file",
     "summary": "Identify the type of one or more files (e.g. \"PNG image data\", \"ASCII text\").",
     "category": "filesystem",
@@ -504,6 +537,106 @@
         "type": "path",
         "required": true,
         "description": "Existing file or directory to send to the Trash. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "write_file",
+    "summary": "Create a NEW text file with the given content (never overwrites an existing file). Reversible: undo moves the created file to the Trash.",
+    "category": "filesystem",
+    "binary": "tee",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "write_file",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "Path of the file to create. Leading ~ ok; must not start with '-' (use ./). Parent directory must exist; target must not.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "content",
+        "type": "string",
+        "required": true,
+        "description": "Full text content of the new file (may be empty for an empty file; max 1 MiB). Delivered to the file verbatim as data — never parsed as flags or code.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "append_to_file",
+    "summary": "Append text to an EXISTING file. Reversible: undo restores the file's prior contents byte-for-byte.",
+    "category": "filesystem",
+    "binary": "tee",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "append_to_file",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "Existing regular file to append to (max 8 MiB — undo stores the prior contents). Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "content",
+        "type": "string",
+        "required": true,
+        "description": "Text to append (max 1 MiB, not empty). Delivered verbatim as data; include a leading newline yourself if the file should end its current line first.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "compress",
+    "summary": "Create a .zip, .tar.gz, or .tgz archive from one or more files/folders. Staged for confirmation; reversible: undo moves the created archive to the Trash.",
+    "category": "filesystem",
+    "binary": "tar",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "compress",
+    "params": [
+      {
+        "name": "archive",
+        "type": "path",
+        "required": true,
+        "description": "Path of the archive to create. Must end in .zip, .tar.gz, or .tgz — the extension picks the format. Leading ~ ok; must not start with '-' (use ./). Must not already exist; its parent directory must exist and must not sit inside anything being compressed.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "sources",
+        "type": "path_list",
+        "required": true,
+        "description": "One or more existing files/folders to put in the archive. All must share one parent directory (their names are stored relative to it, e.g. 'project/report.txt'). Leading ~ ok; none may start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "extract",
+    "summary": "Extract a .zip, .tar.gz, or .tgz archive into an existing EMPTY directory. Nothing can be written outside the destination (no zip-slip): a member with a '..' path is refused, and an absolute member has its leading '/' stripped so it lands inside. Staged for confirmation; reversible: undo moves the destination — with everything unpacked into it — to the Trash.",
+    "category": "filesystem",
+    "binary": "tar",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "extract",
+    "params": [
+      {
+        "name": "archive",
+        "type": "path",
+        "required": true,
+        "description": "Existing .zip, .tar.gz, or .tgz archive to unpack. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "destination",
+        "type": "path",
+        "required": true,
+        "description": "Existing EMPTY directory to unpack into (create it first with mkdir). Leading ~ ok; must not start with '-' (use ./).",
         "arg": { "kind": "none" }
       }
     ]

@@ -3,30 +3,178 @@
     "id": "wifi_on_off",
     "description": "Asking whether Wi-Fi is on should select the system domain's wifi_status read (no mutation, no Settings window).",
     "prompt": "Is my Wi-Fi on right now?",
-    "expect": {"tool": "system", "operation": "wifi_status", "forbid_tools": ["execute"]}
+    "expect": {
+      "tool": "system",
+      "operation": "wifi_status",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   },
   {
     "id": "battery_level",
     "description": "Battery/charge questions map to power_status.",
     "prompt": "How much battery do I have left?",
-    "expect": {"tool": "system", "operation": "power_status", "forbid_tools": ["execute"]}
+    "expect": {
+      "tool": "system",
+      "operation": "power_status",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   },
   {
     "id": "bluetooth_state",
     "description": "Bluetooth on/off maps to bluetooth_status.",
     "prompt": "Is Bluetooth turned on?",
-    "expect": {"tool": "system", "operation": "bluetooth_status", "forbid_tools": ["execute"]}
+    "expect": {
+      "tool": "system",
+      "operation": "bluetooth_status",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   },
   {
     "id": "open_display_settings",
     "description": "Opening a Settings pane maps to open_settings (a deep link, not a mutation gated by execute).",
     "prompt": "Open the Display settings for me.",
-    "expect": {"tool": "system", "operation": "open_settings"}
+    "expect": {
+      "tool": "system",
+      "operation": "open_settings"
+    }
   },
   {
     "id": "preferred_wifi_list",
     "description": "Listing remembered Wi-Fi networks maps to list_preferred_wifi.",
     "prompt": "What Wi-Fi networks does this Mac remember?",
-    "expect": {"tool": "system", "operation": "list_preferred_wifi", "forbid_tools": ["execute"]}
+    "expect": {
+      "tool": "system",
+      "operation": "list_preferred_wifi",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "about_this_mac",
+    "description": "'What Mac do I have?' maps to the about_this_mac hardware/version overview, not a Settings window or a process read.",
+    "prompt": "What Mac do I have — which chip and how much memory?",
+    "expect": {
+      "tool": "system",
+      "operation": "about_this_mac",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "disk_free_space",
+    "description": "Free-disk-space questions map to the system disk_usage read (per-volume df), not filesystem du (which sizes a directory).",
+    "prompt": "How much free disk space do I have left?",
+    "expect": {
+      "tool": "system",
+      "operation": "disk_usage",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "uptime_since_boot",
+    "description": "'How long since reboot' maps to the uptime read.",
+    "prompt": "How long has my Mac been running since the last reboot?",
+    "expect": {
+      "tool": "system",
+      "operation": "uptime",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "pair_wireless_mouse",
+    "description": "Pairing a Bluetooth device has no CLI: the right move is open_settings (pane bluetooth) plus click-path guidance mentioning pairing mode. Opens a real Settings window when run.",
+    "prompt": "I want to pair my wireless mouse with my Mac.",
+    "expect": {
+      "tool": "system",
+      "operation": "open_settings",
+      "forbid_tools": [
+        "execute"
+      ],
+      "text_contains": [
+        "pairing"
+      ]
+    }
+  },
+  {
+    "id": "icloud_sign_in",
+    "description": "Apple Account / iCloud asks route to open_settings (pane apple_id) with sign-in guidance. Opens a real Settings window when run.",
+    "prompt": "Help me sign into iCloud on this Mac.",
+    "expect": {
+      "tool": "system",
+      "operation": "open_settings",
+      "forbid_tools": [
+        "execute"
+      ],
+      "text_contains": [
+        "iCloud"
+      ]
+    }
+  },
+  {
+    "id": "focus_dnd_toggle",
+    "description": "Focus/Do Not Disturb has no first-party CLI: route to open_settings (pane focus) with toggle guidance, not a refusal. Opens a real Settings window when run.",
+    "prompt": "Turn on Do Not Disturb.",
+    "expect": {
+      "tool": "system",
+      "operation": "open_settings",
+      "forbid_tools": [
+        "execute"
+      ],
+      "text_contains": [
+        "Focus"
+      ]
+    }
+  },
+  {
+    "id": "software_update_pending",
+    "description": "Update questions map to software_update_check. Manual: contacts Apple's servers and can take up to a minute.",
+    "manual": true,
+    "prompt": "Is my macOS up to date? Any updates pending?",
+    "expect": {
+      "tool": "system",
+      "operation": "software_update_check",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "list_input_sources",
+    "description": "Asking what typing languages/keyboards are enabled maps to the read list_input_sources (not the open_settings 'keyboard' hand-off, which is for ADDING one). CI-safe: every Mac has at least one input source, so the read succeeds.",
+    "prompt": "What keyboard input sources / typing languages do I have enabled right now?",
+    "expect": {
+      "tool": "system",
+      "operation": "list_input_sources",
+      "tool_succeeds": true,
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "list_airplay_devices",
+    "description": "Asking what's available to mirror/stream to maps to list_airplay_devices. Manual: it browses the local network for ~3 seconds and the result is hardware/network dependent (may be empty), so it is unsuitable for an unattended CI pass — assert only that the read succeeds.",
+    "manual": true,
+    "prompt": "What AirPlay devices can I mirror my screen to right now?",
+    "expect": {
+      "tool": "system",
+      "operation": "list_airplay_devices",
+      "tool_succeeds": true,
+      "forbid_tools": [
+        "execute"
+      ]
+    }
   }
 ]

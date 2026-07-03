@@ -1,6 +1,8 @@
 
 # Mac OS MCP Server
 
+![mcp-server-mac-os Banner](assets/banner.png)
+
 [![Platform: macOS 13+](https://img.shields.io/badge/platform-macOS%2013%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![Go 1.26+](https://img.shields.io/badge/Go-1.26%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![MCP](https://img.shields.io/badge/MCP-go--sdk%20v1.4.1-6E56CF)](https://modelcontextprotocol.io/)
@@ -11,7 +13,7 @@
 
 > This is a Model Context Protocol (MCP) server that turns plain-language requests
 > into safe, native macOS actions — your files, Mail, Calendar, Reminders, 
-> Messages, Notes, Contacts & calls, apps, printers, and system settings — 
+> Messages, Notes, Contacts & calls, Music, apps, printers, and system settings — 
 > from any MCP-aware client like **Claude Code** or **Claude Desktop**.
 
 Pair this server with an MCP-aware client like **Claude Code** or **Claude
@@ -31,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **15 domains, ~90 operations**, each invokable in plain
+the Mac you already use. **19 domains, 131 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -41,6 +43,7 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 `du` incantations.
 
 - *"What are the 10 biggest files under my home directory?"*
+- *"Find the presentation about Q3 planning."* · *"Search my Documents for anything about the annual budget."* *(Spotlight — searches contents and metadata, not just filenames)*
 - *"List every PNG, JPG, and HEIC under `~/Pictures`."*
 - *"Which files in this project mention `TODO`?"*
 - *"How big is my Downloads folder?"*
@@ -48,12 +51,17 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 - **"Create a folder called `drafts` in my Documents."** *(previewed; undoable)*
 - **"Move `test.txt` from Downloads to the Desktop."** · **"Move all the screenshots on my Desktop into `~/Desktop/screenshots`."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
 - **"Delete `old-draft.txt`."** *(moved to the Trash, never hard-deleted — previewed; undoable)*
+- **"Create a file called `notes.txt` in my Documents with these three lines."** *(previewed; creates new files only — never overwrites; undo trashes it)*
+- **"Add 'call the plumber' to the end of my `todo.txt`."** *(previewed; undo restores the file byte-for-byte)*
+- **"Zip up my `project` folder into `project.zip`."** · **"Extract `backup.tar.gz` into an empty folder."** *(previewed; undoable — a malicious archive can't write outside the folder you choose)*
 
 ### ✉️ Mail
 
-Search your inbox and draft outgoing mail — with the recipient and full body shown
+Read your inbox and draft outgoing mail — with the recipient and full body shown
 verbatim before anything sends.
 
+- *"Show me my most recent emails."* *(lists sender, subject, date — read-only)*
+- *"Open the one from billing and read it to me."* *(reads a single message's full body — read-only)*
 - *"Find emails mentioning invoice INV-4471."*
 - **"Email Alice to say I'll be 10 minutes late."** *(previewed; **cannot** be undone)*
 - **"Find my 2025 tax return and email it to my accountant."** *(locates the file, then attaches it)*
@@ -110,28 +118,107 @@ See what's installed and what's open, and drive your apps.
 - **"Open this PDF."** *(no app named — opens in your default app for that type)*
 - **"Open YouTube."** · **"Open CNN.com."** · **"Open YouTube on Chrome."** *(opens a website in your browser — previewed first; uses the default browser unless you name one)*
 - **"Quit Mail."** *(previewed first — unsaved work matters)*
+- **"Download Slack."** · **"Is Xcode on the App Store, and what does it cost?"** *(checks whether it's already installed, searches the Mac App Store, then opens the app's page for you to click "Get" — installing is always your call, never automated; if it isn't on the store, it points you to the vendor's download page instead)*
+- *"What windows do I have open, and where are they?"* *(lists each app's windows with position and size)*
+- **"Move the Safari window to the top-left."** · **"Make it 1200 × 800."** · **"Minimize the TextEdit window."** *(run immediately, and undo puts the window back)*
+- Window control uses the **Accessibility** permission (separate from Automation) — it says so plainly the first time if it isn't granted yet.
+
+### 🧭 Safari
+
+See what you have open in Safari — the assistant can read your tabs so it can
+answer "what was that page?" or pick up where you left off.
+
+- *"What tabs do I have open in Safari?"* *(lists every open tab — title and URL — grouped by window)*
+- *"What page am I looking at right now?"* *(just the front window's active tab)*
+- **Reads only.** It reads tab titles and addresses — it never runs code on a
+  page or reads page contents. Open URLs can reveal what you're browsing, so it
+  flags that these are private and reaches for them deliberately.
+- The first use may ask you to grant **Automation** access to Safari.
+
+### 👤 Contacts
+
+Look up a person's full address-book card, or add a new one.
+
+- *"Show me Jane's full contact card."* *(every field — phones, emails, postal
+  addresses, birthday, organization — not just a number)*
+- **"Add a contact for Jane Doe at Example Corp, email jane@example.com."**
+  *(staged for your confirmation; **undo deletes exactly the card it created** —
+  it's tagged with a hidden unique marker so no other contact can be touched)*
+- A contact card is personal data, so the read reaches for it deliberately; the
+  first use may ask you to grant **Automation** access to Contacts.
+
+### 🎵 Music
+
+Ask what's playing and drive playback in the Music app — hands-free skip and
+pause without leaving what you're doing.
+
+- *"What song is this?"* / *"What am I listening to?"* *(shows the track, artist,
+  album, and whether it's playing or paused)*
+- **"Pause my music."** / **"Skip this song."** / **"Go back a track."**
+  *(run immediately — pausing or skipping is its own reversal, so there's no undo
+  token; press play or skip again)*
+- It **never launches Music just to answer** — if Music isn't running it simply
+  says so.
+- The first time it controls Music, macOS may ask you to grant **Automation**
+  access to Music.
 
 ### 📸 Screenshots
 
-Give the assistant eyes on your screen — it captures the desktop to an image file
+Give the assistant eyes on your screen — it captures the screen to an image file
 and hands back the path (plus size and dimensions) so it can look at what you see.
+Capture the whole desktop, a rectangle you point out, or a single app's window.
 
 - *"Take a screenshot."* · *"Grab a screenshot of my second display as a JPG."*
+- *"Screenshot the 400×300 box at the top-left of my screen."* *(a specific
+  rectangle — give the x, y corner plus a width and height)*
+- *"Take a screenshot of the Safari window."* *(a single app's window — reads the
+  window's position and photographs just that area)*
 - *"Screenshot my screen and save it to ~/Desktop/login.png."* *(say where, or it
   defaults to `~/Pictures/Screenshots`; it won't overwrite an existing file)*
-- Needs the **Screen Recording** permission, and says so plainly if it isn't
-  granted yet.
+- All three need the **Screen Recording** permission; capturing a specific app
+  window additionally uses **Accessibility** + **Automation** (to read the
+  window's position). Any missing grant is called out plainly.
+
+### 📋 Clipboard
+
+Read what's on the clipboard, or put text on it.
+
+- *"What's on my clipboard?"* · *"Show me what I just copied."* *(text only; it
+  warns that the clipboard may hold something sensitive like a copied password)*
+- **"Copy this address to my clipboard."** *(runs immediately; undo puts back
+  whatever text was there before — unless the previous contents were an image or
+  too large to hold, in which case it tells you there's nothing to restore)*
 
 ### 🖨️ Printers & ⚙️ System
 
 Check hardware and network status, print, and jump straight to the right Settings
-pane for anything that needs admin rights.
+pane for anything that needs admin rights — or that simply has no command line at
+all (pairing, iCloud sign-in, Focus, keyboard languages, screen mirroring), where
+it opens the exact pane *and* tells you what to click once you're there.
 
 - *"What printers do I have, and are they on?"* · *"What's in the print queue?"*
 - **"Print this PDF."** · **"Print a test page on the office laser."**
-- *"Is Wi-Fi on, and what am I joined to?"* · *"Battery level? Is Low Power Mode on?"*
+- *"Is Wi-Fi on, and what am I joined to?"* · *"Battery level? Is Low Power Mode on? How's my battery health?"*
 - *"Is Bluetooth on? What's connected, and what's paired?"*
+- *"What Mac do I have — which chip, how much memory?"* · *"How long since my last reboot?"*
+- *"How much free disk space do I have?"* *(every mounted volume, sized like Finder shows)*
+- *"Am I up to date on macOS?"* *(read-only check — installing stays in System Settings)*
+- *"What can I mirror my screen to?"* *(finds AirPlay receivers — Apple TVs, TVs,
+  other Macs — on your network; starting the mirroring stays in the Displays pane)*
+- *"What keyboard languages / input sources do I have, and which is active?"*
 - **"Open System Settings to Wi-Fi."** *(opens the pane for you to finish)*
+- **"Pair my wireless mouse."** *(opens Bluetooth settings and walks you through pairing)*
+- **"Sign me into iCloud."** · **"Turn on Do Not Disturb."** · **"Add a Chinese
+  keyboard."** · **"Mirror my screen to the TV."** *(opens the Apple Account, Focus,
+  Keyboard, or Displays pane with click-by-click instructions)*
+- **"Notify me when the export is done."** · **"Say out loud that the backup finished."**
+  *(a Notification Center banner or spoken text-to-speech — the model's way to get
+  your attention when you're not watching the chat; runs immediately, nothing to undo)*
+- **"Turn off my display but keep everything running."** *(sleeps the screen at once —
+  wake it with a key press; nothing to undo from software)*
+- **"Turn my Wi-Fi off."** · **"Turn Wi-Fi back on."** *(toggles the Wi-Fi radio;
+  staged for confirmation because turning it off drops your connection, and undo
+  restores the previous state — joining a specific network still needs the Wi-Fi pane)*
 
 ### 🌐 Network & diagnostics
 
@@ -170,9 +257,12 @@ misbehaving one *gracefully* — never a force-kill.
 ### 🎛️ Preferences & accessibility
 
 Flip well-known Finder, Dock, keyboard, and accessibility toggles — a curated set
-of safe, reversible switches (no security-sensitive settings, ever).
+of safe, reversible switches (no security-sensitive settings, ever) — read back
+what any of them is currently set to, and switch between Dark and Light mode.
 
 - **"Show hidden files in Finder."** · **"Auto-hide the Dock."**
+- **"Is the Dock set to auto-hide right now?"** *(reads the current value)*
+- **"Switch my Mac to Dark mode."** *(and undo puts the prior appearance back)*
 - **"Turn on Reduce Motion."** · **"Increase contrast."**
 - **"Turn off smart quotes."** *(every one of these is undoable)*
 
@@ -279,15 +369,15 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 15 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`,
-`printer`, `system`, `network`, `process`, `screenshot`) plus the shared `execute`,
-`undo`, and `pipeline` tools. Try one of the prompts from
+You'll now have the 19 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`,
+`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`) plus the shared
+`execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
 > **Note on permissions:** reading Messages needs **Full Disk Access**, taking
 > screenshots needs **Screen Recording**, and automating
-> Mail/Calendar/Reminders/Contacts/Messages/Notes/Photos needs a one-time **Automation**
+> Mail/Calendar/Reminders/Contacts/Messages/Notes/Photos/Safari/Music needs a one-time **Automation**
 > grant — all prompted by macOS the first time, under *System Settings → Privacy &
 > Security*. Granting once is enough.
 
@@ -431,3 +521,5 @@ This README is the tour; the engineering details live alongside the code:
 
 Licensed under the **GNU Affero General Public License v3.0** — see
 [LICENSE](LICENSE). Contributions are accepted under the same license.
+
+Disclaimer: This project is an independent, open-source utility and is not affiliated with Apple Inc. Any Mac-specific logos in this README are trademarks of Apple Inc.

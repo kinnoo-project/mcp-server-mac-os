@@ -56,6 +56,40 @@ func TestStageMkdir_Plan(t *testing.T) {
 	}
 }
 
+// TestStageMkdir_ResolvesRelativePathAbsolute confirms a relative path is baked
+// into BOTH the forward mkdir and the rmdir inverse in absolute form, matching
+// every other filesystem mutator: undo may run long after staging, and a
+// relative path would silently target whatever the server's working directory
+// happens to be at that later moment.
+func TestStageMkdir_ResolvesRelativePathAbsolute(t *testing.T) {
+	base := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(base); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	plan, err := New().Stage(context.Background(), mkdirCap, map[string]any{"path": "child"})
+	if err != nil {
+		t.Fatalf("Stage: %v", err)
+	}
+	// filepath.Abs cleans symlinks-free lexical form; resolve base the same way
+	// (macOS TempDir often sits behind /private) by comparing basenames + Abs.
+	want, err := filepath.Abs("child")
+	if err != nil {
+		t.Fatalf("Abs: %v", err)
+	}
+	if got := plan.Forward.Args[len(plan.Forward.Args)-1]; got != want || !filepath.IsAbs(got) {
+		t.Errorf("forward path = %q, want the absolute %q", got, want)
+	}
+	if got := plan.Inverse.Args[len(plan.Inverse.Args)-1]; got != want {
+		t.Errorf("inverse path = %q, want the absolute %q", got, want)
+	}
+}
+
 // TestStageMkdir_RejectsExisting confirms staging refuses a path that already
 // exists, so undo can never delete a directory this action did not create.
 func TestStageMkdir_RejectsExisting(t *testing.T) {
@@ -70,6 +104,84 @@ func TestStageMkdir_RejectsExisting(t *testing.T) {
 func TestStageMkdir_RejectsDashLeading(t *testing.T) {
 	if _, err := New().Stage(context.Background(), mkdirCap, map[string]any{"path": "-rf"}); err == nil {
 		t.Fatal("expected Stage to reject a dash-leading path")
+	}
+}
+
+// TestRunCommand_StdinIsPureData proves the Command.Stdin channel delivers a
+// payload to the child verbatim: content full of flag-like and metacharacter
+// text (`-e`, `--`, `$(...)`) comes back from cat byte-for-byte — asserted by
+// exact equality, so no prefix/suffix bytes slipped in — demonstrating stdin
+// bytes are never parsed as options or paths. This is the injection-safety
+// property that lets write_file/write_clipboard-style mutators carry
+// model-controlled content without argv hardening. (The guarantee is argv-only:
+// mutators must still pair Stdin with a data sink like tee/pbcopy, never an
+// interpreter that executes its stdin.)
+func TestRunCommand_StdinIsPureData(t *testing.T) {
+	hostile := "-e beep\n--flag-looking line\n$(rm -rf ~) `id` ; echo pwned\n"
+	out, err := New().RunCommand(context.Background(), Command{
+		Binary: "cat",
+		Stdin:  []byte(hostile),
+	})
+	if err != nil {
+		t.Fatalf("RunCommand: %v", err)
+	}
+	if out != hostile {
+		t.Errorf("stdin payload must round-trip byte-for-byte as data; got %q, want %q", out, hostile)
+	}
+}
+
+// TestRunCommand_StdinSizeCap proves the engine-wide stdin ceiling: a payload
+// over maxStdinBytes is refused before any subprocess runs, guarding the
+// in-memory transaction stores (and the child) against unbounded payloads.
+func TestRunCommand_StdinSizeCap(t *testing.T) {
+	orig := maxStdinBytes
+	maxStdinBytes = 64
+	defer func() { maxStdinBytes = orig }()
+
+	_, err := New().RunCommand(context.Background(), Command{
+		Binary: "cat",
+		Stdin:  []byte(strings.Repeat("x", 65)),
+	})
+	if err == nil || !strings.Contains(err.Error(), "exceeding") {
+		t.Fatalf("expected over-limit stdin to be refused, got err = %v", err)
+	}
+}
+
+// TestRunCommand_NilStdinUnchanged pins the zero-value behavior: a Command
+// without a payload runs exactly as before the Stdin field existed.
+func TestRunCommand_NilStdinUnchanged(t *testing.T) {
+	out, err := New().RunCommand(context.Background(), Command{Binary: "echo", Args: []string{"ok"}})
+	if err != nil {
+		t.Fatalf("RunCommand: %v", err)
+	}
+	if !strings.Contains(out, "ok") {
+		t.Errorf("expected plain argv output, got %q", out)
+	}
+}
+
+// TestPreviewSnippet covers the preview-rendering contract: byte counts are
+// exact, only the first line is shown, long or multi-line payloads are marked
+// as elided, and control characters arrive escaped rather than raw.
+func TestPreviewSnippet(t *testing.T) {
+	long := strings.Repeat("a", 100)
+	cases := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"empty", "", "empty (0 bytes)"},
+		{"single_line", "hello", `5 bytes: "hello"`},
+		{"multi_line_elided", "first\nsecond", `12 bytes, beginning "first" …`},
+		{"long_line_truncated", long, `100 bytes, beginning "` + strings.Repeat("a", 80) + `" …`},
+		{"crlf_trimmed", "top\r\nrest", `9 bytes, beginning "top" …`},
+		{"control_chars_escaped", "bad\x1b[31m", `8 bytes: "bad\x1b[31m"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := previewSnippet([]byte(tc.content)); got != tc.want {
+				t.Errorf("previewSnippet(%q) = %q, want %q", tc.content, got, tc.want)
+			}
+		})
 	}
 }
 

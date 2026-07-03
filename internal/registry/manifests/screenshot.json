@@ -1,7 +1,7 @@
 [
   {
     "name": "capture_screen",
-    "summary": "Capture the screen to an image file and return its path, dimensions, and size. Saves to ~/Pictures/Screenshots by default; pass output_path to save elsewhere. Requires the Screen Recording permission (a denied permission is reported with a grant hint). Captures the whole desktop, not a specific window or region (those are not yet supported).",
+    "summary": "Capture the whole desktop to an image file and return its path, dimensions, and size. Saves to ~/Pictures/Screenshots by default; pass output_path to save elsewhere. Requires the Screen Recording permission (a denied permission is reported with a grant hint). For a rectangle use capture_region; for a single app window use capture_window.",
     "category": "screenshot",
     "binary": "screencapture",
     "reversibility": "read_only",
@@ -20,6 +20,103 @@
         "type": "int",
         "required": false,
         "description": "1-based index of the display to capture (1 = main). Omit for the main display.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "format",
+        "type": "enum",
+        "required": false,
+        "default": "png",
+        "enum": ["png", "jpg", "pdf", "tiff"],
+        "description": "Image file format (default png).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "capture_region",
+    "summary": "Capture a rectangular region of the screen to an image file and return its path, dimensions, and size. Give the rectangle as x, y (top-left, in screen points; 0,0 is the top-left of the main display and negatives are allowed on multi-monitor setups) plus width and height. Saves to ~/Pictures/Screenshots by default; pass output_path to save elsewhere. Requires the Screen Recording permission.",
+    "category": "screenshot",
+    "binary": "screencapture",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "capture_region",
+    "params": [
+      {
+        "name": "x",
+        "type": "int",
+        "required": true,
+        "description": "Left edge of the region in screen points (0 = left of the main display; may be negative on a multi-monitor setup).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "y",
+        "type": "int",
+        "required": true,
+        "description": "Top edge of the region in screen points (0 = top of the main display).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "width",
+        "type": "int",
+        "required": true,
+        "description": "Width of the region in points (must be at least 1).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "height",
+        "type": "int",
+        "required": true,
+        "description": "Height of the region in points (must be at least 1).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "output_path",
+        "type": "path",
+        "required": false,
+        "description": "Where to save. An existing directory (e.g. ~/Desktop) → file created inside with a generated name; otherwise the full file path (e.g. ~/Desktop/crop.png), parent created if needed. A known image extension here sets the format. Leading ~ ok. Won't overwrite. Omit for ~/Pictures/Screenshots.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "format",
+        "type": "enum",
+        "required": false,
+        "default": "png",
+        "enum": ["png", "jpg", "pdf", "tiff"],
+        "description": "Image file format (default png).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "capture_window",
+    "summary": "Capture a single app's window to an image file and return its path, dimensions, and size. Reads the window's current on-screen bounds via System Events and photographs that rectangle. Targets the front window by default, or pass 'window_index' (1 = frontmost). Saves to ~/Pictures/Screenshots by default; pass output_path to save elsewhere. Requires the Screen Recording permission PLUS Accessibility and Automation access (used to read the window's position); a missing grant is reported with a hint. Captures whatever is on screen at those coordinates, so an overlapping window would appear in the shot.",
+    "category": "screenshot",
+    "binary": "screencapture",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "capture_window",
+    "params": [
+      {
+        "name": "app",
+        "type": "string",
+        "required": true,
+        "description": "App (process) name whose window to capture, e.g. 'Safari'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "window_index",
+        "type": "int",
+        "required": false,
+        "default": 1,
+        "description": "Which window (1 = frontmost, 2 = next, ...). Defaults to the front window.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "output_path",
+        "type": "path",
+        "required": false,
+        "description": "Where to save. An existing directory (e.g. ~/Desktop) → file created inside with a generated name; otherwise the full file path (e.g. ~/Desktop/win.png), parent created if needed. A known image extension here sets the format. Leading ~ ok. Won't overwrite. Omit for ~/Pictures/Screenshots.",
         "arg": { "kind": "none" }
       },
       {

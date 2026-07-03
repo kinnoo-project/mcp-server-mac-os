@@ -1,0 +1,45 @@
+[
+  {
+    "name": "now_playing",
+    "summary": "Show what Music.app is currently playing — the track title, artist, album, and whether it is playing, paused, or stopped. Answers 'what song is this?' / 'what am I listening to?'. Read-only. Reports plainly when Music isn't running (it is never launched just to answer). Drives Music via AppleScript, so the first use may prompt to grant this app Automation access to Music.",
+    "category": "application-music",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "now_playing",
+    "params": []
+  },
+  {
+    "name": "play_pause",
+    "summary": "Toggle Music.app playback: start playing if paused/stopped, or pause if playing. Runs immediately; cannot be undone from software (playing/pausing is its own manual reversal — press it again). Fails cleanly if Music isn't running (it is never launched). Drives Music via AppleScript; the first use may prompt to grant Automation access to Music.",
+    "category": "application-music",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "play_pause",
+    "auto_commit": true,
+    "params": []
+  },
+  {
+    "name": "next_track",
+    "summary": "Skip to the next track in Music.app's current playback queue. Runs immediately; cannot be undone from software (use previous_track to go back). Fails cleanly if Music isn't running (it is never launched). Drives Music via AppleScript; the first use may prompt to grant Automation access to Music.",
+    "category": "application-music",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "next_track",
+    "auto_commit": true,
+    "params": []
+  },
+  {
+    "name": "previous_track",
+    "summary": "Go back to the previous track in Music.app's current playback queue (or restart the current one, matching the Music app's own behaviour). Runs immediately; cannot be undone from software (use next_track to go forward). Fails cleanly if Music isn't running (it is never launched). Drives Music via AppleScript; the first use may prompt to grant Automation access to Music.",
+    "category": "application-music",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "previous_track",
+    "auto_commit": true,
+    "params": []
+  }
+]

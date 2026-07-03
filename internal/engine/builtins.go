@@ -28,12 +28,21 @@ type BuiltinFunc func(ctx context.Context, c registry.Capability, in map[string]
 // map is run as a subprocess. The two sets are disjoint.
 var builtins = map[string]BuiltinFunc{
 	"pwd":                runPwd,
+	"read_setting":       runReadSetting,
 	"largest_files":      runLargestFiles,
+	"spotlight_search":   runSpotlightSearch,
+	"read_clipboard":     runReadClipboard,
 	"search_mail":        runSearchMail,
+	"list_inbox":         runListInbox,
+	"read_message":       runReadMessage,
+	"list_tabs":          runListTabs,
+	"current_tab":        runCurrentTab,
+	"now_playing":        runNowPlaying,
 	"list_calendars":     runListCalendars,
 	"query_events":       runQueryEvents,
 	"list_reminders":     runListReminders,
 	"find_contact":       runFindContact,
+	"get_contact":        runGetContact,
 	"check_messages":     runCheckMessages,
 	"search_messages":    runSearchMessages,
 	"read_conversation":  runReadConversation,
@@ -58,7 +67,9 @@ var builtins = map[string]BuiltinFunc{
 
 	"list_applications":         runListApplications,
 	"search_applications":       runSearchApplications,
+	"search_app_store":          runSearchAppStore,
 	"list_running_applications": runListRunningApplications,
+	"list_windows":              runListWindows,
 
 	"list_printers":   runListPrinters,
 	"list_print_jobs": runListPrintJobs,
@@ -68,7 +79,16 @@ var builtins = map[string]BuiltinFunc{
 	"bluetooth_status":    runBluetoothStatus,
 	"power_status":        runPowerStatus,
 
+	"about_this_mac":        runAboutThisMac,
+	"disk_usage":            runDiskUsage,
+	"software_update_check": runSoftwareUpdateCheck,
+
+	"list_airplay_devices": runListAirplayDevices,
+	"list_input_sources":   runListInputSources,
+
 	"capture_screen": runCaptureScreen,
+	"capture_region": runCaptureRegion,
+	"capture_window": runCaptureWindow,
 
 	"current_network": runCurrentNetwork,
 	"dns_servers":     runDNSServers,

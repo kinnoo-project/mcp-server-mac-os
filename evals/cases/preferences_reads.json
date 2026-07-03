@@ -1,0 +1,28 @@
+[
+  {
+    "id": "read_dock_autohide",
+    "description": "Asking the current value of a curated preference maps to the preferences tool's read_setting (not write_setting, and not a Settings hand-off). CI-safe: defaults read succeeds whether the key is on, off, or unset.",
+    "prompt": "Is my Dock currently set to auto-hide?",
+    "expect": {
+      "tool": "preferences",
+      "operation": "read_setting",
+      "tool_succeeds": true,
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
+    "id": "read_finder_hidden_files",
+    "description": "'Are hidden files showing in Finder?' is a read of an existing preference, so it maps to read_setting rather than write_setting. CI-safe.",
+    "prompt": "Are hidden files showing in Finder right now?",
+    "expect": {
+      "tool": "preferences",
+      "operation": "read_setting",
+      "tool_succeeds": true,
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  }
+]

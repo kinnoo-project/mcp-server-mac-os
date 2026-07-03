@@ -12,10 +12,20 @@ or NOPASSWD, and is a hard line per the project rules). They are therefore
   queue and points the user at `system.open_settings` (pane `printers`).
 - **Low Power Mode toggle** — `pmset -a lowpowermode 1` requires admin. `system`
   exposes `power_status` (read) only; the toggle is left to Settings.
-- **Bluetooth / Wi-Fi power toggles** — no first-party non-admin CLI exists
-  (`blueutil` is third-party and would be rejected by the directory-based policy
-  allowlist anyway). Reads (`bluetooth_status`, `wifi_status`) are provided; the
-  toggles route through `open_settings` (panes `bluetooth` / `wifi`).
+- **Bluetooth power toggle** — no first-party non-admin CLI exists (`blueutil` is
+  third-party and would be rejected by the directory-based policy allowlist
+  anyway). The read (`bluetooth_status`) is provided; the toggle routes through
+  `open_settings` (pane `bluetooth`).
+- **Wi-Fi power toggle** — RESOLVED (2026-07-03, U15): `networksetup
+  -setairportpower <device> on|off` turns the radio on/off and, contrary to this
+  doc's original claim, does **not** require admin — verified by a live non-admin
+  check that completed without a password prompt. It now ships as the `system`
+  domain's `wifi_set_power` op (reversible/medium, **staged** — never auto-commit
+  — because turning Wi-Fi off severs connectivity; the inverse restores the power
+  state probed at stage time). The read (`wifi_status`) remains. Note the
+  narrower gap that is still real: *joining a specific network* has no non-admin
+  CLI (the `airport -s` scan was removed and `wdutil`/network add need sudo), so
+  picking a network still routes through `open_settings` (pane `wifi`).
 - **Listing nearby/available Wi-Fi networks to join** — the legacy `airport -s`
   scan CLI was removed in recent macOS, and `wdutil` requires sudo.
   `list_preferred_wifi` (remembered networks) is provided; joining a new network

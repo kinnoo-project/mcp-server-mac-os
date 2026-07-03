@@ -16,5 +16,47 @@
     "description": "There is no discovery tool any more (Pattern A was replaced by domain tools whose descriptions embed the full menu) -- the model should be able to answer 'what can you do' from the tool descriptions it already has, without calling anything.",
     "prompt": "Without doing anything yet, what kinds of things can you help me with on this Mac?",
     "expect": { "tool": "" }
+  },
+  {
+    "id": "list_windows_routing",
+    "description": "Asking which windows are open on screen should select application/list_windows (the window inspector), not list_running_applications (which only names running apps, without windows/positions).",
+    "prompt": "What windows do I have open on screen right now, and where are they positioned?",
+    "expect": { "tool": "application", "operation": "list_windows" }
+  },
+  {
+    "id": "list_tabs_routing",
+    "description": "Asking what browser tabs are open should select application-safari/list_tabs, not the application-window inspector (list_windows) or the running-apps list. Selection-only: executing it reads the machine's live open tab URLs, so real-content assertions live in the manual smoke list; in CI (no personal browsing) routing is all that is checked.",
+    "prompt": "What tabs do I have open in Safari right now?",
+    "expect": { "tool": "application-safari", "operation": "list_tabs" }
+  },
+  {
+    "id": "current_tab_routing",
+    "description": "Asking what page the user is currently looking at should select application-safari/current_tab (the front window's active tab), not list_tabs (the whole set). Selection-only for the same privacy reason as list_tabs_routing.",
+    "prompt": "What web page am I currently looking at in Safari?",
+    "expect": { "tool": "application-safari", "operation": "current_tab" }
+  },
+  {
+    "id": "get_contact_routing",
+    "description": "Asking for a person's FULL contact details (address, email, birthday — not just a number) should select application-contacts/get_contact, not application-phone/find_contact (numbers only). Selection-only: executing it reads the machine's real Contacts, so content assertions live in the manual smoke list; in CI routing is all that is checked. The name is a fake placeholder.",
+    "prompt": "Show me Jane Doe's full contact card — her email and address, not just her phone.",
+    "expect": { "tool": "application-contacts", "operation": "get_contact" }
+  },
+  {
+    "id": "create_contact_routing",
+    "description": "Adding a new person to Contacts should stage application-contacts/create_contact and NOT commit (forbid_tools execute), so this is CI-safe: staging never touches the real Contacts database, it only builds the plan + confirmation token. Fake placeholder identity only — no real PII.",
+    "prompt": "Create a new contact for Jane Doe at Example Corp, email jane@example.com.",
+    "expect": { "tool": "application-contacts", "operation": "create_contact", "forbid_tools": ["execute"] }
+  },
+  {
+    "id": "now_playing_routing",
+    "description": "Asking what song is playing should select application-music/now_playing, not the running-apps list or a window inspector. Selection-only: executing it reads live playback (what the user is listening to), so real-content assertions live in the manual smoke list; in CI routing is all that is checked. The play/pause/skip CONTROLS are auto-commit side effects, so they are deliberately kept out of this selection suite and only exercised manually.",
+    "prompt": "What song is playing right now?",
+    "expect": { "tool": "application-music", "operation": "now_playing" }
+  },
+  {
+    "id": "search_app_store_routing",
+    "description": "Asking whether an app is on the Mac App Store (and its price) should select application/search_app_store, not search_applications (that only checks what is ALREADY installed locally) or open_website. Selection-only: the operation makes a live outbound request to Apple's search API, so real result assertions live in the manual smoke list; in CI only the selection is checked (it holds even offline, since the expectation asserts tool+operation, not success).",
+    "prompt": "Is Slack on the Mac App Store, and what does it cost?",
+    "expect": { "tool": "application", "operation": "search_app_store" }
   }
 ]

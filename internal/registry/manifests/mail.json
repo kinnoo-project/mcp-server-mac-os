@@ -26,6 +26,50 @@
     ]
   },
   {
+    "name": "list_inbox",
+    "summary": "List the most recent messages in Mail.app's inbox (or a named mailbox): sender, subject, date received, and the message id you pass to read_message. Read-only. Drives Mail via AppleScript, so the first use may prompt to grant Automation access to Mail.",
+    "category": "application-mail",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_inbox",
+    "params": [
+      {
+        "name": "mailbox",
+        "type": "string",
+        "required": false,
+        "description": "Name of a specific mailbox to list (e.g. 'Sent', 'Archive'). Omit to list the unified Inbox.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 20,
+        "description": "Max messages to return (default 20, hard cap 50).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "read_message",
+    "summary": "Read one email's full plain-text body (plus sender/subject/date) by its message id from list_inbox. Read-only. PRIVACY: this returns real personal mail content, so invoke it deliberately. Drives Mail via AppleScript; the first use may prompt to grant Automation access to Mail. A stale id (message since moved/deleted) can be slow: Mail falls back to scanning every mailbox before reporting it missing.",
+    "category": "application-mail",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "read_message",
+    "params": [
+      {
+        "name": "id",
+        "type": "string",
+        "required": true,
+        "description": "The message id from list_inbox. Located across the inbox and all account mailboxes.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
     "name": "send_mail",
     "summary": "Compose and SEND a real email via Mail.app. Irreversible: there is no undo for a sent email.",
     "category": "application-mail",

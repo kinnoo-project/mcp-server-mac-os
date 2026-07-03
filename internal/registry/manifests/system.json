@@ -31,7 +31,7 @@
   },
   {
     "name": "power_status",
-    "summary": "Report power and battery state: the current power source, battery charge and charging status, and whether Low Power Mode is on.",
+    "summary": "Report power and battery state: the current power source, battery charge and charging status, whether Low Power Mode is on, and battery health (condition, cycle count, maximum capacity) on machines with a battery.",
     "category": "system",
     "binary": "pmset",
     "reversibility": "read_only",
@@ -40,8 +40,68 @@
     "params": []
   },
   {
+    "name": "about_this_mac",
+    "summary": "Report what this Mac is: macOS version and build, model, chip/CPU, core count, memory, and serial number.",
+    "category": "system",
+    "binary": "sw_vers",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "about_this_mac",
+    "params": []
+  },
+  {
+    "name": "uptime",
+    "summary": "Report how long this Mac has been running since its last boot (plus load averages).",
+    "category": "system",
+    "binary": "uptime",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "generic",
+    "params": []
+  },
+  {
+    "name": "disk_usage",
+    "summary": "Report every mounted volume with its total size, used space, and free space (what Finder shows, in SI units).",
+    "category": "system",
+    "binary": "df",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "disk_usage",
+    "params": []
+  },
+  {
+    "name": "software_update_check",
+    "summary": "Check Apple's update service for pending macOS/software updates (read-only — never downloads or installs; installing is an open_settings hand-off). Contacts Apple's servers and can take up to a minute.",
+    "category": "system",
+    "binary": "softwareupdate",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "software_update_check",
+    "params": []
+  },
+  {
+    "name": "list_airplay_devices",
+    "summary": "List AirPlay receivers (Apple TVs, AirPlay-capable TVs/speakers, other Macs) reachable on the local network right now — answers 'what can I mirror or stream to?'. Read-only discovery; it does NOT start mirroring (there is no command line to begin it) — hand that off with open_settings (pane 'displays'). May be empty if no receivers are on, and the host app may need Local Network access on first use.",
+    "category": "system",
+    "binary": "dns-sd",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_airplay_devices",
+    "params": []
+  },
+  {
+    "name": "list_input_sources",
+    "summary": "List the enabled keyboard layouts and input methods (typing languages) and mark which one is currently active — answers 'what can I type in?'. Read-only. Adding/removing a language or switching the active source has no command line; hand that off with open_settings (pane 'keyboard').",
+    "category": "system",
+    "binary": "defaults",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "list_input_sources",
+    "params": []
+  },
+  {
     "name": "open_settings",
-    "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly because they need admin rights — e.g. connecting/re-enabling a printer, joining a Wi-Fi network, toggling Bluetooth, changing battery/Low-Power settings. Runs immediately; cannot be undone (it just opens a window).",
+    "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly — because they need admin rights (connecting/re-enabling a printer, joining a Wi-Fi network, battery/Low-Power settings) or have no command line at all (pairing a Bluetooth device, signing into iCloud, toggling a Focus, adding a keyboard language, starting screen mirroring). ALWAYS tell the user the exact click-path to finish in the opened pane — e.g. bluetooth: 'put the device in pairing mode, then click Connect next to it under Nearby Devices'; apple_id: 'sign in or manage iCloud here'; focus: 'turn a Focus like Do Not Disturb on or off here'; keyboard: 'Text Input > Input Sources > Edit, then + to add a language'; displays: 'the AirPlay/mirroring control is the + dropdown here'. Runs immediately; cannot be undone (it just opens a window).",
     "category": "system",
     "binary": "open",
     "reversibility": "irreversible",
@@ -53,8 +113,84 @@
         "name": "pane",
         "type": "enum",
         "required": true,
-        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network"],
-        "description": "Which System Settings pane to open.",
+        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network", "focus", "keyboard", "apple_id"],
+        "description": "Which System Settings pane to open. 'focus' = Focus/Do Not Disturb; 'keyboard' = keyboard and input sources (add/change a typing language); 'apple_id' = Apple Account / iCloud; 'displays' = display arrangement and AirPlay screen mirroring.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "notify",
+    "summary": "Post a macOS notification banner to get the user's attention — e.g. to signal that a long-running task finished or that you need input. Runs immediately; cannot be undone (a shown notification can't be recalled). If nothing appears, the host app needs Notifications enabled in System Settings > Notifications.",
+    "category": "system",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "notify",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "message",
+        "type": "string",
+        "required": true,
+        "description": "The notification body text.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "default": "Notification",
+        "description": "The bold title line shown above the message.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "speak",
+    "summary": "Speak text aloud through the Mac's speakers using the system voice (text-to-speech). Use to get the user's attention audibly. Runs immediately; cannot be undone (audio plays at once). Text is capped at 2000 characters.",
+    "category": "system",
+    "binary": "say",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "speak",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "text",
+        "type": "string",
+        "required": true,
+        "description": "The text to speak aloud (up to 2000 characters).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "display_sleep",
+    "summary": "Put the display(s) to sleep immediately (turn the screen off) without sleeping the whole Mac. Runs immediately; cannot be undone from software — waking the screen is a manual action (press a key or move the mouse). Does not lock the Mac or stop any running work.",
+    "category": "system",
+    "binary": "pmset",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "display_sleep",
+    "auto_commit": true,
+    "params": []
+  },
+  {
+    "name": "wifi_set_power",
+    "summary": "Turn the Wi-Fi radio on or off. Staged for confirmation because turning Wi-Fi off disconnects this Mac from any Wi-Fi network. Reversible: undo restores the previous power state. To JOIN a specific network (rather than toggle the radio) there is no non-admin command — use open_settings (pane 'wifi').",
+    "category": "system",
+    "binary": "networksetup",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "wifi_set_power",
+    "params": [
+      {
+        "name": "power",
+        "type": "enum",
+        "required": true,
+        "enum": ["on", "off"],
+        "description": "Whether to turn the Wi-Fi radio 'on' or 'off'.",
         "arg": { "kind": "none" }
       }
     ]
