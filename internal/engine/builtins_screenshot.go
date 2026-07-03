@@ -89,14 +89,20 @@ func runCaptureScreen(ctx context.Context, _ registry.Capability, in map[string]
 
 // captureRequest bundles everything the shared capture spine needs. Each caller
 // (capture_screen / capture_region / capture_window) fills in only the fields its
-// grammar uses: capture_screen sets display; the region captures set region; all
-// three read format and output_path straight from in.
+// grammar uses: capture_screen sets display; the region captures set regionFn;
+// all three read format and output_path straight from in.
 type captureRequest struct {
 	op         string         // capability name, used in error messages
 	in         map[string]any // normalized params (format, output_path already tilde-expanded)
 	display    int            // 1-based display index for -D (capture_screen only)
 	hasDisplay bool           // whether display was supplied
-	region     *captureRegion // -R crop, or nil for the whole display
+	// regionFn, when non-nil, computes the -R crop. It is called only AFTER the
+	// cheap input validation (format, output_path, no-overwrite) has passed, so a
+	// caller that must do permission-gated work to find the rectangle
+	// (capture_window's System Events probe) never triggers a permission prompt
+	// for a request that was going to be rejected on its output_path anyway. A nil
+	// regionFn means "no -R" (capture the whole display).
+	regionFn func() (*captureRegion, error)
 }
 
 // runCapture is the shared spine of all three screenshot builtins. It resolves
@@ -104,6 +110,12 @@ type captureRequest struct {
 // that keeps captures in the read-only lane, runs screencapture with the caller's
 // region/display selection, and turns a silent Screen Recording denial (an empty
 // or missing file, often with exit 0) into an actionable grant message.
+//
+// Ordering matters: all the cheap, non-prompting validation (format, output path,
+// overwrite check) happens BEFORE regionFn is invoked, so a permission-gated crop
+// computation (capture_window's window-bounds probe) cannot fire — and cannot
+// surface a permission prompt — for a request that a dash-leading or occupied
+// output_path would reject regardless.
 func runCapture(ctx context.Context, r captureRequest) (string, error) {
 	format, _ := getString(r.in, "format") // enum-validated by the normalizer; defaults to "png"
 	if _, ok := screenshotFormats[format]; !ok {
@@ -129,12 +141,22 @@ func runCapture(ctx context.Context, r captureRequest) (string, error) {
 		return "", fmt.Errorf("%s: refusing to overwrite existing file %s; choose a different name or omit output_path", r.op, outPath)
 	}
 
+	// Only now — after the cheap validation has passed — compute the crop. For
+	// capture_window this is the permission-gated System Events probe.
+	var region *captureRegion
+	if r.regionFn != nil {
+		region, err = r.regionFn()
+		if err != nil {
+			return "", err
+		}
+	}
+
 	bin, err := policy.ResolveBinary("screencapture")
 	if err != nil {
 		return "", err
 	}
 
-	args := screencaptureArgs(format, r.display, r.hasDisplay, r.region, outPath)
+	args := screencaptureArgs(format, r.display, r.hasDisplay, region, outPath)
 	res, err := runCommand(ctx, bin, args...)
 	if err != nil {
 		return "", err

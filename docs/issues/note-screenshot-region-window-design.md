@@ -36,6 +36,16 @@ reported as zero-size (a fully minimized or off-screen window) is rejected with 
 clear message rather than producing an empty image the create-only spine would
 then misread as a permission failure.
 
+## Fail-fast ordering (capture_window)
+
+Because the window-bounds read is permission-gated, `runCapture` defers it behind
+a `regionFn` callback and runs it only *after* the cheap, non-prompting validation
+(format, `output_path` dash-leading guard, no-overwrite check) has passed. So a
+request with an obviously-invalid `output_path` is rejected before any System
+Events call — it never provokes a spurious Automation/Accessibility prompt for a
+request that was going to fail on its path anyway.
+`TestCaptureWindow_RejectsDashLeadingOutputPathFast` pins this ordering.
+
 ## Permissions
 
 - `capture_region` needs only **Screen Recording** (same as `capture_screen`).

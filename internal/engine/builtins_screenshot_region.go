@@ -43,19 +43,25 @@ func runCaptureRegion(ctx context.Context, _ registry.Capability, in map[string]
 		return "", fmt.Errorf("capture_region: 'y' is required")
 	}
 	// width/height reuse positiveDimension (mutate_windowing.go): required,
-	// at least 1 pixel, and bounded by maxWindowDimension against overflow-prone
-	// or absurd values.
-	width, err := positiveDimension("capture_region", "width", in)
+	// at least 1 point, and bounded by maxWindowDimension against overflow-prone
+	// or absurd values. The "point" unit word matches the manifest's vocabulary
+	// (screencapture geometry is in screen points, not raw pixels).
+	width, err := positiveDimension("capture_region", "width", "point", in)
 	if err != nil {
 		return "", err
 	}
-	height, err := positiveDimension("capture_region", "height", in)
+	height, err := positiveDimension("capture_region", "height", "point", in)
 	if err != nil {
 		return "", err
 	}
 
+	// The rectangle is fully known already, so regionFn just hands it back; there
+	// is no permission-gated work to defer for capture_region.
 	region := &captureRegion{x: x, y: y, w: width, h: height}
-	return runCapture(ctx, captureRequest{op: "capture_region", in: in, region: region})
+	return runCapture(ctx, captureRequest{
+		op: "capture_region", in: in,
+		regionFn: func() (*captureRegion, error) { return region, nil },
+	})
 }
 
 // runCaptureWindow captures a specific app window by first reading its current
@@ -67,23 +73,30 @@ func runCaptureRegion(ctx context.Context, _ registry.Capability, in map[string]
 // injection is possible.
 //
 // A zero-size window (width or height reported as 0, which a fully minimized or
-// off-screen window can be) is rejected up front: screencapture -R with a zero
-// dimension would silently produce an empty image that our create-only spine
-// would then treat as a permission failure, so we give a clearer error instead.
+// off-screen window can be) is rejected: screencapture -R with a zero dimension
+// would silently produce an empty image that our create-only spine would then
+// treat as a permission failure, so we give a clearer error instead.
+//
+// The window-bounds read is deferred into regionFn so runCapture invokes it only
+// AFTER validating format/output_path. That ordering matters because the probe is
+// permission-gated: a request with a dash-leading output_path is rejected before
+// the probe runs, so it never provokes an Automation/Accessibility prompt for a
+// request that was going to fail on its path anyway.
 func runCaptureWindow(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
 	t, err := parseWindowTarget("capture_window", in)
 	if err != nil {
 		return "", err
 	}
 
-	x, y, w, h, err := probeWindowGeometry(ctx, "capture_window", t)
-	if err != nil {
-		return "", err
+	regionFn := func() (*captureRegion, error) {
+		x, y, w, h, err := probeWindowGeometry(ctx, "capture_window", t)
+		if err != nil {
+			return nil, err
+		}
+		if w < 1 || h < 1 {
+			return nil, fmt.Errorf("capture_window: %s's %s reports a zero-size rectangle (%d×%d); it may be minimized or off-screen, so there is nothing to capture", t.app, windowLabel(t.index), w, h)
+		}
+		return &captureRegion{x: x, y: y, w: w, h: h}, nil
 	}
-	if w < 1 || h < 1 {
-		return "", fmt.Errorf("capture_window: %s's %s reports a zero-size rectangle (%d×%d); it may be minimized or off-screen, so there is nothing to capture", t.app, windowLabel(t.index), w, h)
-	}
-
-	region := &captureRegion{x: x, y: y, w: w, h: h}
-	return runCapture(ctx, captureRequest{op: "capture_window", in: in, region: region})
+	return runCapture(ctx, captureRequest{op: "capture_window", in: in, regionFn: regionFn})
 }

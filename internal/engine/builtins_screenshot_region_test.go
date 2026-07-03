@@ -92,6 +92,28 @@ func TestCaptureWindow_RejectsBadIndex(t *testing.T) {
 	}
 }
 
+// TestCaptureWindow_RejectsDashLeadingOutputPathFast pins the fail-fast ordering:
+// a dash-leading output_path must be rejected by the shared path guard BEFORE the
+// permission-gated System Events window-bounds probe runs, so an obviously-invalid
+// request never provokes an Automation/Accessibility prompt. We assert both that it
+// errors and that the error is the path-guard message (not a windowScriptError),
+// which is only produced if path validation ran first. The app here does not need
+// to exist: if the probe were (wrongly) reached first, the failure text would
+// differ. A valid format is supplied so the format check does not short-circuit
+// ahead of the path check.
+func TestCaptureWindow_RejectsDashLeadingOutputPathFast(t *testing.T) {
+	cap := lookupCapability(t, "capture_window")
+	_, err := runCaptureWindow(context.Background(), cap, map[string]any{
+		"app": "Finder", "format": "png", "output_path": "-oops.png",
+	})
+	if err == nil {
+		t.Fatal("expected a dash-leading output_path to be rejected")
+	}
+	if !strings.Contains(err.Error(), "must not begin with") {
+		t.Errorf("expected the fail-fast path-guard error (proving it ran before the window probe), got: %v", err)
+	}
+}
+
 // TestCaptureRegion_Live actually captures a small region. Skipped unless
 // MCP_SCREENSHOT_LIVE=1 because it needs a real display and Screen Recording.
 func TestCaptureRegion_Live(t *testing.T) {

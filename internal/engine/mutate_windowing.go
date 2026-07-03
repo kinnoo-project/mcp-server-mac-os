@@ -223,11 +223,11 @@ func stageResizeWindow(ctx context.Context, _ registry.Capability, in map[string
 	if err != nil {
 		return nil, err
 	}
-	width, err := positiveDimension("resize_window", "width", in)
+	width, err := positiveDimension("resize_window", "width", "pixel", in)
 	if err != nil {
 		return nil, err
 	}
-	height, err := positiveDimension("resize_window", "height", in)
+	height, err := positiveDimension("resize_window", "height", "pixel", in)
 	if err != nil {
 		return nil, err
 	}
@@ -304,17 +304,19 @@ func probeWindowMinimized(ctx context.Context, op string, t windowTarget) (bool,
 }
 
 // positiveDimension reads a required int dimension (width/height) and enforces
-// that it is a positive, sanely-bounded pixel count.
-func positiveDimension(op, field string, in map[string]any) (int, error) {
+// that it is a positive, sanely-bounded count. The unit word ("pixel" for window
+// sizes, "point" for a screencapture region) is caller-supplied so the error text
+// matches the capability's own manifest/docs vocabulary rather than being hard-coded.
+func positiveDimension(op, field, unit string, in map[string]any) (int, error) {
 	v, ok := getInt(in, field)
 	if !ok {
 		return 0, fmt.Errorf("%s: '%s' is required", op, field)
 	}
 	if v < 1 {
-		return 0, fmt.Errorf("%s: %s must be at least 1 pixel, got %d", op, field, v)
+		return 0, fmt.Errorf("%s: %s must be at least 1 %s, got %d", op, field, unit, v)
 	}
 	if v > maxWindowDimension {
-		return 0, fmt.Errorf("%s: %s of %d exceeds the %d-pixel limit", op, field, v, maxWindowDimension)
+		return 0, fmt.Errorf("%s: %s of %d exceeds the %d-%s limit", op, field, v, maxWindowDimension, unit)
 	}
 	return v, nil
 }
