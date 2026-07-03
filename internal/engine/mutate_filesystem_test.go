@@ -9,6 +9,8 @@
 package engine
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"os"
 	"os/exec"
@@ -650,6 +652,318 @@ func TestRunCommand_DiscardStdoutSuppressesEcho(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(target); string(got) != secret {
 		t.Errorf("file must still be written; got %q", got)
+	}
+}
+
+// --- compress / extract (bsdtar) ---
+//
+// These two mutators shell out to /usr/bin/tar. The tests pin the exact argv
+// shape (so a future edit can't drop the "--" terminator or the secure default),
+// prove a real forward→inverse round trip on disk, exercise the guardrail table,
+// and — most importantly — prove bsdtar's zip-slip refusal with a crafted hostile
+// archive so extract can never write outside its destination.
+
+// writeTarGz writes a gzip-compressed tar at path containing the given members
+// (name → contents). It is the test's archive fixture builder: it can create
+// perfectly ordinary archives for the round-trip tests AND deliberately hostile
+// ones (member names with ".." or a leading "/") for the zip-slip test, since
+// archive/tar writes whatever member name it is handed.
+func writeTarGz(t *testing.T, path string, members map[string]string) {
+	t.Helper()
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("creating archive %q: %v", path, err)
+	}
+	defer f.Close()
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	for name, body := range members {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(body))}); err != nil {
+			t.Fatalf("tar header %q: %v", name, err)
+		}
+		if _, err := tw.Write([]byte(body)); err != nil {
+			t.Fatalf("tar body %q: %v", name, err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("closing tar: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("closing gzip: %v", err)
+	}
+}
+
+// TestStageCompress_PlanAndRoundTrip pins compress's argv shape and proves the
+// archive is created by the forward command and recycled to the Trash by undo.
+func TestStageCompress_PlanAndRoundTrip(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	srcDir := filepath.Join(dir, "project")
+	if err := os.Mkdir(srcDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"a.txt", "b.txt"} {
+		if err := os.WriteFile(filepath.Join(srcDir, n), []byte(n+" contents\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	archive := filepath.Join(dir, "project.zip")
+
+	plan, err := stageCompress(context.Background(), registry.Capability{}, map[string]any{
+		"archive": archive,
+		"sources": []string{srcDir},
+	})
+	if err != nil {
+		t.Fatalf("stageCompress: %v", err)
+	}
+	wantFwd := Command{Binary: "tar", Args: []string{"-a", "-c", "-f", archive, "-C", dir, "--", "project"}}
+	if !reflect.DeepEqual(plan.Forward, wantFwd) {
+		t.Errorf("Forward = %+v, want %+v", plan.Forward, wantFwd)
+	}
+	if plan.Inverse == nil || plan.Inverse.Binary != "mv" || plan.Inverse.Args[len(plan.Inverse.Args)-2] != archive {
+		t.Fatalf("Inverse = %+v, want mv of the archive into the Trash", plan.Inverse)
+	}
+	if strings.Contains(plan.Preview, "contents") {
+		t.Errorf("preview must not dump file contents: %q", plan.Preview)
+	}
+	if pathExists(archive) {
+		t.Fatal("staging must not create the archive")
+	}
+
+	// Forward creates the archive; inverse recycles it into the sandbox Trash.
+	runPlanCommand(t, plan.Forward)
+	if !pathExists(archive) {
+		t.Fatalf("after forward, archive %q should exist", archive)
+	}
+	runPlanCommand(t, *plan.Inverse)
+	if pathExists(archive) {
+		t.Errorf("undo should have removed the archive from %q", archive)
+	}
+	if trashDest := plan.Inverse.Args[len(plan.Inverse.Args)-1]; !pathExists(trashDest) {
+		t.Errorf("archive should now be in the Trash at %q", trashDest)
+	}
+}
+
+// TestStageCompress_MultipleSourcesSharedParent proves several sources sharing
+// one parent are archived by basename after a single "--", in sorted order.
+func TestStageCompress_MultipleSourcesSharedParent(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	for _, n := range []string{"b.txt", "a.txt", "c.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	archive := filepath.Join(dir, "bundle.tar.gz")
+
+	plan, err := stageCompress(context.Background(), registry.Capability{}, map[string]any{
+		"archive": archive,
+		"sources": []string{filepath.Join(dir, "b.txt"), filepath.Join(dir, "a.txt"), filepath.Join(dir, "c.txt")},
+	})
+	if err != nil {
+		t.Fatalf("stageCompress: %v", err)
+	}
+	wantFwd := Command{Binary: "tar", Args: []string{"-a", "-c", "-f", archive, "-C", dir, "--", "a.txt", "b.txt", "c.txt"}}
+	if !reflect.DeepEqual(plan.Forward, wantFwd) {
+		t.Errorf("Forward = %+v, want %+v (basenames must be sorted, after a single --)", plan.Forward, wantFwd)
+	}
+}
+
+// TestStageCompress_Rejects covers the guardrail table for archive creation.
+func TestStageCompress_Rejects(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	src := filepath.Join(dir, "keep.txt")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	occupied := filepath.Join(dir, "have.zip")
+	if err := os.WriteFile(occupied, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Two sources under different parents, to force the shared-parent rejection.
+	other := t.TempDir()
+	otherSrc := filepath.Join(other, "far.txt")
+	if err := os.WriteFile(otherSrc, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]map[string]any{
+		"missing archive":        {"sources": []string{src}},
+		"dash archive":           {"archive": "-out.zip", "sources": []string{src}},
+		"bad extension":          {"archive": filepath.Join(dir, "out.rar"), "sources": []string{src}},
+		"archive exists":         {"archive": occupied, "sources": []string{src}},
+		"archive parent missing": {"archive": filepath.Join(dir, "no", "out.zip"), "sources": []string{src}},
+		"missing sources":        {"archive": filepath.Join(dir, "out.zip")},
+		"empty sources":          {"archive": filepath.Join(dir, "out.zip"), "sources": []string{}},
+		"dash source":            {"archive": filepath.Join(dir, "out.zip"), "sources": []string{"-rf"}},
+		"nonexistent source":     {"archive": filepath.Join(dir, "out.zip"), "sources": []string{filepath.Join(dir, "ghost.txt")}},
+		"sources span parents":   {"archive": filepath.Join(dir, "out.zip"), "sources": []string{src, otherSrc}},
+		"duplicate source":       {"archive": filepath.Join(dir, "out.zip"), "sources": []string{src, src}},
+		"archive inside source":  {"archive": filepath.Join(dir, "out.zip"), "sources": []string{dir}},
+	}
+	for name, in := range cases {
+		if _, err := stageCompress(context.Background(), registry.Capability{}, in); err == nil {
+			t.Errorf("%s: expected error, got nil", name)
+		}
+	}
+}
+
+// TestStageExtract_PlanAndRoundTrip pins extract's argv shape and proves the
+// archive is unpacked into the empty destination and undone by recycling the
+// whole destination to the Trash.
+func TestStageExtract_PlanAndRoundTrip(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "payload.tar.gz")
+	writeTarGz(t, archive, map[string]string{"data/a.txt": "alpha\n", "data/b.txt": "beta\n"})
+	dest := filepath.Join(dir, "out")
+	if err := os.Mkdir(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := stageExtract(context.Background(), registry.Capability{}, map[string]any{
+		"archive":     archive,
+		"destination": dest,
+	})
+	if err != nil {
+		t.Fatalf("stageExtract: %v", err)
+	}
+	wantFwd := Command{Binary: "tar", Args: []string{"-x", "-f", archive, "-C", dest}}
+	if !reflect.DeepEqual(plan.Forward, wantFwd) {
+		t.Errorf("Forward = %+v, want %+v", plan.Forward, wantFwd)
+	}
+	wantInv := Command{Binary: "mv", Args: []string{"--", dest, plan.Inverse.Args[len(plan.Inverse.Args)-1]}}
+	if plan.Inverse == nil || !reflect.DeepEqual(*plan.Inverse, wantInv) {
+		t.Fatalf("Inverse = %+v, want mv of the destination into the Trash", plan.Inverse)
+	}
+
+	// Forward unpacks the members; inverse recycles the whole destination.
+	runPlanCommand(t, plan.Forward)
+	got, err := os.ReadFile(filepath.Join(dest, "data", "a.txt"))
+	if err != nil || string(got) != "alpha\n" {
+		t.Fatalf("extracted content = %q (err %v), want %q", got, err, "alpha\n")
+	}
+	runPlanCommand(t, *plan.Inverse)
+	if pathExists(dest) {
+		t.Errorf("undo should have moved the destination away from %q", dest)
+	}
+	trashDest := plan.Inverse.Args[len(plan.Inverse.Args)-1]
+	if !pathExists(filepath.Join(trashDest, "data", "a.txt")) {
+		t.Errorf("undo should have recycled the unpacked tree into the Trash at %q", trashDest)
+	}
+}
+
+// TestStageExtract_Rejects covers the guardrail table for extraction.
+func TestStageExtract_Rejects(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "ok.tar.gz")
+	writeTarGz(t, archive, map[string]string{"f.txt": "x"})
+	emptyDest := filepath.Join(dir, "empty")
+	if err := os.Mkdir(emptyDest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fullDest := filepath.Join(dir, "full")
+	if err := os.Mkdir(fullDest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fullDest, "prior.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	notArchive := filepath.Join(dir, "notes.txt")
+	if err := os.WriteFile(notArchive, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fileAsDest := filepath.Join(dir, "afile.txt")
+	if err := os.WriteFile(fileAsDest, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cases := map[string]map[string]any{
+		"missing archive":       {"destination": emptyDest},
+		"dash archive":          {"archive": "-a.zip", "destination": emptyDest},
+		"nonexistent archive":   {"archive": filepath.Join(dir, "ghost.zip"), "destination": emptyDest},
+		"bad extension archive": {"archive": notArchive, "destination": emptyDest},
+		"archive is a dir":      {"archive": emptyDest, "destination": emptyDest},
+		"missing destination":   {"archive": archive},
+		"dash destination":      {"archive": archive, "destination": "-d"},
+		"nonexistent dest":      {"archive": archive, "destination": filepath.Join(dir, "ghost_dir")},
+		"dest is a file":        {"archive": archive, "destination": fileAsDest},
+		"dest not empty":        {"archive": archive, "destination": fullDest},
+	}
+	for name, in := range cases {
+		if _, err := stageExtract(context.Background(), registry.Capability{}, in); err == nil {
+			t.Errorf("%s: expected error, got nil", name)
+		}
+	}
+}
+
+// TestStageExtract_RefusesZipSlip is the security regression: a crafted archive
+// whose members try to escape the destination via a ".." component or an absolute
+// path must NOT write outside the destination. bsdtar's secure default (no -P)
+// refuses the ".." member outright and strips the leading "/" from the absolute
+// member so it lands harmlessly INSIDE the destination. The forward command may
+// exit non-zero because of the refused member, so we run it directly and assert
+// on the resulting filesystem state rather than on the exit code.
+func TestStageExtract_RefusesZipSlip(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "evil.tar.gz")
+	writeTarGz(t, archive, map[string]string{
+		"safe.txt":          "ok\n",
+		"../escape.txt":     "pwned\n", // must be refused
+		"/tmp/abs_evil.txt": "pwned\n", // leading slash stripped → contained
+	})
+	dest := filepath.Join(dir, "unpack")
+	if err := os.Mkdir(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := stageExtract(context.Background(), registry.Capability{}, map[string]any{
+		"archive": archive, "destination": dest,
+	})
+	if err != nil {
+		t.Fatalf("stageExtract: %v", err)
+	}
+	// Run the forward command directly; bsdtar returns a delayed non-zero exit for
+	// the refused member, which is expected — the assertion is about the disk.
+	bin, err := policy.ResolveBinary(plan.Forward.Binary)
+	if err != nil {
+		t.Fatalf("resolving tar: %v", err)
+	}
+	_ = exec.Command(bin, plan.Forward.Args...).Run()
+
+	// The benign member landed inside the destination.
+	if !pathExists(filepath.Join(dest, "safe.txt")) {
+		t.Errorf("the in-bounds member should have been extracted into the destination")
+	}
+	// The ".." member must NOT have escaped to the destination's parent.
+	if pathExists(filepath.Join(dir, "escape.txt")) {
+		t.Errorf("zip-slip: a '..' member escaped the destination to %q", filepath.Join(dir, "escape.txt"))
+	}
+	// The absolute member must NOT have been written to the real /tmp: bsdtar
+	// strips the leading "/" so it lands inside the destination instead. We only
+	// ASSERT here — never delete the path — so a failing run can't remove an
+	// unrelated file that happens to sit outside this test's temp directory.
+	if pathExists("/tmp/abs_evil.txt") {
+		t.Errorf("zip-slip: an absolute-path member escaped to /tmp/abs_evil.txt (leading '/' should have been stripped, landing it inside the destination)")
+	}
+}
+
+// TestArchiveExtension pins the closed format allowlist: exactly the three
+// supported suffixes match (case-insensitively) and nothing else does.
+func TestArchiveExtension(t *testing.T) {
+	ok := []string{"a.zip", "A.ZIP", "b.tar.gz", "b.TAR.GZ", "c.tgz", "/x/y/report.zip"}
+	for _, p := range ok {
+		if _, matched := archiveExtension(p); !matched {
+			t.Errorf("archiveExtension(%q) = false, want true", p)
+		}
+	}
+	bad := []string{"a.rar", "a.7z", "a.gz", "a.tar", "a.zipx", "noext", "a.tar.bz2"}
+	for _, p := range bad {
+		if _, matched := archiveExtension(p); matched {
+			t.Errorf("archiveExtension(%q) = true, want false", p)
+		}
 	}
 }
 

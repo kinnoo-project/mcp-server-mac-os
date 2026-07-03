@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"unicode"
@@ -428,6 +429,263 @@ func stageAppendToFile(_ context.Context, _ registry.Capability, in map[string]a
 		Forward: Command{Binary: "tee", Args: []string{"-a", "--", abs}, Stdin: []byte(content), DiscardStdout: true},
 		Inverse: &Command{Binary: "tee", Args: []string{"--", abs}, Stdin: prior, DiscardStdout: true},
 	}, nil
+}
+
+// allowedArchiveExtensions is the closed set of archive formats compress may
+// create and extract may read, matched case-insensitively against the archive
+// filename's suffix. bsdtar (the /usr/bin/tar the policy layer resolves) infers
+// the format from this suffix — explicitly via -a on create, automatically on
+// extract — so constraining the suffix constrains the format: ".zip" is a Zip
+// archive; ".tar.gz"/".tgz" are gzip-compressed tarballs. The two-part
+// ".tar.gz" is listed before ".tgz" and ".zip" only for readability; the suffix
+// match is exact per entry. Anything outside this list is rejected up front,
+// which also keeps the model from smuggling a surprising binary format past the
+// no-clobber and empty-dir guards.
+var allowedArchiveExtensions = []string{".tar.gz", ".tgz", ".zip"}
+
+// archiveExtension reports the allowed archive suffix a path carries (and true),
+// or "" and false when the path does not end in a supported archive extension.
+// The comparison is case-insensitive so "Report.ZIP" is accepted as a zip.
+func archiveExtension(path string) (string, bool) {
+	lower := strings.ToLower(path)
+	for _, ext := range allowedArchiveExtensions {
+		if strings.HasSuffix(lower, ext) {
+			return ext, true
+		}
+	}
+	return "", false
+}
+
+// stageCompress stages a reversible archive creation with bsdtar.
+//
+// Forward is `tar -a -c -f <archive> -C <parent> -- <basenames…>`:
+//   - -a makes bsdtar pick the format from the archive suffix (.zip → Zip,
+//     .tar.gz/.tgz → gzip tar), which is why the suffix is validated;
+//   - -C <parent> chdir's into the sources' shared parent so the archive stores
+//     clean RELATIVE member names ("project/report.txt", never a machine-specific
+//     "/Users/…" absolute path), and every source is passed by basename;
+//   - the archive path is ABSOLUTE, so -f opens it in the original directory
+//     regardless of the -C chdir;
+//   - the "--" terminator guarantees a source whose basename begins with "-" is
+//     still treated as a file operand, never a tar flag.
+//
+// Inverse honours the recycling rule (transactional-state.md §3): undo moves the
+// freshly-created archive to the Trash rather than hard-deleting it. Because
+// staging proved the archive path did not exist beforehand, undo can only ever
+// trash the file this operation produced.
+//
+// Guardrails:
+//   - archive is required, must not begin with "-", must carry an allowed
+//     extension, must not already exist (os.Lstat, so even a dangling symlink at
+//     the path counts as occupied), and its parent directory must exist (tar does
+//     not create it);
+//   - sources is a non-empty list; each entry must not begin with "-", must
+//     exist, and ALL must share one parent directory (so one -C covers them and
+//     members stay relative) — the same shared-parent invariant the batch move
+//     enforces;
+//   - the archive must not live inside any source tree, which would make tar try
+//     to capture the archive as it is being written (a self-inclusion loop).
+func stageCompress(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	archiveRaw, _ := getString(in, "archive")
+	if archiveRaw == "" {
+		return nil, fmt.Errorf("compress: 'archive' is required")
+	}
+	if strings.HasPrefix(archiveRaw, "-") {
+		return nil, fmt.Errorf("compress: archive %q begins with '-' and is not allowed; prefix it with ./", archiveRaw)
+	}
+	if _, ok := archiveExtension(archiveRaw); !ok {
+		return nil, fmt.Errorf("compress: archive %q must end in one of .zip, .tar.gz, .tgz (the extension selects the format)", archiveRaw)
+	}
+	archive, err := filepath.Abs(archiveRaw)
+	if err != nil {
+		return nil, fmt.Errorf("compress: resolving archive %q: %w", archiveRaw, err)
+	}
+	if _, err := os.Lstat(archive); err == nil {
+		return nil, fmt.Errorf("compress: %q already exists; refusing to overwrite (choose a new archive name, or remove it first)", archive)
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("compress: cannot inspect %q: %w", archive, err)
+	}
+	archiveParent := filepath.Dir(archive)
+	if info, err := os.Stat(archiveParent); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("compress: parent directory %q of the archive does not exist (create it first with mkdir)", archiveParent)
+		}
+		return nil, fmt.Errorf("compress: cannot inspect parent %q: %w", archiveParent, err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("compress: archive parent %q is not a directory", archiveParent)
+	}
+
+	sourceParent, basenames, absSources, err := resolveCompressSources(in)
+	if err != nil {
+		return nil, err
+	}
+	// Reject an archive written inside anything it is archiving: as bsdtar walked
+	// that source it would encounter the growing archive and try to include it.
+	for _, src := range absSources {
+		if isWithinDir(archive, src) {
+			return nil, fmt.Errorf("compress: archive %q is inside the source %q; write the archive somewhere outside the items being compressed", archive, src)
+		}
+	}
+	trashDest, err := trashPathFor(archive)
+	if err != nil {
+		return nil, fmt.Errorf("compress: %w", err)
+	}
+
+	forwardArgs := []string{"-a", "-c", "-f", archive, "-C", sourceParent, "--"}
+	forwardArgs = append(forwardArgs, basenames...)
+	return &StagedPlan{
+		Preview: fmt.Sprintf("Create archive %s from %d item(s) in %s (%s). Undo will move the archive to the Trash (%s).",
+			archive, len(basenames), sourceParent, strings.Join(basenames, ", "), trashDest),
+		Forward: Command{Binary: "tar", Args: forwardArgs},
+		Inverse: &Command{Binary: "mv", Args: []string{"--", archive, trashDest}},
+	}, nil
+}
+
+// resolveCompressSources validates compress's "sources" list and returns the
+// shared parent directory, the sorted list of source basenames (deterministic
+// argv ordering), and the sources in absolute form (for the self-inclusion
+// check). It enforces presence, the dash-leading guardrail, existence, the
+// single-shared-parent invariant, and a bound on how many items one archive may
+// stage.
+func resolveCompressSources(in map[string]any) (parent string, basenames, absSources []string, err error) {
+	sources, ok := getStringList(in, "sources")
+	if !ok || len(sources) == 0 {
+		return "", nil, nil, fmt.Errorf("compress: 'sources' must list at least one file or directory to archive")
+	}
+	if len(sources) > maxGlobMatches {
+		return "", nil, nil, fmt.Errorf("compress: %d sources exceeds the limit of %d; archive fewer items at a time", len(sources), maxGlobMatches)
+	}
+	seen := make(map[string]bool, len(sources))
+	for i, raw := range sources {
+		if strings.HasPrefix(raw, "-") {
+			return "", nil, nil, fmt.Errorf("compress: source %q begins with '-' and is not allowed; prefix it with ./", raw)
+		}
+		abs, err := filepath.Abs(raw)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("compress: resolving source %q: %w", raw, err)
+		}
+		if _, err := os.Stat(abs); err != nil {
+			if os.IsNotExist(err) {
+				return "", nil, nil, fmt.Errorf("compress: source %q does not exist", abs)
+			}
+			return "", nil, nil, fmt.Errorf("compress: cannot inspect source %q: %w", abs, err)
+		}
+		p := filepath.Dir(abs)
+		if i == 0 {
+			parent = p
+		} else if p != parent {
+			return "", nil, nil, fmt.Errorf("compress: sources span multiple directories (%s and %s); every source must share one parent directory", parent, p)
+		}
+		base := filepath.Base(abs)
+		if seen[base] {
+			return "", nil, nil, fmt.Errorf("compress: source %q is listed more than once", base)
+		}
+		seen[base] = true
+		basenames = append(basenames, base)
+		absSources = append(absSources, abs)
+	}
+	sort.Strings(basenames) // stable, deterministic argv regardless of input order
+	return parent, basenames, absSources, nil
+}
+
+// isWithinDir reports whether path is dir itself or lies inside the dir subtree.
+// Both are treated as cleaned absolute paths. It underpins compress's
+// self-inclusion guard: an archive written at or under a directory being
+// archived would try to capture itself as it grows.
+func isWithinDir(path, dir string) bool {
+	rel, err := filepath.Rel(dir, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."
+}
+
+// stageExtract stages a reversible archive extraction with bsdtar.
+//
+// Forward is `tar -x -f <archive> -C <dest>`. Run WITHOUT bsdtar's -P flag, tar
+// stays in its secure default: it strips a leading "/" from member names and
+// REFUSES any member containing a ".." component, so a hostile archive cannot
+// write outside <dest> (the zip-slip guard is bsdtar's own, and this operation
+// deliberately never weakens it). No "--" terminator is needed because there are
+// no positional file operands — every member in the archive is extracted.
+//
+// Inverse honours the recycling rule (transactional-state.md §3): undo moves the
+// WHOLE destination directory — with everything unpacked into it — to the Trash.
+// That single move is a correct, non-destructive undo precisely because staging
+// proved the destination was EMPTY beforehand: nothing pre-existing is lost, and
+// the only thing trashed is the extracted content (plus the empty directory,
+// trivially recreatable and itself recoverable from the Trash).
+//
+// Guardrails:
+//   - archive must exist, be a regular file, not begin with "-", and carry an
+//     allowed extension;
+//   - destination must exist, be a directory, not begin with "-", and be EMPTY —
+//     the precondition that makes the whole-directory inverse safe.
+func stageExtract(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
+	archiveRaw, _ := getString(in, "archive")
+	archive, err := validateExistingOperand("extract", "archive", archiveRaw)
+	if err != nil {
+		return nil, err
+	}
+	if info, err := os.Stat(archive); err != nil {
+		return nil, fmt.Errorf("extract: cannot inspect archive %q: %w", archive, err)
+	} else if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("extract: archive %q is not a regular file", archive)
+	}
+	if _, ok := archiveExtension(archive); !ok {
+		return nil, fmt.Errorf("extract: archive %q must end in one of .zip, .tar.gz, .tgz", archive)
+	}
+
+	destRaw, _ := getString(in, "destination")
+	if destRaw == "" {
+		return nil, fmt.Errorf("extract: 'destination' is required")
+	}
+	if strings.HasPrefix(destRaw, "-") {
+		return nil, fmt.Errorf("extract: destination %q begins with '-' and is not allowed; prefix it with ./", destRaw)
+	}
+	dest, err := filepath.Abs(destRaw)
+	if err != nil {
+		return nil, fmt.Errorf("extract: resolving destination %q: %w", destRaw, err)
+	}
+	info, err := os.Stat(dest)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("extract: destination %q must be an existing empty directory (create it first with mkdir)", dest)
+		}
+		return nil, fmt.Errorf("extract: cannot inspect destination %q: %w", dest, err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("extract: destination %q is not a directory", dest)
+	}
+	empty, err := dirIsEmpty(dest)
+	if err != nil {
+		return nil, fmt.Errorf("extract: cannot read destination %q: %w", dest, err)
+	}
+	if !empty {
+		return nil, fmt.Errorf("extract: destination %q is not empty; extract needs an empty directory so undo can cleanly recycle everything it unpacks", dest)
+	}
+	trashDest, err := trashPathFor(dest)
+	if err != nil {
+		return nil, fmt.Errorf("extract: %w", err)
+	}
+	return &StagedPlan{
+		Preview: fmt.Sprintf("Extract %s into the empty directory %s. Nothing can escape it: a member with a '..' path is refused, and an absolute member has its leading '/' stripped so it lands inside. Undo will move %s — with everything unpacked into it — to the Trash (%s).",
+			archive, dest, dest, trashDest),
+		Forward: Command{Binary: "tar", Args: []string{"-x", "-f", archive, "-C", dest}},
+		Inverse: &Command{Binary: "mv", Args: []string{"--", dest, trashDest}},
+	}, nil
+}
+
+// dirIsEmpty reports whether dir contains no entries. extract uses it to prove
+// its destination is empty at stage time — the precondition that lets the inverse
+// be a single "move the whole destination to the Trash" (everything inside it
+// afterward was unpacked by this operation, so nothing pre-existing is lost).
+func dirIsEmpty(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	return len(entries) == 0, nil
 }
 
 // resolveSourceAndDest validates the shared "source"/"destination" parameter

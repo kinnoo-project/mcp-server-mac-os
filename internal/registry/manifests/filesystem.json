@@ -590,5 +590,55 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "compress",
+    "summary": "Create a .zip, .tar.gz, or .tgz archive from one or more files/folders. Staged for confirmation; reversible: undo moves the created archive to the Trash.",
+    "category": "filesystem",
+    "binary": "tar",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "compress",
+    "params": [
+      {
+        "name": "archive",
+        "type": "path",
+        "required": true,
+        "description": "Path of the archive to create. Must end in .zip, .tar.gz, or .tgz — the extension picks the format. Leading ~ ok; must not start with '-' (use ./). Must not already exist; its parent directory must exist and must not sit inside anything being compressed.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "sources",
+        "type": "path_list",
+        "required": true,
+        "description": "One or more existing files/folders to put in the archive. All must share one parent directory (their names are stored relative to it, e.g. 'project/report.txt'). Leading ~ ok; none may start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "extract",
+    "summary": "Extract a .zip, .tar.gz, or .tgz archive into an existing EMPTY directory. Nothing can be written outside the destination (no zip-slip): a member with a '..' path is refused, and an absolute member has its leading '/' stripped so it lands inside. Staged for confirmation; reversible: undo moves the destination — with everything unpacked into it — to the Trash.",
+    "category": "filesystem",
+    "binary": "tar",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "extract",
+    "params": [
+      {
+        "name": "archive",
+        "type": "path",
+        "required": true,
+        "description": "Existing .zip, .tar.gz, or .tgz archive to unpack. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "destination",
+        "type": "path",
+        "required": true,
+        "description": "Existing EMPTY directory to unpack into (create it first with mkdir). Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]

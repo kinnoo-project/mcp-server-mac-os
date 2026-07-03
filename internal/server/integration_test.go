@@ -59,7 +59,7 @@ func TestIntegration_ToolSurface(t *testing.T) {
 		t.Errorf("expected exactly 19 tools (filesystem, preferences, application, printer, system, network, process, screenshot, clipboard, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
-	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head"} {
+	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head", "compress", "extract"} {
 		if !strings.Contains(descs["filesystem"], op) {
 			t.Errorf("filesystem tool description missing operation %q", op)
 		}

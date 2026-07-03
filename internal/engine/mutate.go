@@ -115,6 +115,8 @@ var mutators = map[string]Mutator{
 	"remove":            stageRemove,
 	"write_file":        stageWriteFile,
 	"append_to_file":    stageAppendToFile,
+	"compress":          stageCompress,
+	"extract":           stageExtract,
 	"write_clipboard":   stageWriteClipboard,
 	"write_setting":     stageWriteSetting,
 	"set_appearance":    stageSetAppearance,
