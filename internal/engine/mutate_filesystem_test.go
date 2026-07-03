@@ -941,10 +941,12 @@ func TestStageExtract_RefusesZipSlip(t *testing.T) {
 	if pathExists(filepath.Join(dir, "escape.txt")) {
 		t.Errorf("zip-slip: a '..' member escaped the destination to %q", filepath.Join(dir, "escape.txt"))
 	}
-	// The absolute member must NOT have been written to the real /tmp.
+	// The absolute member must NOT have been written to the real /tmp: bsdtar
+	// strips the leading "/" so it lands inside the destination instead. We only
+	// ASSERT here — never delete the path — so a failing run can't remove an
+	// unrelated file that happens to sit outside this test's temp directory.
 	if pathExists("/tmp/abs_evil.txt") {
-		os.Remove("/tmp/abs_evil.txt")
-		t.Errorf("zip-slip: an absolute-path member escaped to /tmp/abs_evil.txt")
+		t.Errorf("zip-slip: an absolute-path member escaped to /tmp/abs_evil.txt (leading '/' should have been stripped, landing it inside the destination)")
 	}
 }
 

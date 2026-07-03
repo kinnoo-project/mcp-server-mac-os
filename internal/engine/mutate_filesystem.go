@@ -669,7 +669,7 @@ func stageExtract(_ context.Context, _ registry.Capability, in map[string]any) (
 		return nil, fmt.Errorf("extract: %w", err)
 	}
 	return &StagedPlan{
-		Preview: fmt.Sprintf("Extract %s into the empty directory %s (members with an absolute or '..' path are refused, so nothing escapes it). Undo will move %s — with everything unpacked into it — to the Trash (%s).",
+		Preview: fmt.Sprintf("Extract %s into the empty directory %s. Nothing can escape it: a member with a '..' path is refused, and an absolute member has its leading '/' stripped so it lands inside. Undo will move %s — with everything unpacked into it — to the Trash (%s).",
 			archive, dest, dest, trashDest),
 		Forward: Command{Binary: "tar", Args: []string{"-x", "-f", archive, "-C", dest}},
 		Inverse: &Command{Binary: "mv", Args: []string{"--", dest, trashDest}},
