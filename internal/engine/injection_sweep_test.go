@@ -65,6 +65,8 @@ var reviewedFreeTextBuiltins = map[string]string{
 	"search_applications": "mdfind: dash-leading query rejected; see builtins_apps_test.go",
 	"query_events":        "dates parsed via time.Parse; calendar name passed as osascript argv data after '--'; see builtins_calendar_test.go",
 	"search_mail":         "mdfind: dash-leading query rejected (no '--' terminator); see builtins_mail_test.go",
+	"list_inbox":          "osascript via runOsascript: mailbox passed as argv data after '--'; see builtins_mail_reads_test.go",
+	"read_message":        "osascript via runOsascript: id validated numeric then passed as argv data after '--'; see builtins_mail_reads_test.go",
 	"search_messages":     "sqlite3: term embedded via escapeSQLLiteral (quotes doubled, NUL rejected); see builtins_messages_test.go and builtins_messages_sqlinjection_test.go",
 	"read_conversation":   "sqlite3: email validated then escaped, phone reduced to digits; see builtins_messages_test.go",
 	"list_notes":          "osascript via runOsascript: folder passed as argv data after '--'; see builtins_notes_test.go",

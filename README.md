@@ -57,9 +57,11 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 
 ### ✉️ Mail
 
-Search your inbox and draft outgoing mail — with the recipient and full body shown
+Read your inbox and draft outgoing mail — with the recipient and full body shown
 verbatim before anything sends.
 
+- *"Show me my most recent emails."* *(lists sender, subject, date — read-only)*
+- *"Open the one from billing and read it to me."* *(reads a single message's full body — read-only)*
 - *"Find emails mentioning invoice INV-4471."*
 - **"Email Alice to say I'll be 10 minutes late."** *(previewed; **cannot** be undone)*
 - **"Find my 2025 tax return and email it to my accountant."** *(locates the file, then attaches it)*
