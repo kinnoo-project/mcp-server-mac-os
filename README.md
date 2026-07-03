@@ -13,7 +13,7 @@
 
 > This is a Model Context Protocol (MCP) server that turns plain-language requests
 > into safe, native macOS actions — your files, Mail, Calendar, Reminders, 
-> Messages, Notes, Contacts & calls, apps, printers, and system settings — 
+> Messages, Notes, Contacts & calls, Music, apps, printers, and system settings — 
 > from any MCP-aware client like **Claude Code** or **Claude Desktop**.
 
 Pair this server with an MCP-aware client like **Claude Code** or **Claude
@@ -145,6 +145,21 @@ Look up a person's full address-book card, or add a new one.
   it's tagged with a hidden unique marker so no other contact can be touched)*
 - A contact card is personal data, so the read reaches for it deliberately; the
   first use may ask you to grant **Automation** access to Contacts.
+
+### 🎵 Music
+
+Ask what's playing and drive playback in the Music app — hands-free skip and
+pause without leaving what you're doing.
+
+- *"What song is this?"* / *"What am I listening to?"* *(shows the track, artist,
+  album, and whether it's playing or paused)*
+- **"Pause my music."** / **"Skip this song."** / **"Go back a track."**
+  *(run immediately — pausing or skipping is its own reversal, so there's no undo
+  token; press play or skip again)*
+- It **never launches Music just to answer** — if Music isn't running it simply
+  says so.
+- The first time it controls Music, macOS may ask you to grant **Automation**
+  access to Music.
 
 ### 📸 Screenshots
 
@@ -353,15 +368,15 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 17 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`,
+You'll now have the 19 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`,
 `clipboard`, `printer`, `system`, `network`, `process`, `screenshot`) plus the shared
 `execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
 > **Note on permissions:** reading Messages needs **Full Disk Access**, taking
 > screenshots needs **Screen Recording**, and automating
-> Mail/Calendar/Reminders/Contacts/Messages/Notes/Photos needs a one-time **Automation**
+> Mail/Calendar/Reminders/Contacts/Messages/Notes/Photos/Safari/Music needs a one-time **Automation**
 > grant — all prompted by macOS the first time, under *System Settings → Privacy &
 > Security*. Granting once is enough.
 
