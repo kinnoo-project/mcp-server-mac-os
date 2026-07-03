@@ -114,6 +114,28 @@
     "expect": {"tool": "application-mail", "operation": "search_mail", "forbid_tools": ["execute"]}
   },
   {
+    "id": "m_mail_list_inbox_readonly",
+    "description": "MANUAL (a configured Mail account; reads real inbox content, so it is not CI-safe). Asking for recent emails maps to list_inbox. Read-only: forbids execute; this suite NEVER automates a send.",
+    "manual": true,
+    "prompt": "Show me my 5 most recent emails.",
+    "expect": {"tool": "application-mail", "operation": "list_inbox", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_mail_read_message",
+    "description": "MANUAL (a configured Mail account; reads a real message body). Two turns: list the inbox, then read the top message by the id list_inbox returned. Turn 2 depends on a live id, so this only works in a manual run against a real mailbox. Read-only throughout — forbids execute.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "List my most recent emails.",
+        "expect": {"tool": "application-mail", "operation": "list_inbox", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Open the top one and read it to me.",
+        "expect": {"tool": "application-mail", "operation": "read_message", "forbid_tools": ["execute"]}
+      }
+    ]
+  },
+  {
     "id": "m_phone_find_contact",
     "description": "MANUAL (Contacts permission). Looking up a contact's number maps to find_contact. Uses the obviously-fake 'Jane Doe' (no real PII). This suite NEVER automates placing a call.",
     "manual": true,

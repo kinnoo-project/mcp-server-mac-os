@@ -21,6 +21,24 @@ func TestOsascriptCommand_InsertsTerminator(t *testing.T) {
 	}
 }
 
+// TestOsascriptArgv_SharedByBothPaths proves the extracted helper that BOTH the
+// mutating path (osascriptCommand) and the read path (runOsascript) build their
+// argv through: the "--" terminator always sits between the script and the first
+// data value, so a hostile value like "-e" lands as inert data. This is the
+// structural guarantee for every AppleScript read builtin (list_inbox,
+// read_message, read_note, ...), which reach osascript only via runOsascript.
+func TestOsascriptArgv_SharedByBothPaths(t *testing.T) {
+	got := osascriptArgv("SCRIPT", "-e", "mailbox-name")
+	want := []string{"-e", "SCRIPT", "--", "-e", "mailbox-name"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("osascriptArgv built %v, want %v", got, want)
+	}
+	// osascriptCommand must delegate to the same helper (no drift between paths).
+	if cmd := osascriptCommand("SCRIPT", "-e", "mailbox-name"); !reflect.DeepEqual(cmd.Args, want) {
+		t.Fatalf("osascriptCommand args = %v, want %v", cmd.Args, want)
+	}
+}
+
 func TestParseDate(t *testing.T) {
 	y, m, d, err := parseDate("2026-06-18")
 	if err != nil || y != 2026 || m != 6 || d != 18 {

@@ -33,6 +33,8 @@ var builtins = map[string]BuiltinFunc{
 	"spotlight_search":   runSpotlightSearch,
 	"read_clipboard":     runReadClipboard,
 	"search_mail":        runSearchMail,
+	"list_inbox":         runListInbox,
+	"read_message":       runReadMessage,
 	"list_calendars":     runListCalendars,
 	"query_events":       runQueryEvents,
 	"list_reminders":     runListReminders,
