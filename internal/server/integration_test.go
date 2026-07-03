@@ -112,7 +112,7 @@ func TestIntegration_ToolSurface(t *testing.T) {
 			t.Errorf("application-music tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"list_applications", "search_applications", "list_running_applications", "open_application", "focus_application", "quit_application"} {
+	for _, op := range []string{"list_applications", "search_applications", "search_app_store", "open_app_store_page", "list_running_applications", "open_application", "focus_application", "quit_application"} {
 		if !strings.Contains(descs["application"], op) {
 			t.Errorf("application tool description missing operation %q", op)
 		}

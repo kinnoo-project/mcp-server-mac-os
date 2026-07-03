@@ -52,5 +52,11 @@
     "description": "Asking what song is playing should select application-music/now_playing, not the running-apps list or a window inspector. Selection-only: executing it reads live playback (what the user is listening to), so real-content assertions live in the manual smoke list; in CI routing is all that is checked. The play/pause/skip CONTROLS are auto-commit side effects, so they are deliberately kept out of this selection suite and only exercised manually.",
     "prompt": "What song is playing right now?",
     "expect": { "tool": "application-music", "operation": "now_playing" }
+  },
+  {
+    "id": "search_app_store_routing",
+    "description": "Asking whether an app is on the Mac App Store (and its price) should select application/search_app_store, not search_applications (that only checks what is ALREADY installed locally) or open_website. Selection-only: the operation makes a live outbound request to Apple's search API, so real result assertions live in the manual smoke list; in CI only the selection is checked (it holds even offline, since the expectation asserts tool+operation, not success).",
+    "prompt": "Is Slack on the Mac App Store, and what does it cost?",
+    "expect": { "tool": "application", "operation": "search_app_store" }
   }
 ]

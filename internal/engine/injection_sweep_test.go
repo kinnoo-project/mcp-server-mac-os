@@ -65,6 +65,7 @@ var reviewedFreeTextBuiltins = map[string]string{
 	"capture_window":      "screencapture + osascript: app validated by validateAppNameValue then passed as argv data after '--' (probeWindowGeometry); output_path rejected if dash-leading; see builtins_screenshot_region_test.go",
 	"list_applications":   "mdfind: dash-leading query rejected (mdfind has no '--'); see builtins_apps_test.go",
 	"search_applications": "mdfind: dash-leading query rejected; see builtins_apps_test.go",
+	"search_app_store":    "outbound HTTPS (no shell/argv): query carried only as the url.Values 'term' parameter (percent-encoded); scheme/host/path are Go-side constants, so a hostile value can only land as an encoded query value; see builtins_appstore_test.go",
 	"list_windows":        "osascript via runOsascript: app filter passed as argv data after '--'; dash-leading/control-char rejected by validateAppNameValue; see builtins_windowing_test.go",
 	"query_events":        "dates parsed via time.Parse; calendar name passed as osascript argv data after '--'; see builtins_calendar_test.go",
 	"search_mail":         "mdfind: dash-leading query rejected (no '--' terminator); see builtins_mail_test.go",
