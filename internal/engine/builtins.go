@@ -41,6 +41,7 @@ var builtins = map[string]BuiltinFunc{
 	"query_events":       runQueryEvents,
 	"list_reminders":     runListReminders,
 	"find_contact":       runFindContact,
+	"get_contact":        runGetContact,
 	"check_messages":     runCheckMessages,
 	"search_messages":    runSearchMessages,
 	"read_conversation":  runReadConversation,

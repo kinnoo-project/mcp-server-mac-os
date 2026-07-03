@@ -34,5 +34,17 @@
     "description": "Asking what page the user is currently looking at should select application-safari/current_tab (the front window's active tab), not list_tabs (the whole set). Selection-only for the same privacy reason as list_tabs_routing.",
     "prompt": "What web page am I currently looking at in Safari?",
     "expect": { "tool": "application-safari", "operation": "current_tab" }
+  },
+  {
+    "id": "get_contact_routing",
+    "description": "Asking for a person's FULL contact details (address, email, birthday — not just a number) should select application-contacts/get_contact, not application-phone/find_contact (numbers only). Selection-only: executing it reads the machine's real Contacts, so content assertions live in the manual smoke list; in CI routing is all that is checked. The name is a fake placeholder.",
+    "prompt": "Show me Jane Doe's full contact card — her email and address, not just her phone.",
+    "expect": { "tool": "application-contacts", "operation": "get_contact" }
+  },
+  {
+    "id": "create_contact_routing",
+    "description": "Adding a new person to Contacts should stage application-contacts/create_contact and NOT commit (forbid_tools execute), so this is CI-safe: staging never touches the real Contacts database, it only builds the plan + confirmation token. Fake placeholder identity only — no real PII.",
+    "prompt": "Create a new contact for Jane Doe at Example Corp, email jane@example.com.",
+    "expect": { "tool": "application-contacts", "operation": "create_contact", "forbid_tools": ["execute"] }
   }
 ]

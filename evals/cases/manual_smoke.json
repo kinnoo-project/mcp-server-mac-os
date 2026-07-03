@@ -263,5 +263,28 @@
     "manual": true,
     "prompt": "What web page am I currently looking at in Safari?",
     "expect": {"tool": "application-safari", "operation": "current_tab", "tool_succeeds": true}
+  },
+  {
+    "id": "m_contacts_get_card",
+    "description": "MANUAL (Automation grant for Contacts; reads a real contact card, so it surfaces personal data and must never run in CI). Have at least one person in Contacts, then substitute a real name for the placeholder when running by hand. Asking for someone's full details maps to application-contacts/get_contact; confirm the response shows the card's fields (phones/emails/etc.), not just a number.",
+    "manual": true,
+    "prompt": "Show me the full contact card for Jane Doe.",
+    "expect": {"tool": "application-contacts", "operation": "get_contact", "tool_succeeds": true}
+  },
+  {
+    "id": "m_contacts_create_then_undo",
+    "description": "MANUAL (Automation grant for Contacts; creates then deletes a REAL contact). Self-cleans: create_contact stages, execute adds the card, undo deletes exactly that card (matched by the hidden unique marker). Fake placeholder identity only — no real PII. If turn 2 errors, grant the host app Contacts access under System Settings > Privacy & Security > Automation and retry.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Create a new contact for Jane Doe at Example Corp, phone +15555550123, email jane@example.com.",
+        "expect": {"tool": "application-contacts", "operation": "create_contact", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, create it.", "expect": {"tool": "execute"}},
+      {
+        "prompt": "Actually, undo that — remove the contact you just created.",
+        "expect": {"tool": "undo", "tool_succeeds": true}
+      }
+    ]
   }
 ]

@@ -134,6 +134,18 @@ answer "what was that page?" or pick up where you left off.
   flags that these are private and reaches for them deliberately.
 - The first use may ask you to grant **Automation** access to Safari.
 
+### 👤 Contacts
+
+Look up a person's full address-book card, or add a new one.
+
+- *"Show me Jane's full contact card."* *(every field — phones, emails, postal
+  addresses, birthday, organization — not just a number)*
+- **"Add a contact for Jane Doe at Example Corp, email jane@example.com."**
+  *(staged for your confirmation; **undo deletes exactly the card it created** —
+  it's tagged with a hidden unique marker so no other contact can be touched)*
+- A contact card is personal data, so the read reaches for it deliberately; the
+  first use may ask you to grant **Automation** access to Contacts.
+
 ### 📸 Screenshots
 
 Give the assistant eyes on your screen — it captures the screen to an image file

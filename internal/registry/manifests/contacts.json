@@ -1,0 +1,74 @@
+[
+  {
+    "name": "get_contact",
+    "summary": "Look up a person in Contacts.app by name and return their FULL card — every phone, email, postal address, birthday, and organization. Read-only. Use this when the user wants a contact's details beyond just a number (application-phone/find_contact returns numbers only). PRIVACY: a contact card is personal data; invoke it deliberately. Drives Contacts via AppleScript, so the first use may prompt to grant Automation access to Contacts.",
+    "category": "application-contacts",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "get_contact",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "Name (or part of a name) to search Contacts for.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "required": false,
+        "default": 5,
+        "description": "Max matching people to return (default 5, max 20).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "create_contact",
+    "summary": "Create a new person in Contacts.app. STAGED behind a confirmation token; reversible (undo deletes the exact contact this created). Supply at least one of first_name / last_name / organization, plus optional phone, email. Does NOT edit existing contacts — it only adds a new card.",
+    "category": "application-contacts",
+    "binary": "",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "create_contact",
+    "params": [
+      {
+        "name": "first_name",
+        "type": "string",
+        "required": false,
+        "description": "The person's given name. Provide at least one of first_name, last_name, or organization.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "last_name",
+        "type": "string",
+        "required": false,
+        "description": "The person's family name. Provide at least one of first_name, last_name, or organization.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "organization",
+        "type": "string",
+        "required": false,
+        "description": "The company / organization the contact belongs to. Provide at least one of first_name, last_name, or organization.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "phone",
+        "type": "string",
+        "required": false,
+        "description": "A phone number for the contact. Digits with an optional leading '+' and spaces/dashes/parentheses; no letters.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "email",
+        "type": "string",
+        "required": false,
+        "description": "An email address for the contact, e.g. jane@example.com.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]
