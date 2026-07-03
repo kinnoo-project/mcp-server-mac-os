@@ -61,9 +61,18 @@ func TestFormatNowPlaying_States(t *testing.T) {
 			want: []string{"(untitled)", "Artist Only"},
 		},
 		{
-			name: "unknown future state word passes through",
+			name: "fast forwarding is humanized",
 			in:   "fast forwarding" + musicSep + "Track" + musicSep + "A" + musicSep + "B",
 			want: []string{"Fast-forwarding", "Track"},
+		},
+		{
+			// A state word renderNowPlaying does NOT map exercises the fallback
+			// (verb == "" -> verb = state): the raw word must pass through verbatim,
+			// not be dropped or mislabeled as "Playing".
+			name: "unrecognized future state word passes through raw",
+			in:   "seeking" + musicSep + "Track" + musicSep + "A" + musicSep + "B",
+			want: []string{"seeking: Track"},
+			not:  []string{"Playing", "Paused"},
 		},
 	}
 	for _, tc := range cases {

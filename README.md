@@ -368,8 +368,8 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 17 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`,
+You'll now have the 19 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`,
 `clipboard`, `printer`, `system`, `network`, `process`, `screenshot`) plus the shared
 `execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
