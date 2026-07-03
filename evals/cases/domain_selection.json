@@ -46,5 +46,11 @@
     "description": "Adding a new person to Contacts should stage application-contacts/create_contact and NOT commit (forbid_tools execute), so this is CI-safe: staging never touches the real Contacts database, it only builds the plan + confirmation token. Fake placeholder identity only — no real PII.",
     "prompt": "Create a new contact for Jane Doe at Example Corp, email jane@example.com.",
     "expect": { "tool": "application-contacts", "operation": "create_contact", "forbid_tools": ["execute"] }
+  },
+  {
+    "id": "now_playing_routing",
+    "description": "Asking what song is playing should select application-music/now_playing, not the running-apps list or a window inspector. Selection-only: executing it reads live playback (what the user is listening to), so real-content assertions live in the manual smoke list; in CI routing is all that is checked. The play/pause/skip CONTROLS are auto-commit side effects, so they are deliberately kept out of this selection suite and only exercised manually.",
+    "prompt": "What song is playing right now?",
+    "expect": { "tool": "application-music", "operation": "now_playing" }
   }
 ]

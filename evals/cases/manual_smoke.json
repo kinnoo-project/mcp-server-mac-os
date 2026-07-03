@@ -300,5 +300,33 @@
     "manual": true,
     "prompt": "Turn my Wi-Fi off.",
     "expect": {"tool": "system", "operation": "wifi_set_power", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_music_now_playing",
+    "description": "MANUAL (needs Music.app running with a track playing or paused + Automation grant for Music; reads live playback, so it surfaces what the user is listening to and must never run in CI). Open Music and start a song first. Asking what's playing maps to application-music/now_playing; confirm the response names the current track/artist and its state. With Music CLOSED, it should report cleanly that Music is not running (and must NOT launch it).",
+    "manual": true,
+    "prompt": "What song am I listening to right now?",
+    "expect": {"tool": "application-music", "operation": "now_playing", "tool_succeeds": true}
+  },
+  {
+    "id": "m_music_play_pause",
+    "description": "MANUAL (actually toggles playback). play_pause is auto_commit — it fires immediately, no stage/execute. Open Music and start a track first. 'Pause my music' maps to application-music/play_pause; confirm playback toggled. Re-running toggles it back (play/pause is its own manual reversal — there is no undo token). With Music CLOSED it should fail cleanly ('Music is not running') and must NOT launch Music.",
+    "manual": true,
+    "prompt": "Pause my music.",
+    "expect": {"tool": "application-music", "operation": "play_pause", "tool_succeeds": true}
+  },
+  {
+    "id": "m_music_next_track",
+    "description": "MANUAL (actually skips the track). next_track is auto_commit — fires immediately. Open Music and start a queue/playlist first. 'Skip this song' maps to application-music/next_track; confirm the track advanced. previous_track reverses it. With Music CLOSED it should fail cleanly and must NOT launch Music.",
+    "manual": true,
+    "prompt": "Skip to the next song.",
+    "expect": {"tool": "application-music", "operation": "next_track", "tool_succeeds": true}
+  },
+  {
+    "id": "m_music_previous_track",
+    "description": "MANUAL (actually changes the track). previous_track is auto_commit — fires immediately. Open Music and start a queue/playlist first. 'Go back a track' maps to application-music/previous_track; confirm the track changed (Music restarts the current track or steps back, matching its own behaviour). With Music CLOSED it should fail cleanly and must NOT launch Music.",
+    "manual": true,
+    "prompt": "Go back to the previous song.",
+    "expect": {"tool": "application-music", "operation": "previous_track", "tool_succeeds": true}
   }
 ]
