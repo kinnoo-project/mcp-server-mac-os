@@ -1,0 +1,30 @@
+[
+  {
+    "name": "list_tabs",
+    "summary": "List the open tabs in Safari (title + URL), grouped by window, so you can answer 'what do I have open?' or find a page the user is looking at. Read-only. PRIVACY: open URLs can reveal what the user is browsing, so invoke it deliberately. Drives Safari via AppleScript, so the first use may prompt to grant Automation access to Safari.",
+    "category": "application-safari",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_tabs",
+    "params": [
+      {
+        "name": "window",
+        "type": "int",
+        "required": false,
+        "description": "1-based index of a single Safari window to scope the listing to (window 1 is the frontmost). Omit to list tabs across every open window.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "current_tab",
+    "summary": "Show the title and URL of the tab the user is currently looking at — the active tab of Safari's front window. Read-only. PRIVACY: the URL can reveal what the user is browsing. Drives Safari via AppleScript; the first use may prompt to grant Automation access to Safari.",
+    "category": "application-safari",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "current_tab",
+    "params": []
+  }
+]

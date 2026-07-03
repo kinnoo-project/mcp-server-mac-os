@@ -249,5 +249,19 @@
     "manual": true,
     "prompt": "Take a screenshot of the TextEdit window and save it to /tmp/mcp-smoke-window-{{unique}}.png.",
     "expect": {"tool": "screenshot", "operation": "capture_window", "tool_succeeds": true}
+  },
+  {
+    "id": "m_safari_list_tabs",
+    "description": "MANUAL (needs Safari running with a tab or two open + Automation grant for Safari; reads live tab URLs, so it surfaces real browsing and must never run in CI). Open Safari with at least one tab first. Asking what tabs are open maps to application-safari/list_tabs; confirm the response names the open pages' titles/URLs grouped by window.",
+    "manual": true,
+    "prompt": "What tabs do I have open in Safari?",
+    "expect": {"tool": "application-safari", "operation": "list_tabs", "tool_succeeds": true}
+  },
+  {
+    "id": "m_safari_current_tab",
+    "description": "MANUAL (needs Safari running with a front window + Automation grant for Safari; reads the live active-tab URL). Open Safari and navigate to any page first. Asking what page you're looking at maps to application-safari/current_tab; confirm the response shows that page's title and URL.",
+    "manual": true,
+    "prompt": "What web page am I currently looking at in Safari?",
+    "expect": {"tool": "application-safari", "operation": "current_tab", "tool_succeeds": true}
   }
 ]
