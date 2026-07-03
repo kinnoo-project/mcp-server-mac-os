@@ -53,6 +53,7 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 - **"Delete `old-draft.txt`."** *(moved to the Trash, never hard-deleted — previewed; undoable)*
 - **"Create a file called `notes.txt` in my Documents with these three lines."** *(previewed; creates new files only — never overwrites; undo trashes it)*
 - **"Add 'call the plumber' to the end of my `todo.txt`."** *(previewed; undo restores the file byte-for-byte)*
+- **"Zip up my `project` folder into `project.zip`."** · **"Extract `backup.tar.gz` into an empty folder."** *(previewed; undoable — a malicious archive can't write outside the folder you choose)*
 
 ### ✉️ Mail
 
