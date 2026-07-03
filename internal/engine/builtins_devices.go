@@ -91,7 +91,7 @@ func runListAirplayDevices(ctx context.Context, _ registry.Capability, _ map[str
 //
 // i.e. timestamp, an Add/Rmv action, flags, interface index, domain, service
 // type, then the instance (device) name — which may itself contain spaces
-// ("Jerry's MacBook Air", `55" The Frame`).
+// ("Jane's MacBook Air", `55" The Frame`).
 //
 // The same receiver is advertised once per network interface (the `if` column),
 // so presence is tracked per (interface, name): a receiver is still reachable as

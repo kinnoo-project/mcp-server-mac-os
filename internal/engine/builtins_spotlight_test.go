@@ -11,6 +11,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -112,6 +113,27 @@ func TestFormatSpotlightResults_TruncationFooter(t *testing.T) {
 	}
 	if !strings.Contains(out, "showing the first 2 of 5") {
 		t.Errorf("expected a truncation footer, got %q", out)
+	}
+}
+
+// TestFormatSpotlightResults_CompactsOversizedOutput confirms the rendered list
+// is passed through the shared head/tail compaction: the item-count cap alone
+// does not bound the byte size (200 long paths can exceed the budget), so the
+// final string must be trimmed like every other builtin's output.
+func TestFormatSpotlightResults_CompactsOversizedOutput(t *testing.T) {
+	// Build enough long paths that the rendered list is well past maxOutputBytes
+	// even though the count stays within maxSpotlightLimit.
+	longDir := "/Users/example/" + strings.Repeat("deeply-nested-folder/", 20)
+	paths := make([]string, maxSpotlightLimit)
+	for i := range paths {
+		paths[i] = fmt.Sprintf("%sdocument-%03d.pdf", longDir, i)
+	}
+	out := formatSpotlightResults("report", "", paths, maxSpotlightLimit)
+	if len(out) > maxOutputBytes+200 { // +200: compaction notice overhead
+		t.Errorf("oversized result was not compacted: got %d bytes", len(out))
+	}
+	if !strings.Contains(out, "bytes truncated") {
+		t.Errorf("expected the truncation notice in compacted output, got %d bytes without it", len(out))
 	}
 }
 

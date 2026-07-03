@@ -7,9 +7,26 @@ package engine
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
+
+	"mcp-server-mac-os/internal/registry"
 )
+
+// TestStageWriteClipboard_RejectsEmptyText confirms an empty (or
+// whitespace-only) 'text' is refused up front rather than staging a silent
+// clipboard CLEAR: the registry's required-check only rejects an absent key, so
+// `text: ""` would otherwise slip through with a preview claiming a "replace".
+// The guard runs before the pbpaste probe, so this needs no live clipboard.
+func TestStageWriteClipboard_RejectsEmptyText(t *testing.T) {
+	for _, text := range []string{"", "   ", "\n\t"} {
+		_, err := stageWriteClipboard(context.Background(), registry.Capability{}, map[string]any{"text": text})
+		if err == nil {
+			t.Errorf("text %q: expected an error, got nil (would silently clear the clipboard)", text)
+		}
+	}
+}
 
 func TestPlanWriteClipboard_ReversibleWhenPriorTextPresent(t *testing.T) {
 	plan, err := planWriteClipboard("new value", []byte("old value"))

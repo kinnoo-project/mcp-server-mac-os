@@ -34,9 +34,10 @@ import (
 const defaultSpotlightLimit = 30
 
 // maxSpotlightLimit caps "limit" regardless of what a caller requests, so a
-// pathological request cannot flood the model's context with paths. Builtin
-// output bypasses the subprocess truncation budget, so this bound is the only
-// thing keeping the response context-safe.
+// pathological request cannot flood the model's context with paths. This bound
+// keeps the item COUNT sane; the rendered output is additionally passed through
+// the shared compactOutput budget (200 long paths could still exceed it), so
+// the two limits together keep the response context-safe.
 const maxSpotlightLimit = 200
 
 // runSpotlightSearch runs a free-text Spotlight query via mdfind, optionally
@@ -133,5 +134,8 @@ func formatSpotlightResults(query, scopeNote string, paths []string, limit int) 
 	if total > len(shown) {
 		fmt.Fprintf(&b, "(showing the first %d of %d matches; narrow the query or set a scope directory to see more)", len(shown), total)
 	}
-	return b.String()
+	// Even with the item-count cap, 200 long paths can exceed the engine's
+	// response budget, so the rendered list goes through the same head/tail
+	// compaction every other builtin applies.
+	return compactOutput(b.String())
 }

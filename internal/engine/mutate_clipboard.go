@@ -5,6 +5,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"mcp-server-mac-os/internal/policy"
 	"mcp-server-mac-os/internal/registry"
@@ -39,6 +40,15 @@ const maxClipboardBytes = 1 << 20 // 1 MiB
 //     out of proportion to a clipboard write, so undo is declined.
 func stageWriteClipboard(ctx context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
 	text, _ := getString(in, "text")
+	// Reject empty (or whitespace-only) text rather than silently CLEARING the
+	// clipboard: the required-check only catches an absent key, so `text: ""`
+	// would otherwise pass and stage a clear the preview describes as a
+	// "replace". Every comparable mutator (notify, speak, append_to_file)
+	// rejects empty input the same way; a deliberate clear can be expressed by
+	// writing a space or other explicit content.
+	if strings.TrimSpace(text) == "" {
+		return nil, fmt.Errorf("write_clipboard: 'text' is empty; refusing to silently clear the clipboard")
+	}
 
 	// Probe the current clipboard text for the inverse. This is a read-only
 	// operation (no state change), exactly what a mutator is permitted to do at

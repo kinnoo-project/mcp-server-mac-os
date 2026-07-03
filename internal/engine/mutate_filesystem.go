@@ -32,12 +32,20 @@ import (
 //     guarantees the rmdir inverse is safe (we never adopt — and then delete — a
 //     directory we did not create).
 func stageMkdir(_ context.Context, _ registry.Capability, in map[string]any) (*StagedPlan, error) {
-	path, _ := getString(in, "path")
-	if path == "" {
+	rawPath, _ := getString(in, "path")
+	if rawPath == "" {
 		return nil, fmt.Errorf("mkdir: 'path' is required")
 	}
-	if strings.HasPrefix(path, "-") {
-		return nil, fmt.Errorf("mkdir: path %q begins with '-' and is not allowed; prefix it with ./", path)
+	if strings.HasPrefix(rawPath, "-") {
+		return nil, fmt.Errorf("mkdir: path %q begins with '-' and is not allowed; prefix it with ./", rawPath)
+	}
+	// Resolve to an absolute path, matching every other filesystem mutator: the
+	// rmdir inverse may run long after staging, and an absolute path keeps both
+	// commands pointed at the same directory regardless of the server's working
+	// directory at that later moment.
+	path, err := filepath.Abs(rawPath)
+	if err != nil {
+		return nil, fmt.Errorf("mkdir: resolving path %q: %w", rawPath, err)
 	}
 	if _, err := os.Stat(path); err == nil {
 		return nil, fmt.Errorf("mkdir: %q already exists; refusing to create (undo would otherwise delete a directory this action did not create)", path)

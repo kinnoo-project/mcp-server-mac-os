@@ -180,6 +180,14 @@ func runReadMessage(ctx context.Context, _ registry.Capability, in map[string]an
 	if !isAllDigits(id) {
 		return "", fmt.Errorf("read_message: 'id' %q is not a numeric message id (use list_inbox to get a current id)", id)
 	}
+	// Bound the digit count too: AppleScript's `as integer` overflows past a
+	// 32-bit-ish range, and an overflow errors INSIDE the script, where it would
+	// be misreported by the fallthrough below as an Automation-permission
+	// problem. Real Mail ids fit comfortably in 19 digits, so anything longer is
+	// certainly stale/garbled input, not a real id.
+	if len(id) > 19 {
+		return "", fmt.Errorf("read_message: 'id' %q is too long to be a Mail message id (use list_inbox to get a current id)", id)
+	}
 	res, err := runOsascript(ctx, readMessageScript, id)
 	if err != nil {
 		return "", err

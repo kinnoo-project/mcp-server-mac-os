@@ -102,6 +102,86 @@ func hasFreeTextParam(c registry.Capability) bool {
 	return false
 }
 
+// reviewedFreeTextMutators is the mutating-side twin of
+// reviewedFreeTextBuiltins: every capability that (a) accepts at least one
+// free-text parameter AND (b) is answered by a Mutator. A mutator assembles its
+// own Forward/Inverse commands exactly like a builtin assembles its own argv,
+// so it does NOT automatically inherit the generic builder's "--" terminator —
+// each one must carry (or share) its own injection guard. The value documents
+// that guard and points at the regression test proving it.
+//
+// TestInjection_MutatorFreeTextParamsAreReviewed fails if the registry contains
+// a free-text mutator missing from this map — the signal to add a guard and a
+// regression test before the capability can merge.
+var reviewedFreeTextMutators = map[string]string{
+	// Filesystem: every operand sits after a "--" terminator in mkdir/rmdir/mv/
+	// cp/tee argv, and dash-leading paths are ALSO rejected up front as a
+	// deliberate guardrail; tar has no positional operands (archive/dest are -f/
+	// -C flag values) and its inputs carry the same dash-guard. See
+	// mutate_filesystem_test.go and mutate_test.go.
+	"mkdir":          "mkdir/rmdir with '--' before the path; dash-leading path rejected; see mutate_test.go",
+	"move":           "mv with '--' before all operands; dash-leading source/dest/glob rejected; paths resolved absolute; see mutate_filesystem_test.go",
+	"copy":           "cp -R with '--' before operands; dash-leading rejected; destination proven absent at stage; see mutate_filesystem_test.go",
+	"remove":         "mv to ~/.Trash with '--' before operands; dash-leading rejected; see mutate_filesystem_test.go",
+	"write_file":     "tee with '--' before the path, content via Stdin (never argv); dash-leading path rejected; see mutate_filesystem_test.go",
+	"append_to_file": "tee -a with '--' before the path, content via Stdin; dash-leading path rejected; see mutate_filesystem_test.go",
+	"compress":       "tar -c with '--' before member operands; dash-leading archive/source rejected; see mutate_filesystem_test.go",
+	"extract":        "tar -x: archive/dest are -f/-C flag values (no positionals); dash-leading rejected; bsdtar's zip-slip defaults kept; see mutate_filesystem_test.go",
+
+	// Clipboard / speech / notification: payload travels via Stdin or after a
+	// "--" terminator or as osascript argv data — never as a bare operand.
+	"write_clipboard": "pbcopy with EMPTY argv; text travels via Stdin so it can never be parsed as a flag; see mutate_clipboard_test.go",
+	"notify":          "osascript via osascriptCommand: message/title passed as argv data after '--'; see mutate_system_test.go",
+	"speak":           "say with '--' before the text operand ('-v Alex' lands as speech, not a voice flag); see mutate_system_test.go",
+
+	// App / file / URL opening: app names go through validateAppNameValue
+	// (non-empty, no leading dash, no control chars); file paths are dash-guarded
+	// and placed after 'open --'; URLs are rebuilt from validated parts so a
+	// hostile value can never reach argv verbatim.
+	"open_application":  "open -a <name> with name via validateAppName (rejects dash-leading/control chars); inverse osascript argv data after '--'; see mutate_apps_test.go",
+	"focus_application": "osascript via osascriptCommand: name via validateAppName then argv data after '--'; see mutate_apps_test.go",
+	"quit_application":  "osascript via osascriptCommand: name via validateAppName then argv data after '--'; see mutate_apps_test.go",
+	"open_file":         "open with '--' before the path; dash-leading path rejected; optional app via validateAppNameValue; see mutate_apps_test.go",
+	"open_website":      "normalizeWebsiteURL rebuilds the URL (scheme allowlist, userinfo rejected, dash-leading rejected) before 'open'; browser via validateAppNameValue; see mutate_apps_test.go",
+	"call":              "canonicalizePhoneNumber reduces input to digits/+ then callURL builds a fixed tel:/facetime: URL — free text never reaches argv; see mutate_phone_test.go",
+
+	// Printing: lp places the file after a "--" terminator; file and printer
+	// names are dash-guarded; copies is a bounded int.
+	"print_file":      "lp with '--' before the file; dash-leading file/printer rejected; see mutate_printers_test.go",
+	"print_test_page": "lp prints a server-written scratch file; only the printer name is model-controlled and it is dash-guarded; see mutate_printers_test.go",
+
+	// AppleScript-backed application domains: every one of these goes through
+	// the shared osascriptCommand seam, so all model values are argv data after
+	// the structural '--' (TestInjection_OsascriptTerminatesHostileData).
+	"send_mail":         "osascript argv data after '--'; see mutate_mail_test.go (hostile subject '-e' regression)",
+	"send_message":      "osascript argv data after '--'; see mutate_messages_test.go",
+	"create_contact":    "osascript argv data after '--'; delete-marker is crypto-random server-side; see mutate_contacts_test.go",
+	"add_event":         "osascript argv data after '--'; dates parsed via time.Parse first; see mutate_calendar_test.go",
+	"modify_event":      "osascript argv data after '--'; see mutate_calendar_test.go",
+	"delete_event":      "osascript argv data after '--'; see mutate_calendar_test.go",
+	"add_reminder":      "osascript argv data after '--'; see mutate_reminders_test.go",
+	"modify_reminder":   "osascript argv data after '--'; see mutate_reminders_test.go",
+	"complete_reminder": "osascript argv data after '--'; see mutate_reminders_test.go",
+	"delete_reminder":   "osascript argv data after '--'; see mutate_reminders_test.go",
+	"create_note":       "osascript argv data after '--'; body HTML-escaped server-side; see mutate_notes_test.go",
+	"append_to_note":    "osascript argv data after '--'; see mutate_notes_test.go",
+	"set_favorite":      "osascript argv data after '--'; see mutate_photos_test.go",
+	"set_title":         "osascript argv data after '--'; see mutate_photos_test.go",
+	"set_description":   "osascript argv data after '--'; see mutate_photos_test.go",
+	"set_date":          "osascript argv data after '--'; date parsed into validated ints first; see mutate_photos_test.go",
+	"set_keywords":      "osascript argv data after '--'; see mutate_photos_test.go",
+	"create_album":      "osascript argv data after '--'; see mutate_photos_weak_test.go",
+	"create_folder":     "osascript argv data after '--'; see mutate_photos_weak_test.go",
+	"add_to_album":      "osascript argv data after '--'; see mutate_photos_weak_test.go",
+	"import_photos":     "osascript argv data after '--'; file paths validated to exist first; see mutate_photos_weak_test.go",
+
+	// Window management: the app name goes through validateAppNameValue and then
+	// rides the osascript '--' seam; geometry values are validated ints.
+	"move_window":     "osascript argv data after '--'; app via validateAppNameValue; coords are ints; see mutate_windowing_test.go",
+	"resize_window":   "osascript argv data after '--'; app via validateAppNameValue; size is ints; see mutate_windowing_test.go",
+	"minimize_window": "osascript argv data after '--'; app via validateAppNameValue; see mutate_windowing_test.go",
+}
+
 // TestInjection_BuiltinFreeTextParamsAreReviewed is the coverage gate: it walks
 // the shipped registry and asserts that every free-text builtin capability is
 // accounted for in reviewedFreeTextBuiltins, and that the allowlist has no stale
@@ -132,6 +212,40 @@ func TestInjection_BuiltinFreeTextParamsAreReviewed(t *testing.T) {
 	for name := range reviewedFreeTextBuiltins {
 		if !found[name] {
 			t.Errorf("reviewedFreeTextBuiltins lists %q, but it is no longer a free-text builtin capability — remove the stale entry", name)
+		}
+	}
+}
+
+// TestInjection_MutatorFreeTextParamsAreReviewed is the mutating-side coverage
+// gate, the mirror image of TestInjection_BuiltinFreeTextParamsAreReviewed: it
+// walks the shipped registry and asserts every free-text capability answered by
+// a Mutator is accounted for in reviewedFreeTextMutators (and that the
+// allowlist carries no stale entries). Without this gate a future free-text
+// mutator could merge with neither a guard nor a regression test and nothing
+// would fail.
+func TestInjection_MutatorFreeTextParamsAreReviewed(t *testing.T) {
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatalf("registry.Load(): %v", err)
+	}
+
+	found := map[string]bool{}
+	for _, c := range reg.All() {
+		if _, isMutator := mutators[c.Builder]; !isMutator {
+			continue // a builtin (gated above) or the generic/named builder (structural "--")
+		}
+		if !hasFreeTextParam(c) {
+			continue // no model-controlled free text to defend
+		}
+		found[c.Name] = true
+		if _, reviewed := reviewedFreeTextMutators[c.Name]; !reviewed {
+			t.Errorf("mutator %q takes a free-text parameter but has no entry in reviewedFreeTextMutators: add an injection guard + regression test, then document it here", c.Name)
+		}
+	}
+
+	for name := range reviewedFreeTextMutators {
+		if !found[name] {
+			t.Errorf("reviewedFreeTextMutators lists %q, but it is no longer a free-text mutator capability — remove the stale entry", name)
 		}
 	}
 }

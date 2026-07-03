@@ -197,15 +197,20 @@ func renderAppStoreResults(body []byte, query string, limit int) (string, error)
 	}
 	b.WriteString(":\n")
 	for _, r := range results {
-		price := strings.TrimSpace(r.FormattedPrice)
+		// These strings come from the network, so flatten control characters
+		// (newlines above all) before rendering: a crafted listing must not be
+		// able to inject fake result lines — e.g. a bogus "(App Store id N)" row
+		// steering the model to open a different app — into the output. Remote
+		// text is data, never layout.
+		price := flattenControl(strings.TrimSpace(r.FormattedPrice))
 		if price == "" {
 			price = "price unknown"
 		}
-		seller := strings.TrimSpace(r.SellerName)
+		seller := flattenControl(strings.TrimSpace(r.SellerName))
 		if seller == "" {
 			seller = "unknown seller"
 		}
-		name := strings.TrimSpace(r.TrackName)
+		name := flattenControl(strings.TrimSpace(r.TrackName))
 		if name == "" {
 			name = "(untitled)"
 		}
@@ -213,4 +218,18 @@ func renderAppStoreResults(body []byte, query string, limit int) (string, error)
 	}
 	b.WriteString("\nTo open one of these in the App Store, use open_app_store_page with its id.")
 	return compactOutput(b.String()), nil
+}
+
+// flattenControl replaces every control character (newlines, tabs, NUL, ANSI
+// escape bytes, ...) in a remote-controlled string with a single space. The
+// result list's one-line-per-app layout is what the model parses, so control
+// characters in a listing's name/seller must never be able to fabricate extra
+// lines or mangle the framing.
+func flattenControl(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return ' '
+		}
+		return r
+	}, s)
 }

@@ -100,6 +100,10 @@ func TestReadMessage_RejectsBadID(t *testing.T) {
 		{"id": "123abc"},  // trailing junk
 		{"id": "-5"},      // dash-leading / negative
 		{"id": "0x1f"},    // hex
+		// 25 digits: all-numeric but far past any real Mail id. Without the
+		// length bound this would overflow AppleScript's `as integer` inside the
+		// script and surface as a misleading Automation-permission error.
+		{"id": "1234567890123456789012345"},
 	}
 	for _, in := range bad {
 		if _, err := runReadMessage(nil, readMessageCapability(t), in); err == nil {

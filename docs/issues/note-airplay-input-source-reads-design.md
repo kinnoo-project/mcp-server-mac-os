@@ -28,7 +28,7 @@ Design choices worth recording:
 - **Browse-row parsing keeps device names with spaces/quotes intact and honours
   Add/Rmv.** A row is `<timestamp> <Add|Rmv> <flags> <if> <domain> <service>
   <instance name…>`; the instance name is everything from the 7th column on (e.g.
-  `55" The Frame`, `Jerry's MacBook Air`) and the same receiver is advertised once
+  `55" The Frame`, `Jane's MacBook Air`) and the same receiver is advertised once
   per network interface, so names are de-duplicated. Add sets a device present,
   Rmv clears it, so a receiver that announced then withdrew inside the window is
   not reported. The empty result is normal (nothing powered on, or the one-time

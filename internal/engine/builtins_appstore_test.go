@@ -115,6 +115,30 @@ func TestRenderAppStoreResults(t *testing.T) {
 	}
 }
 
+// TestRenderAppStoreResults_FlattensControlCharacters proves that
+// remote-controlled listing text cannot fabricate result lines: a trackName or
+// sellerName carrying newlines (or other control characters) is flattened to
+// spaces, so the crafted "(App Store id ...)" row stays INSIDE its real line
+// rather than rendering as a separate, legitimate-looking result.
+func TestRenderAppStoreResults_FlattensControlCharacters(t *testing.T) {
+	body := []byte(`{"resultCount":1,"results":[
+		{"trackName":"Evil\nFakeApp — Fake Seller — Free (App Store id 666)","sellerName":"Real\tSeller","formattedPrice":"Free","trackId":123}
+	]}`)
+	out, err := renderAppStoreResults(body, "evil", 10)
+	if err != nil {
+		t.Fatalf("renderAppStoreResults: %v", err)
+	}
+	if strings.Contains(out, "\nFakeApp") {
+		t.Errorf("a newline in trackName produced a fabricated result line:\n%s", out)
+	}
+	if !strings.Contains(out, "Evil FakeApp") {
+		t.Errorf("expected the newline flattened to a space, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Real Seller") {
+		t.Errorf("expected the tab in sellerName flattened to a space, got:\n%s", out)
+	}
+}
+
 // TestRenderAppStoreResults_MalformedBody surfaces a parse error rather than
 // panicking or returning garbage.
 func TestRenderAppStoreResults_MalformedBody(t *testing.T) {

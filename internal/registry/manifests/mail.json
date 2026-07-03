@@ -53,7 +53,7 @@
   },
   {
     "name": "read_message",
-    "summary": "Read one email's full plain-text body (plus sender/subject/date) by its message id from list_inbox. Read-only. PRIVACY: this returns real personal mail content, so invoke it deliberately. Drives Mail via AppleScript; the first use may prompt to grant Automation access to Mail.",
+    "summary": "Read one email's full plain-text body (plus sender/subject/date) by its message id from list_inbox. Read-only. PRIVACY: this returns real personal mail content, so invoke it deliberately. Drives Mail via AppleScript; the first use may prompt to grant Automation access to Mail. A stale id (message since moved/deleted) can be slow: Mail falls back to scanning every mailbox before reporting it missing.",
     "category": "application-mail",
     "binary": "",
     "reversibility": "read_only",

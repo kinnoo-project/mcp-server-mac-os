@@ -56,6 +56,40 @@ func TestStageMkdir_Plan(t *testing.T) {
 	}
 }
 
+// TestStageMkdir_ResolvesRelativePathAbsolute confirms a relative path is baked
+// into BOTH the forward mkdir and the rmdir inverse in absolute form, matching
+// every other filesystem mutator: undo may run long after staging, and a
+// relative path would silently target whatever the server's working directory
+// happens to be at that later moment.
+func TestStageMkdir_ResolvesRelativePathAbsolute(t *testing.T) {
+	base := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(base); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	plan, err := New().Stage(context.Background(), mkdirCap, map[string]any{"path": "child"})
+	if err != nil {
+		t.Fatalf("Stage: %v", err)
+	}
+	// filepath.Abs cleans symlinks-free lexical form; resolve base the same way
+	// (macOS TempDir often sits behind /private) by comparing basenames + Abs.
+	want, err := filepath.Abs("child")
+	if err != nil {
+		t.Fatalf("Abs: %v", err)
+	}
+	if got := plan.Forward.Args[len(plan.Forward.Args)-1]; got != want || !filepath.IsAbs(got) {
+		t.Errorf("forward path = %q, want the absolute %q", got, want)
+	}
+	if got := plan.Inverse.Args[len(plan.Inverse.Args)-1]; got != want {
+		t.Errorf("inverse path = %q, want the absolute %q", got, want)
+	}
+}
+
 // TestStageMkdir_RejectsExisting confirms staging refuses a path that already
 // exists, so undo can never delete a directory this action did not create.
 func TestStageMkdir_RejectsExisting(t *testing.T) {
