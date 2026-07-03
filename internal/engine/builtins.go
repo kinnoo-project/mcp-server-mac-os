@@ -37,6 +37,7 @@ var builtins = map[string]BuiltinFunc{
 	"read_message":       runReadMessage,
 	"list_tabs":          runListTabs,
 	"current_tab":        runCurrentTab,
+	"now_playing":        runNowPlaying,
 	"list_calendars":     runListCalendars,
 	"query_events":       runQueryEvents,
 	"list_reminders":     runListReminders,
