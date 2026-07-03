@@ -28,6 +28,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -45,15 +46,30 @@ import (
 // "term" query value below is model-controlled.
 var appStoreSearchEndpoint = "https://itunes.apple.com/search"
 
+// appStoreHTTPClient is the dedicated client for the App Store lookup. It
+// REFUSES to follow redirects: the endpoint is a fixed Apple host that answers
+// 200 with JSON, and a 3xx would silently send the follow-up request to a
+// DIFFERENT origin — defeating the whole "scheme/host/path are Go-side
+// constants" guarantee this builtin rests on. Refusing a redirect surfaces as a
+// clear error instead. (Its timeout is applied per-request via the context, not
+// on the client, so the httptest-backed tests can override the endpoint freely.)
+var appStoreHTTPClient = &http.Client{
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return errors.New("refusing to follow a redirect to another origin")
+	},
+}
+
+// appStoreMaxResponseBytes caps how much of the response body we read, so a
+// surprise multi-megabyte payload cannot balloon memory or the model's context.
+// 1 MiB comfortably holds the default result set. A var (not a const) so a test
+// can lower it to exercise the over-limit path without sending a real megabyte.
+var appStoreMaxResponseBytes = 1 << 20
+
 const (
 	// appStoreSearchTimeout bounds the single outbound request so a slow or
 	// hanging endpoint cannot tie up the handler; it is well under the engine's
 	// 2-minute subprocess ceiling because this is a lightweight JSON lookup.
 	appStoreSearchTimeout = 10 * time.Second
-	// appStoreMaxResponseBytes caps how much of the response body we read, so a
-	// surprise multi-megabyte payload cannot balloon memory or the model's
-	// context. 1 MiB comfortably holds the default result set.
-	appStoreMaxResponseBytes = 1 << 20
 	// Result-count bounds mirror the app-listing reads: a readable default and a
 	// hard ceiling so a broad search cannot flood the model's context.
 	defaultAppStoreLimit = 10
@@ -98,7 +114,7 @@ func runSearchAppStore(ctx context.Context, _ registry.Capability, in map[string
 	if err != nil {
 		return "", fmt.Errorf("search_app_store: could not build request: %w", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := appStoreHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("search_app_store: request to the App Store failed (check your internet connection): %w", err)
 	}
@@ -107,9 +123,15 @@ func runSearchAppStore(ctx context.Context, _ registry.Capability, in map[string
 		return "", fmt.Errorf("search_app_store: the App Store returned HTTP %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, appStoreMaxResponseBytes))
+	// Read one byte past the cap so an over-limit body is DETECTED rather than
+	// silently truncated (which would only surface later as a confusing JSON
+	// parse error). If we got more than the cap, the response is too large.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(appStoreMaxResponseBytes)+1))
 	if err != nil {
 		return "", fmt.Errorf("search_app_store: reading the App Store response failed: %w", err)
+	}
+	if len(body) > appStoreMaxResponseBytes {
+		return "", fmt.Errorf("search_app_store: the App Store response exceeded the %d-byte limit", appStoreMaxResponseBytes)
 	}
 	return renderAppStoreResults(body, query, limit)
 }

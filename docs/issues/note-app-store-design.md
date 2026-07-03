@@ -39,6 +39,16 @@ reintroduce an argv the model's query flows through. The request is bound to the
 request context with its own 10-second timeout and a 1-MiB response cap, so a
 slow or oversized reply can't tie up the handler or flood the model's context.
 
+**Hardening the fixed-origin guarantee.** Two request-level guards keep the
+"scheme/host/path are constants" property honest against a misbehaving endpoint
+(added in review): the request uses a dedicated `http.Client` that **refuses to
+follow redirects** (a 3xx would silently send a follow-up request to a different
+host, defeating the guarantee), and the body is read one byte past the 1-MiB cap
+so an **over-limit response is reported as a clear "too large" error** instead of
+being silently truncated into a confusing JSON parse failure. Both are pinned by
+regression tests (`TestRunSearchAppStore_RefusesRedirect`,
+`TestRunSearchAppStore_RejectsOversizeResponse`).
+
 **Why the query is injection-inert.** Nothing the model supplies shapes the
 request beyond one query-string value. Scheme, host, and path come only from the
 Go-side `appStoreSearchEndpoint` constant; the search text is carried as the

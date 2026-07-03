@@ -162,3 +162,56 @@ func TestRunSearchAppStore_RequiresQuery(t *testing.T) {
 		t.Fatal("expected an error for a blank query, got nil")
 	}
 }
+
+// TestRunSearchAppStore_RefusesRedirect proves the fixed-origin guarantee holds
+// against a misbehaving endpoint: a 3xx that points elsewhere is refused, and the
+// redirect target is never contacted. Without the no-redirect client this would
+// silently make a follow-up request to another host.
+func TestRunSearchAppStore_RefusesRedirect(t *testing.T) {
+	var targetHit bool
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetHit = true
+		_, _ = w.Write([]byte(`{"resultCount":1,"results":[{"trackName":"Evil","trackId":1}]}`))
+	}))
+	defer target.Close()
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/search", http.StatusFound)
+	}))
+	defer redirector.Close()
+
+	orig := appStoreSearchEndpoint
+	appStoreSearchEndpoint = redirector.URL + "/search"
+	defer func() { appStoreSearchEndpoint = orig }()
+
+	if _, err := runSearchAppStore(context.Background(), registry.Capability{}, map[string]any{"query": "slack"}); err == nil {
+		t.Fatal("expected an error when the endpoint redirects, got nil")
+	}
+	if targetHit {
+		t.Error("the redirect target was contacted — the fixed-origin guarantee was violated")
+	}
+}
+
+// TestRunSearchAppStore_RejectsOversizeResponse proves an over-cap body is
+// reported as a clear "too large" error rather than being silently truncated into
+// a confusing JSON parse failure. The cap is lowered for the test so we needn't
+// send a real megabyte.
+func TestRunSearchAppStore_RejectsOversizeResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// A valid-ish JSON prefix followed by enough bytes to exceed the cap.
+		_, _ = w.Write([]byte(`{"resultCount":0,"results":[]}` + strings.Repeat(" ", 200)))
+	}))
+	defer srv.Close()
+
+	origEndpoint := appStoreSearchEndpoint
+	appStoreSearchEndpoint = srv.URL + "/search"
+	defer func() { appStoreSearchEndpoint = origEndpoint }()
+	origCap := appStoreMaxResponseBytes
+	appStoreMaxResponseBytes = 64
+	defer func() { appStoreMaxResponseBytes = origCap }()
+
+	_, err := runSearchAppStore(context.Background(), registry.Capability{}, map[string]any{"query": "slack"})
+	if err == nil || !strings.Contains(err.Error(), "exceeded") {
+		t.Fatalf("expected a 'response too large' error, got %v", err)
+	}
+}
