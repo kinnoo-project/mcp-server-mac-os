@@ -155,6 +155,8 @@ var mutators = map[string]Mutator{
 	"open_settings":     stageOpenSettings,
 	"notify":            stageNotify,
 	"speak":             stageSpeak,
+	"display_sleep":     stageDisplaySleep,
+	"wifi_set_power":    stageWifiSetPower,
 	"quit_process":      stageQuitProcess,
 	"terminate_process": stageTerminateProcess,
 }

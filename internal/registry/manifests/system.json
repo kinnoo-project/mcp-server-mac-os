@@ -164,5 +164,35 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "display_sleep",
+    "summary": "Put the display(s) to sleep immediately (turn the screen off) without sleeping the whole Mac. Runs immediately; cannot be undone from software — waking the screen is a manual action (press a key or move the mouse). Does not lock the Mac or stop any running work.",
+    "category": "system",
+    "binary": "pmset",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "display_sleep",
+    "auto_commit": true,
+    "params": []
+  },
+  {
+    "name": "wifi_set_power",
+    "summary": "Turn the Wi-Fi radio on or off. Staged for confirmation because turning Wi-Fi off disconnects this Mac from any Wi-Fi network. Reversible: undo restores the previous power state. To JOIN a specific network (rather than toggle the radio) there is no non-admin command — use open_settings (pane 'wifi').",
+    "category": "system",
+    "binary": "networksetup",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "wifi_set_power",
+    "params": [
+      {
+        "name": "power",
+        "type": "enum",
+        "required": true,
+        "enum": ["on", "off"],
+        "description": "Whether to turn the Wi-Fi radio 'on' or 'off'.",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]
