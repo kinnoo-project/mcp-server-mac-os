@@ -124,14 +124,20 @@ See what's installed and what's open, and drive your apps.
 
 ### 📸 Screenshots
 
-Give the assistant eyes on your screen — it captures the desktop to an image file
+Give the assistant eyes on your screen — it captures the screen to an image file
 and hands back the path (plus size and dimensions) so it can look at what you see.
+Capture the whole desktop, a rectangle you point out, or a single app's window.
 
 - *"Take a screenshot."* · *"Grab a screenshot of my second display as a JPG."*
+- *"Screenshot the 400×300 box at the top-left of my screen."* *(a specific
+  rectangle — give the x, y corner plus a width and height)*
+- *"Take a screenshot of the Safari window."* *(a single app's window — reads the
+  window's position and photographs just that area)*
 - *"Screenshot my screen and save it to ~/Desktop/login.png."* *(say where, or it
   defaults to `~/Pictures/Screenshots`; it won't overwrite an existing file)*
-- Needs the **Screen Recording** permission, and says so plainly if it isn't
-  granted yet.
+- All three need the **Screen Recording** permission; capturing a specific app
+  window additionally uses **Accessibility** + **Automation** (to read the
+  window's position). Any missing grant is called out plainly.
 
 ### 📋 Clipboard
 
