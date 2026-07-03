@@ -235,5 +235,19 @@
     "manual": true,
     "prompt": "Minimize the TextEdit window to the Dock.",
     "expect": {"tool": "application", "operation": "minimize_window", "tool_succeeds": true}
+  },
+  {
+    "id": "m_screenshot_region",
+    "description": "MANUAL (Screen Recording permission; writes a real image file). Capturing a specific rectangle of the screen maps to the screenshot domain's capture_region and runs immediately as a read. Confirm a non-empty PNG lands at the given path.",
+    "manual": true,
+    "prompt": "Take a screenshot of the 500x400 region at the top-left of my screen (x=0, y=0) and save it to /tmp/mcp-smoke-region-{{unique}}.png.",
+    "expect": {"tool": "screenshot", "operation": "capture_region", "tool_succeeds": true}
+  },
+  {
+    "id": "m_screenshot_window",
+    "description": "MANUAL (Screen Recording + Accessibility + Automation grants; writes a real image file). Open TextEdit first. Capturing a single app window maps to the screenshot domain's capture_window, which reads the window's bounds via System Events and photographs that rectangle. Confirm a non-empty PNG lands at the given path.",
+    "manual": true,
+    "prompt": "Take a screenshot of the TextEdit window and save it to /tmp/mcp-smoke-window-{{unique}}.png.",
+    "expect": {"tool": "screenshot", "operation": "capture_window", "tool_succeeds": true}
   }
 ]

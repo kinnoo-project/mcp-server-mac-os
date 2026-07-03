@@ -82,6 +82,8 @@ var builtins = map[string]BuiltinFunc{
 	"list_input_sources":   runListInputSources,
 
 	"capture_screen": runCaptureScreen,
+	"capture_region": runCaptureRegion,
+	"capture_window": runCaptureWindow,
 
 	"current_network": runCurrentNetwork,
 	"dns_servers":     runDNSServers,

@@ -1,9 +1,11 @@
-// builtins_screenshot.go implements the read-only screen-capture builtin:
-// capture_screen, which photographs the desktop with macOS's screencapture(1)
-// and reports where the image was saved plus its dimensions and size.
+// builtins_screenshot.go implements the read-only screen-capture builtins:
+// capture_screen (whole desktop), and — through the shared spine defined here —
+// capture_region and capture_window (builtins_screenshot_region.go). All three
+// photograph the screen with macOS's screencapture(1) and report where the image
+// was saved plus its dimensions and size.
 //
-// It is a "builtin" (run in-process, like list_printers) rather than a plain
-// argv-builder for one reason: screencapture frequently exits 0 even when the
+// They are "builtins" (run in-process, like list_printers) rather than plain
+// argv-builders for one reason: screencapture frequently exits 0 even when the
 // Screen Recording permission is denied — it simply writes an empty or
 // desktop-only file. Only by running the tool AND THEN inspecting the resulting
 // file can we turn that silent failure into an actionable "grant Screen
@@ -14,7 +16,7 @@
 // destination via output_path, which is validated the same way every other
 // model-supplied path is (tilde-expanded by the normalizer, then guarded here
 // against a leading '-' so it cannot be parsed as a screencapture flag). To stay
-// in the no-confirm read-only lane, capture_screen only ever CREATES files — it
+// in the no-confirm read-only lane, a capture only ever CREATES files — it
 // refuses to overwrite an existing one — so a capture can never destroy data.
 package engine
 
@@ -53,16 +55,23 @@ var screenshotFormats = map[string]screenshotFormat{
 	"tiff": {ext: "tiff", decodable: false},
 }
 
-// runCaptureScreen captures the screen and returns a human-readable summary of
-// where the image landed and its dimensions/size. A denied Screen Recording
-// permission (which screencapture reports as an empty/zero-byte file, often with
-// exit 0) is surfaced as an actionable grant message.
-func runCaptureScreen(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
-	format, _ := getString(in, "format") // enum-validated by the normalizer; defaults to "png"
-	if _, ok := screenshotFormats[format]; !ok {
-		return "", fmt.Errorf("capture_screen: unsupported format %q", format)
-	}
+// captureRegion is an optional rectangular crop, in global screen points, for
+// screencapture's -R flag. capture_region supplies it from four validated ints;
+// capture_window supplies it from a window's probed bounds; capture_screen passes
+// nil (whole desktop). A nil *captureRegion therefore means "no -R".
+type captureRegion struct {
+	x, y, w, h int
+}
 
+// runCaptureScreen captures the whole desktop and returns a human-readable
+// summary of where the image landed and its dimensions/size. A denied Screen
+// Recording permission (which screencapture reports as an empty/zero-byte file,
+// often with exit 0) is surfaced as an actionable grant message.
+//
+// It is a thin wrapper over runCapture, the spine shared with capture_region and
+// capture_window: capture_screen is simply the case with no region crop and an
+// optional -D display selection.
+func runCaptureScreen(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
 	// display is optional. When present it must be a positive 1-based index;
 	// reject zero/negative up front rather than handing screencapture a value it
 	// would treat as "no such display" (a confusing empty capture).
@@ -70,24 +79,76 @@ func runCaptureScreen(ctx context.Context, _ registry.Capability, in map[string]
 	if hasDisplay && display < 1 {
 		return "", fmt.Errorf("capture_screen: 'display' must be 1 or greater (1 is the main display), got %d", display)
 	}
+	return runCapture(ctx, captureRequest{
+		op:         "capture_screen",
+		in:         in,
+		display:    display,
+		hasDisplay: hasDisplay,
+	})
+}
+
+// captureRequest bundles everything the shared capture spine needs. Each caller
+// (capture_screen / capture_region / capture_window) fills in only the fields its
+// grammar uses: capture_screen sets display; the region captures set regionFn;
+// all three read format and output_path straight from in.
+type captureRequest struct {
+	op         string         // capability name, used in error messages
+	in         map[string]any // normalized params (format, output_path already tilde-expanded)
+	display    int            // 1-based display index for -D (capture_screen only)
+	hasDisplay bool           // whether display was supplied
+	// regionFn, when non-nil, computes the -R crop. It is called only AFTER the
+	// cheap input validation (format, output_path, no-overwrite) has passed, so a
+	// caller that must do permission-gated work to find the rectangle
+	// (capture_window's System Events probe) never triggers a permission prompt
+	// for a request that was going to be rejected on its output_path anyway. A nil
+	// regionFn means "no -R" (capture the whole display).
+	regionFn func() (*captureRegion, error)
+}
+
+// runCapture is the shared spine of all three screenshot builtins. It resolves
+// and guards the output path, enforces the create-only (no-overwrite) contract
+// that keeps captures in the read-only lane, runs screencapture with the caller's
+// region/display selection, and turns a silent Screen Recording denial (an empty
+// or missing file, often with exit 0) into an actionable grant message.
+//
+// Ordering matters: all the cheap, non-prompting validation (format, output path,
+// overwrite check) happens BEFORE regionFn is invoked, so a permission-gated crop
+// computation (capture_window's window-bounds probe) cannot fire — and cannot
+// surface a permission prompt — for a request that a dash-leading or occupied
+// output_path would reject regardless.
+func runCapture(ctx context.Context, r captureRequest) (string, error) {
+	format, _ := getString(r.in, "format") // enum-validated by the normalizer; defaults to "png"
+	if _, ok := screenshotFormats[format]; !ok {
+		return "", fmt.Errorf("%s: unsupported format %q", r.op, format)
+	}
 
 	// Resolve the destination. resolveScreenshotPath may refine the format when
 	// the caller's output_path carries a recognized image extension, so the -t
 	// flag always matches the filename actually written.
-	outputParam, _ := getString(in, "output_path") // tilde already expanded by the normalizer
-	outPath, format, err := resolveScreenshotPath(outputParam, format)
+	outputParam, _ := getString(r.in, "output_path") // tilde already expanded by the normalizer
+	outPath, format, err := resolveScreenshotPath(r.op, outputParam, format)
 	if err != nil {
 		return "", err
 	}
 	spec := screenshotFormats[format]
 
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
-		return "", fmt.Errorf("capture_screen: could not create output directory %s: %w", filepath.Dir(outPath), err)
+		return "", fmt.Errorf("%s: could not create output directory %s: %w", r.op, filepath.Dir(outPath), err)
 	}
-	// Never overwrite: capture_screen only creates files, which keeps it safely in
-	// the read-only lane. Check before capturing so we fail fast.
+	// Never overwrite: a capture only creates files, which keeps it safely in the
+	// read-only lane. Check before capturing so we fail fast.
 	if _, err := os.Stat(outPath); err == nil {
-		return "", fmt.Errorf("capture_screen: refusing to overwrite existing file %s; choose a different name or omit output_path", outPath)
+		return "", fmt.Errorf("%s: refusing to overwrite existing file %s; choose a different name or omit output_path", r.op, outPath)
+	}
+
+	// Only now — after the cheap validation has passed — compute the crop. For
+	// capture_window this is the permission-gated System Events probe.
+	var region *captureRegion
+	if r.regionFn != nil {
+		region, err = r.regionFn()
+		if err != nil {
+			return "", err
+		}
 	}
 
 	bin, err := policy.ResolveBinary("screencapture")
@@ -95,7 +156,7 @@ func runCaptureScreen(ctx context.Context, _ registry.Capability, in map[string]
 		return "", err
 	}
 
-	args := screencaptureArgs(format, display, hasDisplay, outPath)
+	args := screencaptureArgs(format, r.display, r.hasDisplay, region, outPath)
 	res, err := runCommand(ctx, bin, args...)
 	if err != nil {
 		return "", err
@@ -110,7 +171,7 @@ func runCaptureScreen(ctx context.Context, _ registry.Capability, in map[string]
 		if statErr == nil && info.Size() == 0 {
 			_ = os.Remove(outPath)
 		}
-		return "", screencapturePermissionError(res.ExitCode, res.Stderr)
+		return "", screencapturePermissionError(r.op, res.ExitCode, res.Stderr)
 	}
 
 	return reportCapture(outPath, info.Size(), spec.decodable), nil
@@ -127,19 +188,20 @@ func runCaptureScreen(ctx context.Context, _ registry.Capability, in map[string]
 //     rejected.
 //
 // A leading '-' is rejected because the path is screencapture's trailing operand
-// and could otherwise be parsed as one of its flags.
-func resolveScreenshotPath(outputParam, format string) (path string, effFormat string, err error) {
+// and could otherwise be parsed as one of its flags. op names the calling
+// capability so its errors read in that capability's terms.
+func resolveScreenshotPath(op, outputParam, format string) (path string, effFormat string, err error) {
 	if outputParam == "" {
 		home, herr := os.UserHomeDir()
 		if herr != nil {
-			return "", "", fmt.Errorf("capture_screen: cannot locate home directory: %w", herr)
+			return "", "", fmt.Errorf("%s: cannot locate home directory: %w", op, herr)
 		}
 		dir := filepath.Join(home, "Pictures", "Screenshots")
 		return filepath.Join(dir, generatedScreenshotName(format)), format, nil
 	}
 
 	if strings.HasPrefix(outputParam, "-") {
-		return "", "", fmt.Errorf("capture_screen: output_path %q must not begin with '-'; prefix it with ./", outputParam)
+		return "", "", fmt.Errorf("%s: output_path %q must not begin with '-'; prefix it with ./", op, outputParam)
 	}
 
 	// An existing directory means "put the file in here"; we keep ownership of the
@@ -159,7 +221,7 @@ func resolveScreenshotPath(outputParam, format string) (path string, effFormat s
 		return outputParam + "." + screenshotFormats[format].ext, format, nil
 	default:
 		if _, ok := screenshotFormats[ext]; !ok {
-			return "", "", fmt.Errorf("capture_screen: unsupported output_path extension %q (supported: png, jpg, pdf, tiff)", ext)
+			return "", "", fmt.Errorf("%s: unsupported output_path extension %q (supported: png, jpg, pdf, tiff)", op, ext)
 		}
 		return outputParam, ext, nil
 	}
@@ -173,12 +235,20 @@ func generatedScreenshotName(format string) string {
 
 // screencaptureArgs assembles the screencapture argument vector. It is factored
 // out as a pure function so the exact flag ordering can be unit-tested without
-// running the binary. The output path is always the trailing operand; a
-// dash-leading path was already rejected in resolveScreenshotPath.
-func screencaptureArgs(format string, display int, hasDisplay bool, outPath string) []string {
+// running the binary. A non-nil region adds the -R x,y,w,h crop (used by
+// capture_region/capture_window); it is mutually exclusive with -D in practice,
+// but the two are simply appended in order. The output path is always the
+// trailing operand; a dash-leading path was already rejected in
+// resolveScreenshotPath, and the region ints are validated before this call.
+func screencaptureArgs(format string, display int, hasDisplay bool, region *captureRegion, outPath string) []string {
 	// -x suppresses the capture sound (there is no human at the prompt).
 	// -t selects the image format.
 	args := []string{"-x", "-t", format}
+	if region != nil {
+		// -R crops to a rectangle in global screen points: x,y is the top-left,
+		// then width,height. screencapture takes it as a single comma-joined value.
+		args = append(args, "-R", fmt.Sprintf("%d,%d,%d,%d", region.x, region.y, region.w, region.h))
+	}
 	if hasDisplay {
 		// -D selects which display to capture (1-based).
 		args = append(args, "-D", fmt.Sprintf("%d", display))
@@ -219,15 +289,16 @@ func imageDimensions(path string) (width, height int, ok bool) {
 
 // screencapturePermissionError turns a failed capture into an actionable message,
 // mirroring messagesDBError/appScriptError. A missing Screen Recording grant is
-// a common cause, but stderr detail may indicate another failure.
-func screencapturePermissionError(exitCode int, stderr string) error {
+// a common cause, but stderr detail may indicate another failure. op names the
+// calling capability so the message reads in its terms.
+func screencapturePermissionError(op string, exitCode int, stderr string) error {
 	stderr = strings.TrimSpace(stderr)
 	detail := stderr
 	if detail == "" {
 		detail = fmt.Sprintf("screencapture produced no image (exit code %d)", exitCode)
 	}
 	return fmt.Errorf(
-		"capture_screen: screen capture failed (%s). A common cause is missing Screen Recording permission. If needed, grant it in System Settings → Privacy & Security → Screen Recording, then try again",
-		detail,
+		"%s: screen capture failed (%s). A common cause is missing Screen Recording permission. If needed, grant it in System Settings → Privacy & Security → Screen Recording, then try again",
+		op, detail,
 	)
 }

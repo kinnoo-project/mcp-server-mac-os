@@ -46,21 +46,25 @@ func TestParseWindowTarget_Rejects(t *testing.T) {
 }
 
 func TestPositiveDimension(t *testing.T) {
-	if _, err := positiveDimension("resize_window", "width", map[string]any{}); err == nil {
+	if _, err := positiveDimension("resize_window", "width", "pixel", map[string]any{}); err == nil {
 		t.Error("missing width: expected an error")
 	}
-	if _, err := positiveDimension("resize_window", "width", map[string]any{"width": 0}); err == nil {
+	if _, err := positiveDimension("resize_window", "width", "pixel", map[string]any{"width": 0}); err == nil {
 		t.Error("zero width: expected an error")
 	}
-	if _, err := positiveDimension("resize_window", "width", map[string]any{"width": -10}); err == nil {
+	if _, err := positiveDimension("resize_window", "width", "pixel", map[string]any{"width": -10}); err == nil {
 		t.Error("negative width: expected an error")
 	}
-	if _, err := positiveDimension("resize_window", "width", map[string]any{"width": maxWindowDimension + 1}); err == nil {
+	if _, err := positiveDimension("resize_window", "width", "pixel", map[string]any{"width": maxWindowDimension + 1}); err == nil {
 		t.Error("oversize width: expected an error")
 	}
-	v, err := positiveDimension("resize_window", "width", map[string]any{"width": 1024})
+	v, err := positiveDimension("resize_window", "width", "pixel", map[string]any{"width": 1024})
 	if err != nil || v != 1024 {
 		t.Errorf("valid width: got (%d, %v), want (1024, nil)", v, err)
+	}
+	// The unit word is caller-supplied and appears in the error text.
+	if _, err := positiveDimension("capture_region", "height", "point", map[string]any{"height": 0}); err == nil || !strings.Contains(err.Error(), "point") {
+		t.Errorf("expected a 'point'-worded error for capture_region, got: %v", err)
 	}
 }
 

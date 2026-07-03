@@ -28,23 +28,34 @@ func TestScreencaptureArgs_Golden(t *testing.T) {
 		format     string
 		display    int
 		hasDisplay bool
+		region     *captureRegion
 		path       string
 		want       []string
 	}{
 		{
-			name:   "png main display",
+			name:   "png main display no region",
 			format: "png", hasDisplay: false, path: "/tmp/mcp-fallback/screenshots/a.png",
 			want: []string{"-x", "-t", "png", "/tmp/mcp-fallback/screenshots/a.png"},
 		},
 		{
-			name:   "jpg second display",
+			name:   "jpg second display no region",
 			format: "jpg", display: 2, hasDisplay: true, path: "/tmp/mcp-fallback/screenshots/b.jpg",
 			want: []string{"-x", "-t", "jpg", "-D", "2", "/tmp/mcp-fallback/screenshots/b.jpg"},
+		},
+		{
+			name:   "png region crop",
+			format: "png", region: &captureRegion{x: 10, y: 20, w: 300, h: 400}, path: "/tmp/mcp-fallback/screenshots/c.png",
+			want: []string{"-x", "-t", "png", "-R", "10,20,300,400", "/tmp/mcp-fallback/screenshots/c.png"},
+		},
+		{
+			name:   "region with negative origin",
+			format: "png", region: &captureRegion{x: -100, y: -50, w: 640, h: 480}, path: "/tmp/mcp-fallback/screenshots/d.png",
+			want: []string{"-x", "-t", "png", "-R", "-100,-50,640,480", "/tmp/mcp-fallback/screenshots/d.png"},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := screencaptureArgs(tc.format, tc.display, tc.hasDisplay, tc.path)
+			got := screencaptureArgs(tc.format, tc.display, tc.hasDisplay, tc.region, tc.path)
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("screencaptureArgs = %v, want %v", got, tc.want)
 			}
@@ -88,7 +99,7 @@ func TestResolveScreenshotPath(t *testing.T) {
 	dir := t.TempDir() // a real existing directory
 
 	t.Run("default location", func(t *testing.T) {
-		path, format, err := resolveScreenshotPath("", "png")
+		path, format, err := resolveScreenshotPath("capture_screen", "", "png")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,7 +110,7 @@ func TestResolveScreenshotPath(t *testing.T) {
 	})
 
 	t.Run("existing directory generates name inside", func(t *testing.T) {
-		path, format, err := resolveScreenshotPath(dir, "jpg")
+		path, format, err := resolveScreenshotPath("capture_screen", dir, "jpg")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -110,7 +121,7 @@ func TestResolveScreenshotPath(t *testing.T) {
 
 	t.Run("full path extension wins over format", func(t *testing.T) {
 		in := filepath.Join(dir, "shot.jpg")
-		path, format, err := resolveScreenshotPath(in, "png") // png param, .jpg path
+		path, format, err := resolveScreenshotPath("capture_screen", in, "png") // png param, .jpg path
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +132,7 @@ func TestResolveScreenshotPath(t *testing.T) {
 
 	t.Run("jpeg alias maps to jpg", func(t *testing.T) {
 		in := filepath.Join(dir, "shot.jpeg")
-		path, format, err := resolveScreenshotPath(in, "png")
+		path, format, err := resolveScreenshotPath("capture_screen", in, "png")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,7 +143,7 @@ func TestResolveScreenshotPath(t *testing.T) {
 
 	t.Run("no extension appends format extension", func(t *testing.T) {
 		in := filepath.Join(dir, "shot")
-		path, format, err := resolveScreenshotPath(in, "png")
+		path, format, err := resolveScreenshotPath("capture_screen", in, "png")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,13 +153,13 @@ func TestResolveScreenshotPath(t *testing.T) {
 	})
 
 	t.Run("unsupported extension rejected", func(t *testing.T) {
-		if _, _, err := resolveScreenshotPath(filepath.Join(dir, "x.webp"), "png"); err == nil {
+		if _, _, err := resolveScreenshotPath("capture_screen", filepath.Join(dir, "x.webp"), "png"); err == nil {
 			t.Error("expected an error for an unsupported extension")
 		}
 	})
 
 	t.Run("dash-leading rejected", func(t *testing.T) {
-		if _, _, err := resolveScreenshotPath("-x.png", "png"); err == nil {
+		if _, _, err := resolveScreenshotPath("capture_screen", "-x.png", "png"); err == nil {
 			t.Error("expected an error for a dash-leading output_path")
 		}
 	})
@@ -197,11 +208,11 @@ func TestScreenshotFormats_MatchManifestEnum(t *testing.T) {
 // Screen Recording grant, and folds in stderr detail when present or a synthetic
 // exit-code note when stderr is empty (the common silent-denial case).
 func TestScreencapturePermissionError(t *testing.T) {
-	withStderr := screencapturePermissionError(1, "could not create image").Error()
+	withStderr := screencapturePermissionError("capture_screen", 1, "could not create image").Error()
 	if !strings.Contains(withStderr, "could not create image") || !strings.Contains(withStderr, "Screen Recording") {
 		t.Errorf("error should carry stderr detail and the grant hint: %s", withStderr)
 	}
-	empty := screencapturePermissionError(0, "").Error()
+	empty := screencapturePermissionError("capture_screen", 0, "").Error()
 	if !strings.Contains(empty, "exit code 0") || !strings.Contains(empty, "Screen Recording") {
 		t.Errorf("empty-stderr error should note the exit code and the grant hint: %s", empty)
 	}
