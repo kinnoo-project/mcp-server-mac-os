@@ -122,6 +122,18 @@ See what's installed and what's open, and drive your apps.
 - **"Move the Safari window to the top-left."** · **"Make it 1200 × 800."** · **"Minimize the TextEdit window."** *(run immediately, and undo puts the window back)*
 - Window control uses the **Accessibility** permission (separate from Automation) — it says so plainly the first time if it isn't granted yet.
 
+### 🧭 Safari
+
+See what you have open in Safari — the assistant can read your tabs so it can
+answer "what was that page?" or pick up where you left off.
+
+- *"What tabs do I have open in Safari?"* *(lists every open tab — title and URL — grouped by window)*
+- *"What page am I looking at right now?"* *(just the front window's active tab)*
+- **Reads only.** It reads tab titles and addresses — it never runs code on a
+  page or reads page contents. Open URLs can reveal what you're browsing, so it
+  flags that these are private and reaches for them deliberately.
+- The first use may ask you to grant **Automation** access to Safari.
+
 ### 📸 Screenshots
 
 Give the assistant eyes on your screen — it captures the screen to an image file
@@ -324,10 +336,10 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 15 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`,
-`printer`, `system`, `network`, `process`, `screenshot`) plus the shared `execute`,
-`undo`, and `pipeline` tools. Try one of the prompts from
+You'll now have the 17 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`,
+`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`) plus the shared
+`execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
 > **Note on permissions:** reading Messages needs **Full Disk Access**, taking

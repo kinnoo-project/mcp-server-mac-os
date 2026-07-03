@@ -22,5 +22,17 @@
     "description": "Asking which windows are open on screen should select application/list_windows (the window inspector), not list_running_applications (which only names running apps, without windows/positions).",
     "prompt": "What windows do I have open on screen right now, and where are they positioned?",
     "expect": { "tool": "application", "operation": "list_windows" }
+  },
+  {
+    "id": "list_tabs_routing",
+    "description": "Asking what browser tabs are open should select application-safari/list_tabs, not the application-window inspector (list_windows) or the running-apps list. Selection-only: executing it reads the machine's live open tab URLs, so real-content assertions live in the manual smoke list; in CI (no personal browsing) routing is all that is checked.",
+    "prompt": "What tabs do I have open in Safari right now?",
+    "expect": { "tool": "application-safari", "operation": "list_tabs" }
+  },
+  {
+    "id": "current_tab_routing",
+    "description": "Asking what page the user is currently looking at should select application-safari/current_tab (the front window's active tab), not list_tabs (the whole set). Selection-only for the same privacy reason as list_tabs_routing.",
+    "prompt": "What web page am I currently looking at in Safari?",
+    "expect": { "tool": "application-safari", "operation": "current_tab" }
   }
 ]
