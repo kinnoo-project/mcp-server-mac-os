@@ -225,6 +225,33 @@ first), and `m_music_play_pause`/`m_music_next_track`/`m_music_previous_track`
 (each actually changes the transport, and with Music closed each fails cleanly
 without launching it). See `docs/issues/note-music-design.md`.
 
+### Safety note: App Store search hits the network only in hermetic tests
+
+The `application` domain's `search_app_store` is the project's first
+**outbound-HTTP** builtin: it issues one HTTPS GET to Apple's public iTunes
+Search API. To keep the test suite hermetic and offline-safe,
+`builtins_appstore_test.go` never calls the real endpoint — `runSearchAppStore`
+is driven end-to-end against a local `httptest` server (by overriding the
+`appStoreSearchEndpoint` var), which also asserts the server receives the query
+**only** as the encoded `term` parameter. The security-critical injection
+regression is `TestBuildAppStoreSearchURL_QueryIsAlwaysAnEncodedTermValue`: for
+every hostile value (the shared `hostileValues` battery plus absolute-URL and
+parameter-smuggling attempts) the built URL keeps its fixed `https` scheme,
+`itunes.apple.com` host, and `/search` path, and the query survives verbatim only
+inside `term` — this is the guard named in `reviewedFreeTextBuiltins`. The pure
+render half (`renderAppStoreResults`) is unit-tested for a normal hit list, the
+empty-result `open_website` fallback guidance, truncation, and a malformed body.
+The companion mutator `open_app_store_page` (`mutate_appstore_test.go`) takes a
+numeric `track_id` only — no free text — so the `macappstore://` forward URL is
+assembled entirely from digits; the test pins that argv layout, the nil Inverse
+(auto-commit, just opens a window), and rejection of missing/non-positive ids.
+Manual smoke-tests (need internet): `m_app_store_search_slack` (live search),
+`m_app_store_download_flow` (full "download Slack" flow — the final step opens
+the App Store window; installing stays the user's click), and
+`m_app_store_not_in_store_fallback` (an app not on the store falls back to a
+**staged** `open_website`, never `open_app_store_page`). See
+`docs/issues/note-app-store-design.md`.
+
 ### Safety note: the real `mdfind` calls never surface real user content
 
 Two builtins exercise a real `mdfind` subprocess. `search_mail`
@@ -406,7 +433,10 @@ The everyday corpus is split into two buckets:
   the pasteboard always succeeds on a live session; the write+undo path is manual
   because it clobbers the live clipboard), `domain_selection.json` (routing checks,
   incl. `list_windows_routing` — "what windows are open?" selects
-  `application/list_windows`; selection-only, so no Accessibility grant is needed).
+  `application/list_windows`; selection-only, so no Accessibility grant is needed;
+  and `search_app_store_routing` — "is Slack on the Mac App Store?" selects
+  `application/search_app_store` over `search_applications`/`open_website`,
+  selection-only so it holds even offline).
 - **Manual (M)** — cases tagged `"manual": true` (e.g. `manual_smoke.json`, plus
   `lan_scan_manual`) that need a permission grant, a signed-in account, or real
   hardware. They are **skipped by the default run** and listed in `-dry-run` as

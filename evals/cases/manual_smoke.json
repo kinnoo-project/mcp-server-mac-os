@@ -328,5 +328,26 @@
     "manual": true,
     "prompt": "Go back to the previous song.",
     "expect": {"tool": "application-music", "operation": "previous_track", "tool_succeeds": true}
+  },
+  {
+    "id": "m_app_store_search_slack",
+    "description": "MANUAL (needs internet — makes a live request to Apple's iTunes Search API). 'Search the Mac App Store for Slack' maps to application/search_app_store; confirm the result lists Slack with its seller, price, and a numeric App Store id (the id feeds open_app_store_page). Read-only, opens nothing.",
+    "manual": true,
+    "prompt": "Search the Mac App Store for Slack.",
+    "expect": {"tool": "application", "operation": "search_app_store", "tool_succeeds": true}
+  },
+  {
+    "id": "m_app_store_download_flow",
+    "description": "MANUAL (needs internet; the final step OPENS the App Store window). Full download flow: 'Download Slack' should first check search_applications (already installed?), then application/search_app_store to find it and its id, then application/open_app_store_page with that id — which fires immediately (auto_commit) and opens Slack's page in the App Store. Installing stays the user's click; confirm the App Store opens to the Slack page and nothing is purchased automatically.",
+    "manual": true,
+    "prompt": "Download Slack.",
+    "expect": {"tool": "application", "operation": "open_app_store_page", "tool_succeeds": true}
+  },
+  {
+    "id": "m_app_store_not_in_store_fallback",
+    "description": "MANUAL (needs internet; stages an open_website but do NOT execute). For an app that is NOT on the Mac App Store (e.g. a browser like Firefox), 'Download Firefox' should try application/search_app_store, find nothing, and fall back to application/open_website STAGED to the vendor's download page (mozilla.org) — previewed behind the execute gate, never auto-opened. Confirm it stages open_website rather than open_app_store_page.",
+    "manual": true,
+    "prompt": "Download Firefox for me.",
+    "expect": {"tool": "application", "operation": "open_website", "forbid_tools": ["execute"]}
   }
 ]

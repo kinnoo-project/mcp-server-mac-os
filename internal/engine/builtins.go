@@ -67,6 +67,7 @@ var builtins = map[string]BuiltinFunc{
 
 	"list_applications":         runListApplications,
 	"search_applications":       runSearchApplications,
+	"search_app_store":          runSearchAppStore,
 	"list_running_applications": runListRunningApplications,
 	"list_windows":              runListWindows,
 
