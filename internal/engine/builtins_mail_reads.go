@@ -167,8 +167,18 @@ func runListInbox(ctx context.Context, _ registry.Capability, in map[string]any)
 // context.
 func runReadMessage(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
 	id, _ := getString(in, "id")
-	if strings.TrimSpace(id) == "" {
+	id = strings.TrimSpace(id)
+	if id == "" {
 		return "", fmt.Errorf("read_message: 'id' is required (from list_inbox)")
+	}
+	// A Mail message id is an integer, and readMessageScript coerces the argv value
+	// with `as integer`. Validate that here so a non-numeric id (e.g. a value like
+	// "id: 123" copied verbatim from a listing line) fails as a CLEAR caller error
+	// rather than tripping the script's coercion and surfacing as a misleading
+	// "grant Automation access" hint. This is a plain input check, not the injection
+	// guard — the `--` terminator in runOsascript already makes the value inert data.
+	if !isAllDigits(id) {
+		return "", fmt.Errorf("read_message: 'id' %q is not a numeric message id (use list_inbox to get a current id)", id)
 	}
 	res, err := runOsascript(ctx, readMessageScript, id)
 	if err != nil {

@@ -86,15 +86,25 @@ func TestCappedInboxLimit(t *testing.T) {
 	}
 }
 
-// TestReadMessage_RequiresID verifies read_message refuses an empty id before it
-// would ever reach osascript, so a missing id is a clear caller error rather
-// than an opaque AppleScript failure.
-func TestReadMessage_RequiresID(t *testing.T) {
-	if _, err := runReadMessage(nil, readMessageCapability(t), map[string]any{}); err == nil {
-		t.Fatal("expected an error when 'id' is missing")
+// TestReadMessage_RejectsBadID verifies read_message refuses a missing, blank, or
+// non-numeric id BEFORE it would ever reach osascript, so a caller mistake is a
+// clear input error rather than an opaque AppleScript coercion failure wrapped as
+// a misleading "grant Automation access" hint. A Mail message id is an integer,
+// so anything non-numeric (e.g. a listing line copied verbatim as "id: 123") is a
+// caller error, not a permission problem.
+func TestReadMessage_RejectsBadID(t *testing.T) {
+	bad := []map[string]any{
+		{},                // missing
+		{"id": "   "},     // blank
+		{"id": "id: 123"}, // a listing line copied verbatim
+		{"id": "123abc"},  // trailing junk
+		{"id": "-5"},      // dash-leading / negative
+		{"id": "0x1f"},    // hex
 	}
-	if _, err := runReadMessage(nil, readMessageCapability(t), map[string]any{"id": "   "}); err == nil {
-		t.Fatal("expected an error when 'id' is blank")
+	for _, in := range bad {
+		if _, err := runReadMessage(nil, readMessageCapability(t), in); err == nil {
+			t.Errorf("expected an error for id %v, got nil", in)
+		}
 	}
 }
 

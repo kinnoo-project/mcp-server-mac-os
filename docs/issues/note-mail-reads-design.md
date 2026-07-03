@@ -49,6 +49,14 @@ readable. A non-matching id makes the script `error "no message with that id"`,
 which `runReadMessage` turns into a clear "use list_inbox to get a current id"
 message — distinct from a permission failure.
 
+Because the id is an integer that the script coerces with `as integer`,
+`runReadMessage` validates it is numeric (`isAllDigits`) BEFORE invoking
+osascript. That way a non-numeric id — e.g. a whole listing line copied verbatim
+as `"id: 123"` — fails as a clear caller error instead of tripping AppleScript's
+coercion and surfacing as the misleading "grant Automation access" hint. This is
+a plain input check layered on top of the `--` terminator, not a substitute for
+it (per Copilot review on PR #45).
+
 ## Security / injection
 
 Both ops drive Mail through the hardened `runOsascript` seam, which inserts the
