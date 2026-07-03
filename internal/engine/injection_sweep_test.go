@@ -76,6 +76,7 @@ var reviewedFreeTextBuiltins = map[string]string{
 	"search_notes":        "osascript via runOsascript: query/folder passed as argv data after '--'; see builtins_notes_test.go",
 	"read_note":           "osascript via runOsascript: id passed as argv data after '--'; see builtins_notes_test.go",
 	"find_contact":        "in-process Contacts lookup via osascript argv data after '--'; see builtins_phone_test.go",
+	"get_contact":         "in-process Contacts lookup via osascript argv data after '--'; name query is inert data; see builtins_contacts_test.go",
 	"ping_host":           "validateNetworkHost rejects dash-leading and metacharacters (ping/dig have no usable '--'); see builtins_network_test.go",
 	"dns_lookup":          "validateNetworkHost rejects dash-leading and metacharacters; see builtins_network_test.go",
 	"list_processes":      "ps with a fixed argv; filter applied in-process as a substring, never passed to the binary; see builtins_process_test.go",

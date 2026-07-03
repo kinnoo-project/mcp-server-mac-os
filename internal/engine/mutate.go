@@ -129,6 +129,7 @@ var mutators = map[string]Mutator{
 	"complete_reminder": stageCompleteReminder,
 	"delete_reminder":   stageDeleteReminder,
 	"call":              stageCall,
+	"create_contact":    stageCreateContact,
 	"send_message":      stageSendMessage,
 	"create_note":       stageCreateNote,
 	"append_to_note":    stageAppendToNote,
