@@ -198,6 +198,11 @@ it opens the exact pane *and* tells you what to click once you're there.
 - **"Notify me when the export is done."** · **"Say out loud that the backup finished."**
   *(a Notification Center banner or spoken text-to-speech — the model's way to get
   your attention when you're not watching the chat; runs immediately, nothing to undo)*
+- **"Turn off my display but keep everything running."** *(sleeps the screen at once —
+  wake it with a key press; nothing to undo from software)*
+- **"Turn my Wi-Fi off."** · **"Turn Wi-Fi back on."** *(toggles the Wi-Fi radio;
+  staged for confirmation because turning it off drops your connection, and undo
+  restores the previous state — joining a specific network still needs the Wi-Fi pane)*
 
 ### 🌐 Network & diagnostics
 

@@ -286,5 +286,19 @@
         "expect": {"tool": "undo", "tool_succeeds": true}
       }
     ]
+  },
+  {
+    "id": "m_display_sleep",
+    "description": "MANUAL (actually turns the screen off). display_sleep is auto_commit — it fires immediately, no stage/execute. Routing check: 'turn off my screen' maps to the system tool's display_sleep op. The display sleeps at once; wake it by pressing a key or moving the mouse. Nothing to undo from software.",
+    "manual": true,
+    "prompt": "Turn off my display but keep everything running.",
+    "expect": {"tool": "system", "operation": "display_sleep", "tool_succeeds": true}
+  },
+  {
+    "id": "m_wifi_set_power_stages_only",
+    "description": "MANUAL (would toggle the Wi-Fi radio). A turn-Wi-Fi-off request must STAGE, not fire — asserted by forbid_tools execute. Kept stage-only ON PURPOSE so even a manual run never actually severs this Mac's connectivity (which could cut the eval runner's own network); executing the staged toggle, and then undoing it to restore the prior power state, is a deliberate human step outside this case. Confirm the preview names the current state and says undo restores it.",
+    "manual": true,
+    "prompt": "Turn my Wi-Fi off.",
+    "expect": {"tool": "system", "operation": "wifi_set_power", "forbid_tools": ["execute"]}
   }
 ]

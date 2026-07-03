@@ -251,6 +251,24 @@ Automation hint. The live move/resize/minimize+undo paths are manual cases
 against a real window and need the Accessibility grant. See
 `docs/issues/note-window-management-design.md`.
 
+### Safety note: display/Wi-Fi power tests never sleep the screen or toggle the radio
+
+The two hardware-power controls (`display_sleep`, `wifi_set_power`) are tested
+(`mutate_system_power_test.go`) without ever running their forward/inverse
+commands, so a test run never blanks the developer's display or drops its network
+connection. `display_sleep` is asserted through its (state-free) mutator directly:
+a fixed `pmset displaysleepnow` forward, a nil inverse, and a preview that does
+not duplicate the auto-commit "cannot be undone" suffix. `wifi_set_power` splits
+its stateful probe out so the pure `planWifiSetPower` builder can be checked for
+both toggle directions — forward sets the requested state, inverse restores the
+prior state baked in at stage time (including the already-on/off no-op case) — and
+the pure `parseWifiPower` parser is table-tested for the on/off lines plus the
+refuse-on-unrecognised contract that stops staging from baking a wrong undo. The
+live paths are manual cases: `m_display_sleep` (auto_commit, actually sleeps the
+screen) and `m_wifi_set_power_stages_only` (kept stage-only on purpose so even a
+manual run never severs connectivity — executing and undoing the toggle is a
+deliberate human step). See `docs/issues/note-display-sleep-wifi-power-design.md`.
+
 This is a fairly classic test pyramid for this kind of system: pure-data/pure-function
 layers get exhaustive unit coverage, and the top layer gets a smaller number of
 high-value, protocol-real integration tests rather than re-testing every
