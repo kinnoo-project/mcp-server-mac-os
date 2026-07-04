@@ -163,6 +163,7 @@ var mutators = map[string]Mutator{
 	"wifi_set_power":      stageWifiSetPower,
 	"quit_process":        stageQuitProcess,
 	"terminate_process":   stageTerminateProcess,
+	"flush_dns_cache":     stageFlushDNSCache,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "trace_route_selection",
+    "description": "Asking to trace the path to a host maps to network/trace_route, not ping_host (which only reports reachable / not) or dns_lookup. Uses 8.8.8.8 so the trace needs only outbound probes; the op is bounded by its own hop cap and context deadline.",
+    "prompt": "Trace the network route to 8.8.8.8 and show me each hop.",
+    "expect": {"tool": "network", "operation": "trace_route", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "whois_owner_lookup",
+    "description": "Asking who owns a domain maps to network/whois_lookup, not dns_lookup (which only resolves the name to an IP). Uses example.com, a reserved documentation domain, so no real third party is queried about.",
+    "prompt": "Who owns the domain example.com and when does it expire?",
+    "expect": {"tool": "network", "operation": "whois_lookup", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "routing_table_selection",
+    "description": "Asking to see the routing table maps to network/route_table (kernel routes), distinct from current_network (just the default route + this Mac's address). Read-only, fixed argv, no external dependency.",
+    "prompt": "Show me my Mac's kernel routing table.",
+    "expect": {"tool": "network", "operation": "route_table", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "flush_dns_auto_commit",
+    "description": "Asking to flush the DNS cache maps to network/flush_dns_cache. It is an auto-commit mutation (benign: the cache repopulates on demand), so calling the network tool runs it immediately and succeeds without a stage/execute round trip.",
+    "prompt": "Flush my Mac's DNS cache.",
+    "expect": {"tool": "network", "operation": "flush_dns_cache", "tool_succeeds": true}
+  }
+]
