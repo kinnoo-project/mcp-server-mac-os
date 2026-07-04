@@ -234,5 +234,48 @@
     "risk": "none",
     "builder": "sleep_assertions",
     "params": []
+  },
+  {
+    "name": "system_log",
+    "summary": "Show a recent slice of the unified system log (what macOS and its apps have been recording), optionally narrowed to one process and/or subsystem. Answers 'what's spamming the log?' and 'what did app X just report?'. Read-only. Covers the last few minutes only (1–30); an unfiltered window can be large and is truncated to fit — narrow it with 'process' and/or 'subsystem' to see more of what you care about.",
+    "category": "system",
+    "binary": "log",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "system_log",
+    "params": [
+      {
+        "name": "duration_minutes",
+        "type": "int",
+        "required": false,
+        "default": 5,
+        "description": "How far back to look, in minutes (1–30). Defaults to 5. Smaller windows return faster and are less likely to be truncated.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "process",
+        "type": "string",
+        "required": false,
+        "description": "Optional: show only entries logged by this process/app (e.g. 'Safari', 'bluetoothd'). Matched exactly against the process name.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "subsystem",
+        "type": "string",
+        "required": false,
+        "description": "Optional: show only entries from this logging subsystem, a reverse-DNS identifier (e.g. 'com.apple.wifi'). Combined with 'process' when both are given.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "thermal_state",
+    "summary": "Report whether the CPU is currently being throttled to manage heat (thermal pressure), read from pmset. Answers 'why is my Mac suddenly slow or hot?' — a CPU speed limit below 100% means macOS is clamping performance to cool down. Read-only.",
+    "category": "system",
+    "binary": "pmset",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "thermal_state",
+    "params": []
   }
 ]

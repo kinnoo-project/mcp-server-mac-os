@@ -130,6 +130,32 @@
     ]
   },
   {
+    "name": "top_processes",
+    "summary": "Show a live, real-time snapshot of the busiest processes from `top` — instantaneous %CPU and memory per process, right now. Use this over list_processes when you want the current moment's CPU pressure (list_processes reports ps's averaged %CPU, which lags); use list_processes for richer per-process detail, filtering, and origin (Apple vs user app).",
+    "category": "process",
+    "binary": "top",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "top_processes",
+    "params": [
+      {
+        "name": "sort_by",
+        "type": "enum",
+        "enum": ["cpu", "memory"],
+        "default": "cpu",
+        "description": "Rank by 'cpu' (default, live %CPU) or 'memory' (largest footprint first).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "limit",
+        "type": "int",
+        "default": 15,
+        "description": "How many processes to show (1–50, default 15).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
     "name": "quit_process",
     "summary": "Gracefully quit the GUI app that owns a PID via the normal Quit command, so it can prompt to save. STAGED; can lose unsaved work and is not undoable. GUI apps only — use terminate_process for background/daemon processes. Never force-kills.",
     "category": "process",
