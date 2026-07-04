@@ -198,7 +198,7 @@ it opens the exact pane *and* tells you what to click once you're there.
 
 - *"What printers do I have, and are they on?"* · *"What's in the print queue?"*
 - **"Print this PDF."** · **"Print a test page on the office laser."**
-- *"Is Wi-Fi on, and what am I joined to?"* · *"Battery level? Is Low Power Mode on? How's my battery health?"*
+- *"Is Wi-Fi on, what am I joined to, and is the signal any good?"* · *"Battery level? Is Low Power Mode on? How's my battery health?"*
 - *"Is Bluetooth on? What's connected, and what's paired?"*
 - *"What Mac do I have — which chip, how much memory?"* · *"How long since my last reboot?"*
 - *"How much free disk space do I have?"* *(every mounted volume, sized like Finder shows)*

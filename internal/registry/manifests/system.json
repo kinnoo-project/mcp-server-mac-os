@@ -1,7 +1,7 @@
 [
   {
     "name": "wifi_status",
-    "summary": "Report the Wi-Fi radio's power state and the network it is currently joined to (if any).",
+    "summary": "Report the Wi-Fi radio's power state, the network it is currently joined to (if any), and that connection's signal strength (RSSI in dBm, with a plain-language quality rating). Answers 'what Wi-Fi am I on?' and 'is my signal any good?'.",
     "category": "system",
     "binary": "networksetup",
     "reversibility": "read_only",
