@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -110,6 +111,41 @@ func execCommand(ctx context.Context, binary string, stdin []byte, args ...strin
 		return res, fmt.Errorf("failed to execute %s: %w", binary, err)
 	}
 	return res, nil
+}
+
+// execDetached starts binary in the background and returns immediately with its
+// PID, WITHOUT waiting for it to finish. It is the execution path for a
+// long-lived helper (today: caffeinate) that must OUTLIVE the tool call that
+// launched it.
+//
+// Two deliberate departures from execCommand make that possible:
+//
+//   - It uses exec.Command, NOT exec.CommandContext. Binding the child to the
+//     request context would kill it the instant the call returns — the opposite
+//     of what a keep-awake session needs. The child's own lifetime is bounded by
+//     its arguments instead (caffeinate's `-t <seconds>`), and it can be ended
+//     early by the paired canceller operation (allow_sleep).
+//   - It places the child in its own process group (Setpgid) and releases the OS
+//     process handle rather than reaping it. That detaches it from the server's
+//     signal group, so a Ctrl-C delivered to the server (e.g. in a foreground
+//     shell) does not also stop the background session.
+//
+// ctx is still honoured up front so a cancelled request starts nothing. Detached
+// commands carry no stdin and produce no meaningful stdout, so neither is wired.
+func execDetached(ctx context.Context, binary string, args ...string) (*runResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(binary, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start %s: %w", binary, err)
+	}
+	pid := cmd.Process.Pid
+	// We will never Wait() on this child, so drop our handle to it and let the
+	// OS (launchd) reap it when it exits on its own.
+	_ = cmd.Process.Release()
+	return &runResult{Stdout: fmt.Sprintf("Started %s in the background (PID %d).", binary, pid)}, nil
 }
 
 // compactOutput enforces the head/tail truncation rule: short output is returned

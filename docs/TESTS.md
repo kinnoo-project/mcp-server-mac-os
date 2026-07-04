@@ -329,6 +329,33 @@ screen) and `m_wifi_set_power_stages_only` (kept stage-only on purpose so even a
 manual run never severs connectivity — executing and undoing the toggle is a
 deliberate human step). See `docs/issues/note-display-sleep-wifi-power-design.md`.
 
+### Safety note: keep-awake tests never start a background process or signal one
+
+The keep-awake pair (`keep_awake`, `allow_sleep`) is tested
+(`mutate_system_caffeinate_test.go`) without ever launching `caffeinate` or
+sending a real signal. `keep_awake` is asserted through its (state-free) mutator:
+a detached `caffeinate -d -i -t <seconds>` forward with `Command.Detach` set, a
+nil inverse (irreversible — the PID is unknowable until the detached process
+starts, so no undo can be baked at stage time), and a preview that humanizes the
+duration and points at `allow_sleep`; out-of-range durations (below 60 s, above
+4 h) are refused before any command is built. `allow_sleep`'s
+safety-critical target selection is pinned by `TestCaffeinatePIDs_*`: given a
+hostile process snapshot mixing other users' `caffeinate`, a protected low PID,
+and look-alike names (`caffeinate.sh`, `decaffeinate`), the target list contains
+only the current user's real `caffeinate` PIDs — so the operation can never
+SIGTERM an unrelated process — and `TestKillCaffeinateCommand_IsAlwaysSigterm`
+pins that the forward command is always `kill -TERM <pids>`, never a force-kill.
+The engine's detach primitive itself is covered in `executor_test.go`
+(`TestExecDetached_*`): a detached child returns immediately with its PID and
+keeps running after the call returns (verified via signal-0, then cleaned up),
+and a cancelled context starts nothing. The read-only `sleep_assertions` parser
+is table-tested in `builtins_system_test.go` against canned `pmset -g assertions`
+output (active caffeinate session vs. idle), asserting only sleep-preventing
+assertions and their holders are summarised and informational ones (UserIsActive)
+are filtered out. The live paths are the manual case
+`m_keep_awake_then_allow_sleep` (starts a real 2-minute session, then cancels it).
+See `docs/issues/note-v3-caffeinate-design.md`.
+
 This is a fairly classic test pyramid for this kind of system: pure-data/pure-function
 layers get exhaustive unit coverage, and the top layer gets a smaller number of
 high-value, protocol-real integration tests rather than re-testing every
@@ -432,6 +459,9 @@ The everyday corpus is split into two buckets:
   `system_reads.json` (incl. `list_input_sources`, which succeeds on any Mac
   since every machine has at least one input source; `list_airplay_devices` is
   Manual — it browses the network for ~3s and the result is hardware-dependent),
+  `system_power.json` (`keep_awake_stages_not_executes` — the medium-risk
+  keep-awake must STAGE, not run, so staging never starts `caffeinate`; and
+  `sleep_assertions_read`, a read-only "what's keeping my Mac awake?" probe),
   `network_reads.json`, `process_reads.json`,
   `pipeline_and_routing.json`, `screenshot.json` (selection-only — a real capture
   needs Screen Recording), `clipboard.json` (read_clipboard selection — reading
@@ -457,3 +487,5 @@ The everyday corpus is split into two buckets:
   `m_app_minimize_window`) are manual for the same reason plus a second grant:
   they need Accessibility access, and the move/minimize ops auto_commit against a
   real on-screen window (`m_app_move_window_then_undo` then undoes the move).
+  `m_keep_awake_then_allow_sleep` is manual because it actually starts a detached
+  `caffeinate` (stage→execute) and then stops it via `allow_sleep`.

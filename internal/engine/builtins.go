@@ -83,6 +83,7 @@ var builtins = map[string]BuiltinFunc{
 	"about_this_mac":        runAboutThisMac,
 	"disk_usage":            runDiskUsage,
 	"software_update_check": runSoftwareUpdateCheck,
+	"sleep_assertions":      runSleepAssertions,
 
 	"list_airplay_devices": runListAirplayDevices,
 	"list_input_sources":   runListInputSources,

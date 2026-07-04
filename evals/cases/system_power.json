@@ -1,0 +1,14 @@
+[
+  {
+    "id": "keep_awake_stages_not_executes",
+    "description": "Asking to keep the Mac awake for a while maps to system/keep_awake, and because it is a medium-risk mutation it must STAGE (return a token) rather than auto-run in the same turn — staging does not start caffeinate, so this is CI-safe. Distinct from display_sleep (turns the screen OFF) and sleep_assertions (only reports what is keeping it awake).",
+    "prompt": "Keep my Mac awake for the next hour so it doesn't fall asleep during my download.",
+    "expect": {"tool": "system", "operation": "keep_awake", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "sleep_assertions_read",
+    "description": "Asking why the Mac won't sleep / what is keeping it awake maps to system/sleep_assertions, a read-only probe that runs immediately (pmset -g assertions) with no stage/execute round trip. It must not route to keep_awake (which CAUSES wakefulness) or power_status (battery).",
+    "prompt": "Why won't my Mac go to sleep? What's keeping it awake right now?",
+    "expect": {"tool": "system", "operation": "sleep_assertions", "tool_succeeds": true, "forbid_tools": ["execute", "pipeline"]}
+  }
+]
