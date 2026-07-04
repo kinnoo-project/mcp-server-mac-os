@@ -21,9 +21,17 @@ So `Command` gained a `Detach bool`. When set, `RunCommand` routes to a new
   bound to the request context, so it survives the call. Its lifetime is bounded
   instead by its own arguments (`caffeinate -t <seconds>`) plus the paired
   canceller (`allow_sleep`).
-- It puts the child in its own process group (`Setpgid`) and releases the OS
-  handle instead of waiting on it, detaching it from the server's signal group so
-  a Ctrl-C to the server does not also stop the background session.
+- It puts the child in its own process group (`Setpgid`), detaching it from the
+  server's signal group so a Ctrl-C to the server does not also stop the
+  background session.
+- It reaps the child **asynchronously** (`go func() { _ = cmd.Wait() }()`) rather
+  than blocking on it or dropping the handle. Fire-and-return is the goal, but a
+  child a long-running parent never `Wait()`s becomes a zombie when it exits, and
+  those would accumulate one per session. The goroutine costs nothing until the
+  child exits, then collects its status. (`Stdout`/`Stderr` are nil → `/dev/null`,
+  so there is no pipe to drain and the `Wait` cannot deadlock.) A detached
+  command carries no stdin — `RunCommand` rejects one explicitly rather than
+  silently dropping it, since `execDetached` never wires stdin.
 
 This is the only capability that detaches. The flag is deliberately narrow, and
 `execDetached` returns immediately with the child's PID (surfaced in the commit

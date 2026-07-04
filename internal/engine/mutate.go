@@ -231,8 +231,15 @@ func (e *Engine) RunCommand(ctx context.Context, cmd Command) (string, error) {
 	}
 	// A detached command (keep_awake's caffeinate) must outlive this call, so it
 	// takes the fire-and-return path that starts the child and reports its PID
-	// rather than waiting for it under the request context.
+	// rather than waiting for it under the request context. The detach path does
+	// not wire stdin (execDetached never reads it), so a payload here would be
+	// silently lost — reject it explicitly rather than let a future mutator
+	// attach one unnoticed. This enforces the "detached carries no stdin"
+	// contract documented on Command.Detach.
 	if cmd.Detach {
+		if len(cmd.Stdin) > 0 {
+			return "", fmt.Errorf("engine: a detached command must not carry stdin (%d bytes supplied)", len(cmd.Stdin))
+		}
 		res, err := execDetached(ctx, bin, cmd.Args...)
 		if err != nil {
 			return "", err

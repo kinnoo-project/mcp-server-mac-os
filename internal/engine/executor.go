@@ -142,9 +142,15 @@ func execDetached(ctx context.Context, binary string, args ...string) (*runResul
 		return nil, fmt.Errorf("failed to start %s: %w", binary, err)
 	}
 	pid := cmd.Process.Pid
-	// We will never Wait() on this child, so drop our handle to it and let the
-	// OS (launchd) reap it when it exits on its own.
-	_ = cmd.Process.Release()
+	// Reap the child asynchronously. We deliberately do NOT block on it (the
+	// whole point is to return immediately), but we also must not simply drop the
+	// handle: on Unix a child the parent never Wait()s becomes a ZOMBIE when it
+	// exits, and in a long-running server those would accumulate one per session.
+	// A goroutine that only Wait()s costs nothing until the child exits, then
+	// reaps it — giving us fire-and-return without leaking process-table slots.
+	// (Stdout/Stderr are nil here, so they default to /dev/null: there is no pipe
+	// to drain, so this Wait cannot deadlock.)
+	go func() { _ = cmd.Wait() }()
 	return &runResult{Stdout: fmt.Sprintf("Started %s in the background (PID %d).", binary, pid)}, nil
 }
 

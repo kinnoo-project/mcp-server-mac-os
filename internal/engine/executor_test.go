@@ -44,6 +44,50 @@ func TestExecDetached_ReturnsImmediatelyAndOutlivesRequest(t *testing.T) {
 	_ = syscall.Kill(pid, syscall.SIGTERM)
 }
 
+// TestExecDetached_ReapsChildNoZombie proves the async reaper runs: a short-lived
+// detached child is reaped after it exits rather than lingering as a zombie. A
+// zombie still responds to signal 0 (it occupies a process-table slot); once
+// reaped, signal 0 returns ESRCH. Polling for that transition proves the parent
+// collected the exit status instead of leaking the slot.
+func TestExecDetached_ReapsChildNoZombie(t *testing.T) {
+	out, err := New().RunCommand(context.Background(), Command{
+		Binary: "sleep",
+		Args:   []string{"1"},
+		Detach: true,
+	})
+	if err != nil {
+		t.Fatalf("RunCommand(detached): %v", err)
+	}
+	pid := parsePIDFromDetachOutput(t, out)
+
+	// The child exits after ~1s; give the reaper generous slack before failing.
+	deadline := time.Now().Add(8 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := syscall.Kill(pid, 0); err != nil {
+			return // ESRCH: the process is gone AND reaped — success.
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	// Still signalable after the child should have exited and been reaped: either
+	// it never exited (it should have) or it is a lingering zombie.
+	_ = syscall.Kill(pid, syscall.SIGTERM)
+	t.Errorf("detached child (pid %d) was still present after 8s — it was not reaped (zombie leak)", pid)
+}
+
+// TestRunCommand_DetachRejectsStdin pins the enforced contract that a detached
+// command carries no stdin: supplying a payload is an error, not a silent drop.
+func TestRunCommand_DetachRejectsStdin(t *testing.T) {
+	_, err := New().RunCommand(context.Background(), Command{
+		Binary: "sleep",
+		Args:   []string{"1"},
+		Detach: true,
+		Stdin:  []byte("payload"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "stdin") {
+		t.Fatalf("expected a detached command with stdin to be rejected, got err = %v", err)
+	}
+}
+
 // TestExecDetached_HonoursCancelledContext confirms a cancelled request starts
 // nothing on the detach path, exactly as the waiting path does.
 func TestExecDetached_HonoursCancelledContext(t *testing.T) {
