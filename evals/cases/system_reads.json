@@ -12,6 +12,18 @@
     }
   },
   {
+    "id": "wifi_signal_strength",
+    "description": "Asking which Wi-Fi network is joined and whether the signal is good maps to wifi_status, which now reports the joined SSID plus signal strength (no mutation, no Settings window).",
+    "prompt": "Which Wi-Fi network am I connected to, and is the signal any good?",
+    "expect": {
+      "tool": "system",
+      "operation": "wifi_status",
+      "forbid_tools": [
+        "execute"
+      ]
+    }
+  },
+  {
     "id": "battery_level",
     "description": "Battery/charge questions map to power_status.",
     "prompt": "How much battery do I have left?",

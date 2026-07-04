@@ -9,22 +9,40 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"mcp-server-mac-os/internal/policy"
 	"mcp-server-mac-os/internal/registry"
 )
 
-// runWifiStatus reports the Wi-Fi radio power and the joined network. It first
-// resolves the Wi-Fi interface name (usually en0, but not guaranteed) from the
-// hardware-port listing, then queries that interface — never assuming a fixed
-// device name.
+// runWifiStatus reports the Wi-Fi radio power, the joined network, and the
+// current signal strength.
+//
+// It deliberately draws the joined-network name and signal from
+// `system_profiler SPAirPortDataType` rather than from
+// `networksetup -getairportnetwork`. Since macOS Big Sur, `networksetup` (and
+// the deprecated `airport` tool) return the literal string "You are not
+// associated with an AirPort network." whenever the calling process has not
+// been granted Location Services authorization — even when the Mac is in fact
+// connected. That produced a false "not connected" answer with no hint that the
+// result was a permission artifact rather than the truth. system_profiler's
+// data type is not gated the same way and additionally exposes the RSSI/noise
+// figures needed to answer "is my signal any good?".
+//
+// The Wi-Fi interface name and radio power are still read from `networksetup`,
+// which report correctly without Location Services and give an authoritative
+// on/off answer for the radio itself.
+//
+// No model-controlled input reaches argv here (this builtin takes no params;
+// every argument is either a constant literal or the interface name parsed from
+// system output), so there is no dash-leading/option-injection surface to guard.
 func runWifiStatus(ctx context.Context, _ registry.Capability, _ map[string]any) (string, error) {
-	bin, err := policy.ResolveBinary("networksetup")
+	netsetup, err := policy.ResolveBinary("networksetup")
 	if err != nil {
 		return "", err
 	}
-	ports, err := runCommand(ctx, bin, "-listallhardwareports")
+	ports, err := runCommand(ctx, netsetup, "-listallhardwareports")
 	if err != nil {
 		return "", err
 	}
@@ -33,22 +51,156 @@ func runWifiStatus(ctx context.Context, _ registry.Capability, _ map[string]any)
 		return "No Wi-Fi interface was found on this Mac.", nil
 	}
 
-	power, err := runCommand(ctx, bin, "-getairportpower", dev)
-	if err != nil {
-		return "", err
-	}
-	network, err := runCommand(ctx, bin, "-getairportnetwork", dev)
+	power, err := runCommand(ctx, netsetup, "-getairportpower", dev)
 	if err != nil {
 		return "", err
 	}
 
+	// The joined-network name and signal come from system_profiler, whose
+	// SSID visibility is not gated behind Location Services the way
+	// networksetup's is. A profiler failure is non-fatal: we still report the
+	// authoritative radio power we already have.
+	var profilerJSON []byte
+	if profiler, perr := policy.ResolveBinary("system_profiler"); perr == nil {
+		if res, rerr := runCommand(ctx, profiler, "SPAirPortDataType", "-json"); rerr == nil && res.ExitCode == 0 {
+			profilerJSON = []byte(res.Stdout)
+		}
+	}
+
+	return renderWifiStatus(dev, power.Stdout, profilerJSON), nil
+}
+
+// renderWifiStatus is the pure formatting half of runWifiStatus, split out so it
+// can be unit-tested against sample payloads. It takes the Wi-Fi interface name,
+// the raw `networksetup -getairportpower` output (authoritative radio on/off),
+// and the raw `system_profiler SPAirPortDataType -json` bytes (may be nil if the
+// probe failed), and produces a plain-language status.
+//
+// It reports ONLY the currently-joined network — system_profiler also lists
+// every neighboring SSID in range, which is private and irrelevant here, so
+// those are never read or emitted.
+func renderWifiStatus(dev, powerStdout string, profilerJSON []byte) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Wi-Fi interface: %s\n", dev)
-	b.WriteString(strings.TrimSpace(power.Stdout))
+	b.WriteString(strings.TrimSpace(powerStdout))
 	b.WriteString("\n")
-	b.WriteString(strings.TrimSpace(network.Stdout))
-	b.WriteString("\n")
-	return b.String(), nil
+
+	// If the radio is powered off there is nothing to be joined to; skip the
+	// network lookup so we don't emit a confusing "not connected" alongside it.
+	if strings.Contains(powerStdout, ": Off") {
+		return b.String()
+	}
+
+	net, ok := parseCurrentWifiNetwork(profilerJSON, dev)
+	if !ok {
+		// Radio is on but system_profiler reported no current network. This is
+		// the genuine "not connected" case OR (rarely) an SSID redaction; either
+		// way we cannot name a network, so say so plainly without asserting a
+		// false negative about connectivity.
+		b.WriteString("Not currently joined to a Wi-Fi network.\n")
+		return b.String()
+	}
+
+	fmt.Fprintf(&b, "Connected to: %s\n", net.SSID)
+	if net.SignalRaw != "" {
+		if rssi, parsed := parseRSSI(net.SignalRaw); parsed {
+			fmt.Fprintf(&b, "Signal strength: %d dBm (%s)\n", rssi, describeSignal(rssi))
+		} else {
+			// Unexpected format — surface the raw figure rather than dropping it.
+			fmt.Fprintf(&b, "Signal: %s\n", net.SignalRaw)
+		}
+	}
+	if net.Channel != "" {
+		fmt.Fprintf(&b, "Channel: %s\n", net.Channel)
+	}
+	return b.String()
+}
+
+// wifiNetwork is the subset of the current-network fields renderWifiStatus needs.
+type wifiNetwork struct {
+	SSID      string // the joined network's name
+	SignalRaw string // e.g. "-42 dBm / -88 dBm" (RSSI / noise), verbatim from profiler
+	Channel   string // e.g. "7 (2GHz, 20MHz)"
+}
+
+// parseCurrentWifiNetwork pulls the current-network block for interface dev out
+// of system_profiler's SPAirPortDataType JSON. It returns ok=false when the
+// bytes are empty/unparseable, when the interface isn't present, or when the
+// interface reports no joined network (no SSID). Matching on the interface name
+// is what excludes peer-to-peer interfaces like awdl0 (AirDrop), which also
+// carry a current-network block but never a real SSID.
+func parseCurrentWifiNetwork(jsonBytes []byte, dev string) (wifiNetwork, bool) {
+	if len(jsonBytes) == 0 {
+		return wifiNetwork{}, false
+	}
+	var report struct {
+		SPAirPortDataType []struct {
+			Interfaces []struct {
+				Name           string `json:"_name"`
+				CurrentNetwork struct {
+					Name        string `json:"_name"`
+					SignalNoise string `json:"spairport_signal_noise"`
+					Channel     string `json:"spairport_network_channel"`
+				} `json:"spairport_current_network_information"`
+			} `json:"spairport_airport_interfaces"`
+		} `json:"SPAirPortDataType"`
+	}
+	if err := json.Unmarshal(jsonBytes, &report); err != nil {
+		return wifiNetwork{}, false
+	}
+	for _, block := range report.SPAirPortDataType {
+		for _, iface := range block.Interfaces {
+			if iface.Name != dev {
+				continue
+			}
+			// A joined network always carries an SSID (_name); its absence means
+			// the interface is on but not associated.
+			if iface.CurrentNetwork.Name == "" {
+				return wifiNetwork{}, false
+			}
+			return wifiNetwork{
+				SSID:      iface.CurrentNetwork.Name,
+				SignalRaw: iface.CurrentNetwork.SignalNoise,
+				Channel:   iface.CurrentNetwork.Channel,
+			}, true
+		}
+	}
+	return wifiNetwork{}, false
+}
+
+// parseRSSI extracts the received-signal-strength value (in dBm) from
+// system_profiler's "spairport_signal_noise" string, which is formatted as
+// "<rssi> dBm / <noise> dBm" (e.g. "-42 dBm / -88 dBm"). It returns the RSSI as
+// a negative integer and ok=true, or ok=false if the leading number can't be read.
+func parseRSSI(signalNoise string) (int, bool) {
+	// The RSSI is the first whitespace-separated token before "/".
+	fields := strings.Fields(signalNoise)
+	if len(fields) == 0 {
+		return 0, false
+	}
+	rssi, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return 0, false
+	}
+	return rssi, true
+}
+
+// describeSignal maps an RSSI (dBm) to a plain-language quality label so the
+// model can answer "is my signal good?" directly. The thresholds follow the
+// commonly-cited Wi-Fi signal scale: closer to 0 is stronger.
+func describeSignal(rssi int) string {
+	switch {
+	case rssi >= -50:
+		return "excellent"
+	case rssi >= -60:
+		return "good"
+	case rssi >= -70:
+		return "fair"
+	case rssi >= -80:
+		return "weak"
+	default:
+		return "very weak"
+	}
 }
 
 // parseWifiDevice extracts the Wi-Fi interface name from `networksetup
