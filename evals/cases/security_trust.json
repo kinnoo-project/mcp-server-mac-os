@@ -1,0 +1,20 @@
+[
+  {
+    "id": "verify_signature_selection",
+    "description": "Asking whether an app is properly code-signed and who signed it maps to security/verify_signature (codesign in verify mode), not gatekeeper_check (which answers 'would it be allowed to run'). Read-only; no confirmation.",
+    "prompt": "Is /Applications/Safari.app properly code-signed, and who signed it? Has it been tampered with?",
+    "expect": {"tool": "security", "operation": "verify_signature", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "gatekeeper_check_selection",
+    "description": "Asking whether macOS would let a downloaded app open — the Gatekeeper trust decision — maps to security/gatekeeper_check (spctl --assess), distinct from verify_signature (signature validity) and quarantine_info (download origin). Read-only assessment.",
+    "prompt": "Would Gatekeeper let me open the app at ~/Downloads/SomeApp.app, or would it block it as untrusted?",
+    "expect": {"tool": "security", "operation": "gatekeeper_check", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "sip_status_selection",
+    "description": "Asking whether System Integrity Protection is enabled maps to security/sip_status (csrutil status), not a settings toggle or a system-info read. Read-only, fixed argv, no path input.",
+    "prompt": "Is System Integrity Protection turned on on this Mac?",
+    "expect": {"tool": "security", "operation": "sip_status", "forbid_tools": ["execute", "pipeline"]}
+  }
+]

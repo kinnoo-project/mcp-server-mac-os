@@ -33,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **19 domains, 145 operations**, each invokable in plain
+the Mac you already use. **20 domains, 149 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -294,6 +294,27 @@ what any of them is currently set to, and switch between Dark and Light mode.
 > capability catalog, with the exact tool each prompt maps to, is in
 > **[the architecture reference](docs/architecture.md#capabilities)**.
 
+### 🛡️ Security & app trust
+
+Answer "can I trust this app, and is my Mac's own protection turned on?" — all
+read-only checks that inspect trust state and never change a security setting.
+
+- *"Is /Applications/Safari.app properly code-signed, and who signed it?"*
+  *(the signing authority chain, the developer's Team ID, and whether the
+  signature is intact — via `codesign`, verify mode only)*
+- *"Would Gatekeeper let me open this app, or would it block it?"* *(the same
+  trust decision macOS makes on first launch — `spctl --assess`, never enable/disable)*
+- *"Is System Integrity Protection turned on?"* *(the kernel-level protection that
+  stops even root from touching system files — `csrutil status`)*
+- *"Was this file downloaded from the internet — and by what?"* *(reads the
+  `com.apple.quarantine` flag that triggers the "are you sure?" prompt, decoding
+  which app fetched it and when)*
+
+> 🔒 Every operation here is a strict read. The underlying tools (`codesign`,
+> `spctl`, `csrutil`, `xattr`) are pinned to a single read-only sub-command each,
+> enforced by a build-time invariant test — they can never sign, re-assess, alter
+> SIP, or write a file attribute.
+
 ---
 
 ## 🔒 Safe by design
@@ -392,9 +413,9 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 19 domain tools (`filesystem`, `preferences`, `application`,
+You'll now have the 20 domain tools (`filesystem`, `preferences`, `application`,
 `application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`,
-`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`) plus the shared
+`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`, `security`) plus the shared
 `execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 
