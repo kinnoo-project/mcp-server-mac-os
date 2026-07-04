@@ -310,13 +310,16 @@ func runPingHost(ctx context.Context, _ registry.Capability, in map[string]any) 
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	res, err := runCommand(runCtx, bin, "-c", strconv.Itoa(count), "-W", "2000", "--", host)
-	if err != nil {
-		return "", err
-	}
 	// The backstop fired (and it wasn't the caller cancelling the request):
-	// report the timeout as data rather than ping's signal-killed output.
+	// report the timeout as data rather than ping's signal-killed output. This is
+	// checked BEFORE the error branch because a fired deadline ALSO surfaces as a
+	// runCommand error — checking the error first would make this branch dead code
+	// and turn an expected timeout into a hard failure.
 	if ctx.Err() == nil && runCtx.Err() != nil {
 		return fmt.Sprintf("Host %s did not respond within %s — treating it as unreachable.", host, timeout), nil
+	}
+	if err != nil {
+		return "", err
 	}
 	out := strings.TrimSpace(res.Stdout)
 	if out == "" {
@@ -723,17 +726,46 @@ func runTraceRoute(ctx context.Context, _ registry.Capability, in map[string]any
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	res, err := runCommand(runCtx, bin, traceRouteArgs(host, maxHops)...)
-	if err != nil {
-		return "", err
+	// Classify the outcome once the run returns. Ordering matters here: when the
+	// per-trace deadline fires, runCommand ALSO reports a (signal-killed / timed-
+	// out) error, so the timeout must be recognised BEFORE the error is surfaced,
+	// otherwise a bounded, expected timeout would leak out as a hard failure.
+	// classifyTraceResult encodes that precedence and is unit-tested directly.
+	return classifyTraceResult(host, timeout, res, err, ctx.Err() != nil, runCtx.Err() != nil)
+}
+
+// classifyTraceResult renders a finished — or timed-out — traceroute run. It is
+// split out because the precedence between its two failure signals is subtle:
+// when the per-trace deadline fires, the runner returns both a non-nil error AND
+// leaves runCtx.Err() set, and the deadline case must win so a filtered/distant
+// path yields a bounded, user-friendly message (with any partial hops collected
+// so far) instead of a hard error. parentCancelled reflects the ORIGINAL request
+// context — a genuine caller cancellation is not massaged into a "timed out"
+// message. Pulling this into a pure function lets the ordering be tested without
+// a live traceroute that actually has to hang.
+func classifyTraceResult(host string, timeout time.Duration, res *runResult, runErr error, parentCancelled, deadlineFired bool) (string, error) {
+	var stdout, stderr string
+	if res != nil {
+		stdout = strings.TrimSpace(res.Stdout)
+		stderr = strings.TrimSpace(res.Stderr)
 	}
-	// The backstop fired and it wasn't the caller cancelling: report the partial
-	// picture as data rather than a signal-killed error.
-	if ctx.Err() == nil && runCtx.Err() != nil {
-		return fmt.Sprintf("Trace to %s did not complete within %s — it may be a distant host or one whose path filters probes.", host, timeout), nil
+	// A per-trace deadline that fired (and was not the caller cancelling) is
+	// reported as data — including whatever partial route was gathered — never as
+	// an error. Checked first precisely because runErr is also set in this case.
+	if !parentCancelled && deadlineFired {
+		msg := fmt.Sprintf("Trace to %s did not complete within %s — it may be a distant host or one whose path filters probes.", host, timeout)
+		if stdout != "" {
+			return fmt.Sprintf("%s\n\nPartial route gathered so far:\n\n%s", msg, compactOutput(stdout)), nil
+		}
+		return msg, nil
 	}
-	out := strings.TrimSpace(res.Stdout)
+	// Any other error (including a genuine caller cancellation) is a real failure.
+	if runErr != nil {
+		return "", runErr
+	}
+	out := stdout
 	if out == "" {
-		out = strings.TrimSpace(res.Stderr)
+		out = stderr
 	}
 	if out == "" {
 		return fmt.Sprintf("No route information was returned for %s.", host), nil

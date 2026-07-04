@@ -9,9 +9,11 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"mcp-server-mac-os/internal/registry"
 )
@@ -115,6 +117,56 @@ func TestTraceRouteArgs(t *testing.T) {
 	}
 	if got[len(got)-1] != "8.8.8.8" {
 		t.Errorf("host must be the final operand, got argv %v", got)
+	}
+}
+
+// TestClassifyTraceResult pins the subtle precedence in how a traceroute run is
+// rendered — specifically that a fired per-trace deadline is reported as data
+// even though the runner ALSO returns an error for it, so a bounded timeout can
+// never leak out as a hard failure (the Copilot-reported ordering bug).
+func TestClassifyTraceResult(t *testing.T) {
+	timeout := 40 * time.Second
+	sentinel := errors.New("timed out after 2m0s") // what the runner returns on a killed child
+
+	// Deadline fired, parent not cancelled, partial hops present: the runErr is
+	// IGNORED and a friendly message with the partial route is returned.
+	out, err := classifyTraceResult("8.8.8.8", timeout,
+		&runResult{Stdout: " 1  router (192.168.1.1)  1.2 ms\n"}, sentinel, false, true)
+	if err != nil {
+		t.Fatalf("timeout case returned error %v, want nil (must be reported as data)", err)
+	}
+	if !strings.Contains(out, "did not complete within") || !strings.Contains(out, "Partial route") || !strings.Contains(out, "router") {
+		t.Errorf("timeout case text = %q, want a timeout message with the partial route", out)
+	}
+
+	// Deadline fired but no partial output: still a message, still no error.
+	out, err = classifyTraceResult("8.8.8.8", timeout, &runResult{}, sentinel, false, true)
+	if err != nil || strings.Contains(out, "Partial route") {
+		t.Errorf("empty-timeout case = (%q, %v), want a message with no partial section and nil error", out, err)
+	}
+
+	// A genuine caller cancellation (parent cancelled) is NOT massaged into a
+	// timeout message — it surfaces the real error.
+	if _, err := classifyTraceResult("8.8.8.8", timeout, &runResult{}, sentinel, true, true); err == nil {
+		t.Error("caller-cancelled case = nil error, want the real error surfaced")
+	}
+
+	// A non-timeout error with no deadline surfaces as an error.
+	if _, err := classifyTraceResult("8.8.8.8", timeout, &runResult{}, errors.New("boom"), false, false); err == nil {
+		t.Error("plain-error case = nil error, want the error surfaced")
+	}
+
+	// Clean success: the route is rendered.
+	out, err = classifyTraceResult("8.8.8.8", timeout,
+		&runResult{Stdout: " 1  gw  1 ms\n 2  8.8.8.8  9 ms\n"}, nil, false, false)
+	if err != nil || !strings.Contains(out, "Route to 8.8.8.8") || !strings.Contains(out, "8.8.8.8") {
+		t.Errorf("success case = (%q, %v), want a rendered route", out, err)
+	}
+
+	// Success with no stdout falls back to the no-information message.
+	out, _ = classifyTraceResult("8.8.8.8", timeout, &runResult{}, nil, false, false)
+	if !strings.Contains(out, "No route information") {
+		t.Errorf("empty-success case = %q, want the no-information message", out)
 	}
 }
 
