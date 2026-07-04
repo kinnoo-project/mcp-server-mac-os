@@ -1,0 +1,9 @@
+**bug**
+`largest_files` silently returns an empty/no-files answer when `dir` is a symlink — which is true of `/etc`, `/tmp`, and `/var`, three of the most common top-level macOS paths a user might ask about.
+
+`internal/engine/builtins_filesystem.go`'s `runLargestFiles` calls `filepath.WalkDir(root, ...)` directly on the caller-supplied directory. Go's `filepath.WalkDir` does not follow a symlinked *root* argument — confirmed with an isolated one-off Go program: `filepath.WalkDir("/etc", ...)` visits 0 regular files, even though `/etc -> /private/etc` genuinely contains ~230 regular files (`find -L /etc -type f | wc -l` → 230). This is a wrong answer, not a crash, so it's easy to miss — found during an eval run (`evals/outputs/eval-run-20260703-182847.md`) only because the actual result content was checked against ground truth rather than just the routing.
+
+`find` and `grep -r` (backed by the real `/usr/bin/find`/`grep` binaries) inherit the same standard-Unix symlink semantics — a bare terminal `find /etc -type f` (no `-L`) also returns nothing — so that's arguably working-as-designed there. `largest_files` is different: it's bespoke Go code explicitly pitched ("use this instead of find for 'biggest files' questions") as the smarter, more ergonomic alternative, so silently under-delivering on one of the most common directories to ask about undermines its reason to exist.
+
+**fixed**
+Added a `filepath.EvalSymlinks(root)` resolution in `runLargestFiles` right after the directory check, before the `WalkDir` call (falling back to the unresolved path if resolution errors, preserving prior behavior for whatever `EvalSymlinks` itself can't handle). Added `TestRun_LargestFiles_FollowsSymlinkedRoot`, which points a symlink at a populated temp tree and asserts the ranking still works through it. Verified live against the rebuilt binary: `largest_files` on `/etc` now returns real results (226 files scanned) instead of silently reporting none.
