@@ -125,6 +125,159 @@
     ]
   },
   {
+    "name": "image_info",
+    "summary": "Report an image's properties — pixel dimensions, format, color space, DPI, and byte size — using macOS's own sips tool. Use this for 'how big is this photo', 'what format/resolution is this image', not the generic file/stat (which only report the file type and size on disk, not the image's pixel dimensions).",
+    "category": "filesystem",
+    "binary": "sips",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "image_info",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "Image file to inspect (PNG, JPEG, HEIC, TIFF, GIF, …). Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "convert_image",
+    "summary": "Convert an image to another format (e.g. HEIC→JPEG, PNG→PDF) with macOS's sips, writing a NEW file and never overwriting the original or any existing file. Staged for confirmation; reversible: undo moves the created file to the Trash.",
+    "category": "filesystem",
+    "binary": "sips",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "convert_image",
+    "params": [
+      {
+        "name": "source",
+        "type": "path",
+        "required": true,
+        "description": "Existing image file to convert. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "destination",
+        "type": "path",
+        "required": true,
+        "description": "Path of the NEW converted file to create (its extension should match the chosen format, e.g. photo.jpg for jpeg). Leading ~ ok; must not start with '-'. Must not already exist (no overwrite); parent directory must exist.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "format",
+        "type": "enum",
+        "required": true,
+        "enum": ["jpeg", "png", "tiff", "heic", "pdf"],
+        "description": "Target image format for the new file.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "resize_image",
+    "summary": "Resize an image to a new pixel size with macOS's sips, writing a NEW file and never overwriting the original. Provide EXACTLY ONE of width, height, or max_dimension — the unspecified axis scales to preserve the aspect ratio. Staged for confirmation; reversible: undo moves the created file to the Trash.",
+    "category": "filesystem",
+    "binary": "sips",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "resize_image",
+    "params": [
+      {
+        "name": "source",
+        "type": "path",
+        "required": true,
+        "description": "Existing image file to resize. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "destination",
+        "type": "path",
+        "required": true,
+        "description": "Path of the NEW resized file to create. Leading ~ ok; must not start with '-'. Must not already exist (no overwrite); parent directory must exist.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "width",
+        "type": "int",
+        "description": "Resample to this width in pixels (height scales to keep the aspect ratio). Provide exactly one of width, height, or max_dimension. Range 1–20000.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "height",
+        "type": "int",
+        "description": "Resample to this height in pixels (width scales to keep the aspect ratio). Provide exactly one of width, height, or max_dimension. Range 1–20000.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "max_dimension",
+        "type": "int",
+        "description": "Resample so the LONGER side is at most this many pixels (both axes scale to keep the aspect ratio). Provide exactly one of width, height, or max_dimension. Range 1–20000.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "convert_document",
+    "summary": "Convert a text document between plain text, HTML, RTF, RTFD, Word (.docx), and OpenDocument (.odt) using macOS's textutil. Writes a NEW file and never overwrites. Staged for confirmation; reversible: undo moves the created file to the Trash. (Note: textutil does not produce PDF; for PDF output use convert_image on an image, or print to PDF.)",
+    "category": "filesystem",
+    "binary": "textutil",
+    "reversibility": "compensatable",
+    "risk": "medium",
+    "builder": "convert_document",
+    "params": [
+      {
+        "name": "source",
+        "type": "path",
+        "required": true,
+        "description": "Existing text document to convert. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "destination",
+        "type": "path",
+        "required": true,
+        "description": "Path of the NEW converted file to create (its extension should match the chosen format, e.g. notes.html for html). Leading ~ ok; must not start with '-'. Must not already exist (no overwrite); parent directory must exist.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "format",
+        "type": "enum",
+        "required": true,
+        "enum": ["txt", "html", "rtf", "rtfd", "docx", "odt"],
+        "description": "Target document format for the new file.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "quicklook_thumbnail",
+    "summary": "Generate a Quick Look preview image (PNG) of a file — a document, image, or anything Quick Look can render — using macOS's qlmanage. The thumbnail is written into a server-managed temp folder and its path is returned. Runs immediately (no confirmation needed); reversible: undo moves the generated thumbnail folder to the Trash.",
+    "category": "filesystem",
+    "binary": "qlmanage",
+    "reversibility": "reversible",
+    "risk": "low",
+    "builder": "quicklook_thumbnail",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "File to render a Quick Look thumbnail for. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "size",
+        "type": "int",
+        "default": 512,
+        "description": "Maximum thumbnail dimension in pixels (1–2048, default 512). The longer side is scaled to at most this.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
     "name": "file",
     "summary": "Identify the type of one or more files (e.g. \"PNG image data\", \"ASCII text\").",
     "category": "filesystem",
