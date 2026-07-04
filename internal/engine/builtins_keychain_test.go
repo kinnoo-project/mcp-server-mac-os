@@ -139,6 +139,47 @@ attributes:
 	}
 }
 
+// TestInterpretCredentialResult pins the three-way branching a keychain lookup
+// depends on (Copilot review, PR #63): a match (exit 0) is parsed and framed
+// secret-safe, a genuine not-found (exit 44 / the "could not be found" message)
+// reads as a plain "no such item" answer, but ANY OTHER failure surfaces as an
+// error rather than being misreported as not-found. It also guards against the
+// "No a saved password" grammar slip by asserting the exact message wording.
+func TestInterpretCredentialResult(t *testing.T) {
+	const kind = "saved password"
+
+	// Match: exit 0 with an attribute dump → Found + only allowlisted metadata.
+	dump := "attributes:\n    \"svce\"<blob>=\"AirPort\"\n    \"acct\"<blob>=\"jane@example.com\""
+	if out, err := interpretCredentialResult(kind, &runResult{Stdout: dump, ExitCode: 0}); err != nil {
+		t.Errorf("match: unexpected error %v", err)
+	} else if !strings.Contains(out, "Found a saved password") || !strings.Contains(out, "Service: AirPort") {
+		t.Errorf("match: want a Found header with metadata, got %q", out)
+	}
+
+	// Not-found by exit code 44 (errSecItemNotFound): benign, grammatical message.
+	out, err := interpretCredentialResult(kind, &runResult{
+		Stderr:   "security: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.",
+		ExitCode: 44,
+	})
+	if err != nil {
+		t.Errorf("not-found(44): unexpected error %v", err)
+	}
+	if want := "No saved password was found matching that search."; out != want {
+		t.Errorf("not-found(44): got %q, want exactly %q", out, want)
+	}
+
+	// Any other failure (e.g. a permission/interaction error on a non-44 exit) must
+	// NOT be reported as not-found — it must surface as an error.
+	if out, err := interpretCredentialResult(kind, &runResult{
+		Stderr:   "security: interaction not allowed",
+		ExitCode: 1,
+	}); err == nil {
+		t.Errorf("other failure: expected an error, got output %q", out)
+	} else if strings.Contains(err.Error(), "was found") {
+		t.Errorf("other failure: must not claim not-found, got %v", err)
+	}
+}
+
 // TestKeychainMetadata_Empty confirms a dump with no allowlisted attributes yields
 // an empty string (the caller then reports "no readable metadata") rather than a
 // panic or a stray header.

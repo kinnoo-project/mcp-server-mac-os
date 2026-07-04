@@ -115,7 +115,7 @@ func runFindCredential(ctx context.Context, _ registry.Capability, in map[string
 	if err != nil {
 		return "", err
 	}
-	return runCredentialLookup(ctx, "a saved password", findGenericPasswordArgs(service, account))
+	return runCredentialLookup(ctx, "saved password", findGenericPasswordArgs(service, account))
 }
 
 // runFindInternetCredential is the internet-password twin of runFindCredential:
@@ -126,7 +126,7 @@ func runFindInternetCredential(ctx context.Context, _ registry.Capability, in ma
 	if err != nil {
 		return "", err
 	}
-	return runCredentialLookup(ctx, "a saved internet login", findInternetPasswordArgs(server, account))
+	return runCredentialLookup(ctx, "saved internet login", findInternetPasswordArgs(server, account))
 }
 
 // readCredentialQuery reads and validates the two optional query fields shared by
@@ -151,12 +151,11 @@ func readCredentialQuery(op string, in map[string]any, primaryField, accountFiel
 }
 
 // runCredentialLookup runs a prepared find-* argv and renders the result. It is
-// the shared body of both find-* operations: run `security`, treat a
-// not-found/non-zero exit as the benign "no match" answer, and on a match hand
-// the attribute dump to keychainMetadata so ONLY allowlisted, non-secret fields
-// are surfaced. label describes what was searched for ("a saved password" / "a
-// saved internet login").
-func runCredentialLookup(ctx context.Context, label string, args []string) (string, error) {
+// the shared body of both find-* operations: run `security`, then hand the
+// outcome to interpretCredentialResult. kind names what was searched for, as the
+// bare noun phrase "saved password" / "saved internet login" (the messages supply
+// their own "a"/"No").
+func runCredentialLookup(ctx context.Context, kind string, args []string) (string, error) {
 	bin, err := policy.ResolveBinary("security")
 	if err != nil {
 		return "", err
@@ -165,19 +164,45 @@ func runCredentialLookup(ctx context.Context, label string, args []string) (stri
 	if err != nil {
 		return "", err
 	}
-	// `security` exits non-zero (44 / errSecItemNotFound) when nothing matches.
-	// That is the ordinary "you have no saved password for this" outcome, not a
-	// transport failure, so report it as a plain answer.
-	if res.ExitCode != 0 {
-		return fmt.Sprintf("No %s was found matching that search. (The keychain has no such item, or access to it was denied.)", label), nil
+	return interpretCredentialResult(kind, res)
+}
+
+// interpretCredentialResult renders the outcome of a `security find-*-password`
+// lookup. It is the security-relevant seam of the find-* operations, so it is a
+// pure function with its own tests. Like interpretQuarantineResult, it separates
+// THREE cases a naive "non-zero ⇒ not found" check would conflate (Copilot review,
+// PR #63):
+//
+//   - a MATCH (exit 0): parse the attribute dump through keychainMetadata so ONLY
+//     allowlisted, non-secret fields are surfaced;
+//   - a genuine NOT-FOUND: `security` exits 44 (errSecItemNotFound), or prints its
+//     "could not be found in the keychain" message — the common, benign "you have
+//     no such saved item" outcome;
+//   - ANY OTHER failure — a usage error, a permission/interaction error, an
+//     unexpected non-zero exit — which must surface as an ERROR, never be
+//     misreported as "not found". Silently calling a failed lookup "not found"
+//     could hide a real problem (e.g. access was denied) and mislead the caller.
+func interpretCredentialResult(kind string, res *runResult) (string, error) {
+	if res.ExitCode == 0 {
+		meta := keychainMetadata(res.Stdout)
+		if meta == "" {
+			// A match with no renderable attributes: still confirm existence
+			// without inventing fields.
+			return fmt.Sprintf("Found a %s, but it exposes no readable metadata. The password value is never shown.", kind), nil
+		}
+		return fmt.Sprintf("Found a %s (the password value itself is never shown):\n\n%s", kind, meta), nil
 	}
-	meta := keychainMetadata(res.Stdout)
-	if meta == "" {
-		// A match with no renderable attributes: still confirm existence without
-		// inventing fields.
-		return fmt.Sprintf("Found %s, but it exposes no readable metadata. The password value is never shown.", label), nil
+	stderr := strings.TrimSpace(res.Stderr)
+	// errSecItemNotFound is exit 44; the message form is matched too as
+	// belt-and-braces in case a future macOS reports it differently.
+	if res.ExitCode == 44 || strings.Contains(stderr, "could not be found") {
+		return fmt.Sprintf("No %s was found matching that search.", kind), nil
 	}
-	return fmt.Sprintf("Found %s (the password value itself is never shown):\n\n%s", label, meta), nil
+	detail := stderr
+	if detail == "" {
+		detail = fmt.Sprintf("security exited with status %d and produced no detail", res.ExitCode)
+	}
+	return "", fmt.Errorf("keychain lookup for a %s failed: %s", kind, detail)
 }
 
 // runListKeychains lists the keychain files on the search list. Fixed argv, no

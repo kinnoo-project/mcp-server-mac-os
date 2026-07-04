@@ -20,9 +20,14 @@ roadmap (`docs/ideas/capability-expansion-phase2.md`, V6).
 - **`list_keychains`** (`security list-keychains`) — the keychain files on the
   search list (typically the login and system keychains). Fixed argv, no input.
 
-A non-zero exit from the find-* forms (`errSecItemNotFound`) is the ordinary "you
-have no saved password for this" answer and is reported as a plain result, not an
-error.
+`interpretCredentialResult` (a pure, unit-tested seam) renders the outcome in
+three distinct branches — a match (exit 0, parsed through the allowlist), a
+GENUINE not-found (`security` exits 44 / `errSecItemNotFound`, reported as a plain
+"no such item" answer), and any OTHER non-zero exit (a usage or
+permission/interaction error), which surfaces as an ERROR rather than being
+misreported as not-found. That last distinction — not masking a real failure as
+"nothing found" — mirrors the V5 `interpretQuarantineResult` fix and was tightened
+in response to Copilot review on this PR.
 
 ## The one property that matters: secrets never leave the keychain
 
