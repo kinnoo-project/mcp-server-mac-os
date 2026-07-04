@@ -229,6 +229,11 @@ it opens the exact pane *and* tells you what to click once you're there.
   right away)*
 - *"Why won't my Mac go to sleep — what's keeping it awake?"* *(lists the active
   sleep-preventing power assertions and the apps holding them)*
+- *"What has bluetoothd been logging for the last few minutes?"* *(a recent slice of
+  the unified system log, narrowable to one process and/or subsystem — for "what's
+  spamming the log?" or "what did that app just report?")*
+- *"Is my CPU being throttled because it's running hot?"* *(reports thermal pressure —
+  a speed limit below 100% means macOS is clamping performance to cool down)*
 
 ### 🌐 Network & diagnostics
 
@@ -258,6 +263,8 @@ See what's running and what it costs, find runaway or zombie processes, and stop
 misbehaving one *gracefully* — never a force-kill.
 
 - *"What's eating my CPU / memory / battery right now?"* · *"Show the top memory hogs."*
+- *"Which processes are hammering my CPU this very second?"* *(a live `top` sample —
+  instantaneous %CPU, versus the averaged snapshot the ranked list reports)*
 - *"How loaded is my Mac overall?"* *(load average, per-core)* · *"How much RAM is free?"*
 - *"How busy is the GPU?"* *(whole-device — per-process GPU isn't exposed without admin rights)*
 - *"Tell me everything about PID 1234."* *(command, the binary responsible, parent,

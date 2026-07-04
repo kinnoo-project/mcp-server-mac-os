@@ -1,0 +1,20 @@
+[
+  {
+    "id": "system_log_process_selection",
+    "description": "Asking what a specific process has been writing to the system log maps to system/system_log with a process filter — not the process domain (which is about resource usage, not log output). Read-only; bounded to a short recent window.",
+    "prompt": "Show me what the bluetoothd process has written to the system log in the last few minutes.",
+    "expect": {"tool": "system", "operation": "system_log", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "top_processes_live_selection",
+    "description": "Asking which processes are using the most CPU right this second maps to process/top_processes (a live top sample), distinct from list_processes (ps's averaged snapshot). Read-only, no external dependency.",
+    "prompt": "Which processes are hammering my CPU right now, this very second? Give me a live snapshot.",
+    "expect": {"tool": "process", "operation": "top_processes", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "thermal_state_selection",
+    "description": "Asking whether the Mac is being thermally throttled maps to system/thermal_state, not power_status (battery/charging) or top_processes (per-process load). Read-only, fixed argv.",
+    "prompt": "Is my Mac's CPU being throttled right now because it's running hot?",
+    "expect": {"tool": "system", "operation": "thermal_state", "forbid_tools": ["execute", "pipeline"]}
+  }
+]

@@ -85,6 +85,7 @@ var reviewedFreeTextBuiltins = map[string]string{
 	"whois_lookup":        "validateNetworkHost rejects dash-leading and metacharacters (whois has no '--', would read -h as a server redirect); see builtins_network_test.go",
 	"dns_cache_lookup":    "validateNetworkHost rejects dash-leading and metacharacters (dscacheutil has no '--'); see builtins_network_test.go",
 	"list_processes":      "ps with a fixed argv; filter applied in-process as a substring, never passed to the binary; see builtins_process_test.go",
+	"system_log":          "log show: process/subsystem filters validated (no quote/backslash/control/dash) then composed Go-side into a `field == \"value\"` predicate whose quotes the value cannot escape; the raw string never reaches argv as an operand; see builtins_diagnostics_test.go",
 	"list_reminders":      "in-process Reminders read; list name passed as osascript argv data after '--'; see builtins_reminders.go",
 	"search_photos":       "osascript via runOsascript: query passed as argv data after '--' (Photos' own search); see builtins_photos_test.go",
 	"get_photo":           "osascript via runOsascript: id passed as argv data after '--'; see builtins_photos_test.go",

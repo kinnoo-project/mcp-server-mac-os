@@ -84,6 +84,8 @@ var builtins = map[string]BuiltinFunc{
 	"disk_usage":            runDiskUsage,
 	"software_update_check": runSoftwareUpdateCheck,
 	"sleep_assertions":      runSleepAssertions,
+	"system_log":            runSystemLog,
+	"thermal_state":         runThermalState,
 
 	"list_airplay_devices": runListAirplayDevices,
 	"list_input_sources":   runListInputSources,
@@ -111,6 +113,7 @@ var builtins = map[string]BuiltinFunc{
 	"memory_stats":   runMemoryStats,
 	"gpu_stats":      runGPUStats,
 	"startup_items":  runStartupItems,
+	"top_processes":  runTopProcesses,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
