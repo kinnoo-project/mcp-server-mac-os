@@ -91,6 +91,9 @@ var reviewedFreeTextBuiltins = map[string]string{
 	"get_photo":           "osascript via runOsascript: id passed as argv data after '--'; see builtins_photos_test.go",
 	"get_album_photos":    "osascript via runOsascript: album name passed as argv data after '--'; see builtins_photos_test.go",
 	"export_photo":        "osascript via runOsascript: id/destination passed as argv data after '--'; dash-leading destination rejected; exports only into a fresh empty dir (never overwrites); see builtins_photos_export_test.go",
+	"verify_signature":    "codesign: path validated by validateExistingOperand (rejects dash-leading, resolves absolute) before argv; codesign has NO '--' terminator, so the absolute-path resolution is the guard; verb pinned to --verify (never sign); see builtins_security_test.go",
+	"gatekeeper_check":    "spctl: path validated by validateExistingOperand (dash-rejected, absolute) before argv; spctl has no '--'; verb pinned to --assess (never --add/--enable/--master-disable); see builtins_security_test.go",
+	"quarantine_info":     "xattr: path via validateExistingOperand (dash-rejected, absolute) AND placed after a '--' terminator (xattr honours it); verb pinned to -p (print, never -w/-d/-c); see builtins_security_test.go",
 }
 
 // hasFreeTextParam reports whether a capability takes any parameter whose value

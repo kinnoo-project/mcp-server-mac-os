@@ -1,0 +1,66 @@
+[
+  {
+    "name": "verify_signature",
+    "summary": "Check whether an app or binary is code-signed and, if so, by whom — reports the signing authority chain, the developer's Team ID, and whether the signature is intact. Use for 'is this app properly signed / who signed it / has it been tampered with'. Read-only; runs codesign in verify mode only (it can never sign or modify anything).",
+    "category": "security",
+    "binary": "codesign",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "verify_signature",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "App bundle (.app) or executable to verify, e.g. /Applications/Safari.app. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "gatekeeper_check",
+    "summary": "Ask macOS Gatekeeper whether it would ALLOW an app to run — the same trust check that happens when you first open a downloaded app. Reports accepted/rejected plus the source (Developer ID, notarized, App Store, etc.). Use for 'is this app safe to open / will Gatekeeper block it'. Read-only assessment; spctl runs in --assess mode only and never enables/disables Gatekeeper.",
+    "category": "security",
+    "binary": "spctl",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "gatekeeper_check",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "App bundle (.app) or executable to assess, e.g. /Applications/Some.app. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "sip_status",
+    "summary": "Report whether System Integrity Protection (SIP) — the macOS kernel-level protection that stops even admin/root from modifying system files — is enabled or disabled. Use for 'is SIP on / is my Mac's system protection enabled'. Read-only; csrutil is invoked only with 'status' and can never change SIP (which in any case requires Recovery mode).",
+    "category": "security",
+    "binary": "csrutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "sip_status",
+    "params": []
+  },
+  {
+    "name": "quarantine_info",
+    "summary": "Report whether a file carries the macOS 'quarantine' flag — the com.apple.quarantine attribute macOS attaches to files downloaded from the internet, which triggers the 'are you sure you want to open this?' prompt. Shows which app downloaded it and when, or 'not quarantined'. Use for 'was this file downloaded / why does macOS warn about opening it'. Read-only; xattr only reads the attribute (never writes or clears it).",
+    "category": "security",
+    "binary": "xattr",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "quarantine_info",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "File to inspect for the quarantine flag, e.g. ~/Downloads/installer.dmg. Leading ~ ok; must not start with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]
