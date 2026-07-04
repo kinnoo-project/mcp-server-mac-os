@@ -1,0 +1,391 @@
+<title>Darwin Binary Coverage Audit</title>
+<style>
+  :root{
+    --bg:#12161c;
+    --panel:#191f27;
+    --panel-alt:#212932;
+    --border:#2a3340;
+    --border-soft:#232b36;
+    --text:#e6eaef;
+    --muted:#8b96a5;
+    --muted-dim:#5f6b79;
+    --teal:#4fb8a6;
+    --teal-dim:#2a4a45;
+    --amber:#e3a23d;
+    --amber-dim:#4a3a20;
+    --coral:#d9705f;
+    --coral-dim:#472e29;
+    --slate:#7c8aa0;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --serif: "Charter", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background:var(--teal-dim); color:#fff; }
+  a{ color:var(--teal); }
+
+  .wrap{ max-width:920px; margin:0 auto; padding:56px 28px 100px; }
+
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin:0 0 14px;
+  }
+  .eyebrow::before{ content:"▸ "; color:var(--teal); }
+
+  h1{
+    font-family:var(--serif);
+    font-size:clamp(28px,4.4vw,40px);
+    font-weight:500;
+    line-height:1.15;
+    margin:0 0 14px;
+    text-wrap:balance;
+    letter-spacing:-.01em;
+  }
+  .dek{
+    font-size:16.5px;
+    color:var(--muted);
+    max-width:62ch;
+    margin:0 0 36px;
+  }
+  .dek code{ color:var(--text); }
+
+  code, .mono{ font-family:var(--mono); }
+
+  /* ---- stat strip ---- */
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:1px;
+    background:var(--border);
+    border:1px solid var(--border);
+    border-radius:10px;
+    overflow:hidden;
+    margin-bottom:44px;
+  }
+  .stat{ background:var(--panel); padding:18px 16px; }
+  .stat .n{
+    font-family:var(--mono);
+    font-variant-numeric:tabular-nums;
+    font-size:26px;
+    color:var(--text);
+    display:block;
+  }
+  .stat .n.teal{ color:var(--teal); }
+  .stat .n.amber{ color:var(--amber); }
+  .stat .l{ font-size:12px; color:var(--muted); margin-top:4px; }
+
+  section{ margin-bottom:52px; }
+  h2{
+    font-family:var(--serif);
+    font-weight:500;
+    font-size:22px;
+    margin:0 0 8px;
+    letter-spacing:-.005em;
+  }
+  .lede{ color:var(--muted); font-size:14.5px; margin:0 0 22px; max-width:66ch; }
+
+  /* ---- candidate cards ---- */
+  .candidates{ display:flex; flex-direction:column; gap:1px; background:var(--border); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .cand{
+    background:var(--panel);
+    padding:14px 18px;
+    display:grid;
+    grid-template-columns:118px 1fr auto;
+    gap:18px;
+    align-items:start;
+  }
+  .cand .bin{ font-family:var(--mono); font-size:14.5px; color:var(--text); font-weight:600; padding-top:1px; }
+  .cand .desc{ font-size:14px; color:var(--muted); }
+  .cand .desc b{ color:var(--text); font-weight:600; }
+  .cand .cat{ font-size:11.5px; color:var(--slate); display:block; margin-top:3px; }
+  .badge{
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    padding:3px 8px;
+    border-radius:20px;
+    white-space:nowrap;
+    height:fit-content;
+  }
+  .badge.low{ background:var(--teal-dim); color:var(--teal); }
+  .badge.med{ background:var(--amber-dim); color:var(--amber); }
+  .badge.high{ background:var(--coral-dim); color:var(--coral); }
+
+  /* ---- excluded list ---- */
+  .excluded{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:18px 20px;
+  }
+  .excluded ul{ margin:0; padding-left:0; list-style:none; display:flex; flex-direction:column; gap:10px; }
+  .excluded li{ font-size:14px; color:var(--muted); display:flex; gap:10px; }
+  .excluded code{ color:var(--coral); font-size:13.5px; flex-shrink:0; }
+
+  /* ---- search ---- */
+  .search-row{ margin-bottom:18px; }
+  #search{
+    width:100%;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    color:var(--text);
+    font-family:var(--mono);
+    font-size:14px;
+    padding:11px 14px;
+    outline:none;
+  }
+  #search::placeholder{ color:var(--muted-dim); }
+  #search:focus{ border-color:var(--teal); }
+  .search-hint{ font-size:12px; color:var(--muted-dim); margin-top:7px; }
+
+  /* ---- categories ---- */
+  .cat-list{ display:flex; flex-direction:column; gap:1px; background:var(--border); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  details.cat{ background:var(--panel); }
+  details.cat[open]{ background:var(--panel-alt); }
+  details.cat summary{
+    cursor:pointer;
+    padding:13px 18px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    list-style:none;
+    user-select:none;
+  }
+  details.cat summary::-webkit-details-marker{ display:none; }
+  details.cat summary::before{
+    content:"▸";
+    color:var(--muted-dim);
+    font-size:11px;
+    transition:transform .15s ease;
+    flex-shrink:0;
+  }
+  details.cat[open] summary::before{ transform:rotate(90deg); color:var(--teal); }
+  details.cat summary .name{ font-size:14px; color:var(--text); flex:1; }
+  details.cat summary .count{
+    font-family:var(--mono);
+    font-variant-numeric:tabular-nums;
+    font-size:12.5px;
+    color:var(--muted);
+    background:var(--border-soft);
+    padding:2px 8px;
+    border-radius:20px;
+  }
+  .cat-body{
+    padding:4px 18px 18px 44px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(110px,1fr));
+    gap:6px 14px;
+  }
+  .cat-body span{
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--muted);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .cat-body span.hit{ color:var(--amber); }
+  details.cat.hidden-by-search{ display:none; }
+  .cat-body span.dim{ display:none; }
+
+  footer{
+    border-top:1px solid var(--border);
+    padding-top:22px;
+    font-size:12.5px;
+    color:var(--muted-dim);
+  }
+  footer p{ max-width:66ch; margin:0 0 8px; }
+
+  @media (max-width:640px){
+    .stats{ grid-template-columns:repeat(2,1fr); }
+    .cand{ grid-template-columns:1fr; }
+    .cand .bin{ padding-top:0; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    details.cat summary::before{ transition:none; }
+  }
+</style>
+
+<div class="wrap">
+
+  <p class="eyebrow">mcp-server-mac-os — binary inventory audit</p>
+  <h1>What the server doesn't run yet</h1>
+  <p class="dek">Every capability resolves a bare name — <code>"ls"</code>, <code>"osascript"</code> — through <code>policy.ResolveBinary</code>, which only ever looks inside four trusted directories. This is a census of everything that lives in those directories, split against what the engine actually invokes today.</p>
+
+  <div class="stats">
+    <div class="stat"><span class="n">4</span><span class="l">trusted directories<br>(/bin /sbin /usr/bin /usr/sbin)</span></div>
+    <div class="stat"><span class="n">1,249</span><span class="l">executables found there</span></div>
+    <div class="stat"><span class="n teal">49</span><span class="l">invoked by a manifest or builtin today</span></div>
+    <div class="stat"><span class="n amber">1,200</span><span class="l">never invoked</span></div>
+  </div>
+
+  <section>
+    <h2>Worth wiring up next</h2>
+    <p class="lede">Hand-picked from the 1,200 for fit with the capability-engine model: a well-scoped CLI surface, a clear read vs. mutate story, and a use case the roadmap already gestures at (power, media, storage, deeper diagnostics). Badge = how much guardrail work it would need before shipping.</p>
+    <div class="candidates" id="candidates"></div>
+  </section>
+
+  <section>
+    <h2>Deliberately left out</h2>
+    <p class="lede">These showed up in the same directories and could technically be resolved, but the shape of the tool argues against ever wrapping them — matches the project's existing stance of dropping destructive, low-value-add operations rather than adding a guardrail for everything.</p>
+    <div class="excluded">
+      <ul id="excluded-list"></ul>
+    </div>
+  </section>
+
+  <section>
+    <h2>Full inventory, by category</h2>
+    <p class="lede">Everything found in the four trusted directories, grouped by rough purpose. Categories are sorted largest first; most of the volume here is Perl/CPAN tooling, the Xcode/dev toolchain, and legacy BSD servers — not server capabilities in waiting.</p>
+    <div class="search-row">
+      <input id="search" type="text" placeholder="Filter 1,249 binaries — try “ssh”, “disk”, or a category word…" autocomplete="off" spellcheck="false">
+      <p class="search-hint" id="search-hint">Matching categories expand automatically. Bold = current match.</p>
+    </div>
+    <div class="cat-list" id="cat-list"></div>
+  </section>
+
+  <footer>
+    <p>Scope note: this only covers the four directories <code>policy.ResolveBinary</code> is willing to resolve into. Binaries under <code>/opt/homebrew</code>, <code>/Applications</code>, or a user <code>$PATH</code> entry are out of reach by design — that's the trust boundary working as intended, not a gap in this census.</p>
+    <p>Generated by walking <code>find /bin /sbin /usr/bin /usr/sbin -maxdepth 1</code> and diffing against every <code>"binary"</code> field in <code>internal/registry/manifests/*.json</code> plus every <code>policy.ResolveBinary(...)</code> call site in <code>internal/engine</code>.</p>
+  </footer>
+
+</div>
+
+<script>
+const CATEGORIES = {"Uncategorized / misc Darwin utilities": ["AssetCacheLocatorUtil", "AssetCacheManagerUtil", "AssetCacheTetheratorUtil", "BTLEServer", "BTLEServerAgent", "BlueTool", "DevToolsSecurity", "DirectoryService", "IOAccelMemory", "IOMFB_FDR_Loader", "IOSDebug", "KernelEventAgent", "PasswordService", "SafeEjectGPU", "WirelessRadioManagerd", "[", "aa", "ab", "ac", "accton", "aea", "afktool", "afscexpand", "agentxtrap", "alias", "amt", "apachectl", "appleh13camerad", "appleh16camerad", "applesingle", "apply", "appsleepd", "arch", "asa", "asr", "at", "atq", "atrm", "atsutil", "automationmodetool", "automator", "automount", "auval", "auvaltool", "avbanalyse", "avbdeviced", "avbdiagnose", "avbutil", "avconvert", "avmediainfo", "avmetareadwrite", "b64decode", "b64encode", "banner", "base64", "batch", "bg", "bintrans", "bioutil", "bless", "bluetoothd", "bm4", "bspatch", "bundle", "bundler", "c++filt", "cal", "calendar", "cap_mkdb", "captoinfo", "cd", "chat", "checkgid", "chroot", "clear", "cmp", "codecctl", "col", "colldef", "command", "coreaudiod", "cpuctl", "crlrefresh", "cron", "crontab", "ctf_insert", "cu", "cvadmin", "cvaffinity", "cvcp", "cvdb", "cvdbset", "cvfsck", "cvfsdb", "cvfsid", "cvgather", "cvlabel", "cvmkdir", "cvmkfile", "cvmkfs", "cvupdatefs", "cvversions", "dappprof", "dapptrace", "date", "db_archive", "db_checkpoint", "db_codegen", "db_deadlock", "db_dump", "db_hotbackup", "db_load", "db_printlog", "db_recover", "db_stat", "db_upgrade", "db_verify", "dbmmanage", "dd", "ddns-confgen", "delv", "demandoc", "derq", "desdp", "dev_mkdb", "devmodectl", "diffstat", "dist_package_tool", "dmc", "dmesg", "drutil", "dscacheutil", "echo", "egrep", "env", "errinfo", "ex", "false", "fc", "fcgistarter", "fddist", "fg", "fgrep", "fibreconfig", "fileproviderctl", "filtercalltree", "fixproc", "fontrestore", "fuser", "gen_bridge_metadata", "gencat", "genstrings", "getconf", "getopt", "getopts", "git", "git-receive-pack", "git-shell", "git-upload-archive", "git-upload-pack", "gktool", "graphicssession", "gzexe", "hidutil", "hiutil", "hostinfo", "hostname", "htcacheclean", "htdbm", "htdigest", "htmltree", "htpasswd", "httpd", "httpd-wrapper", "httxt2dbm", "ictool", "imptrace", "infocmp", "infotocap", "install", "ioalloccount", "ioclasscount", "iopattern", "iopending", "ipcrm", "ipcs", "jobs", "jq", "kcditto", "keychain-access", "kmutil", "krbservicesetup", "lam", "languagesetup", "lastwords", "layerutil", "leave", "lex", "libnetcfg", "link", "localemanager", "locate", "lockf", "lockstat", "logresolve", "look", "lorder", "lsbom", "lskq", "lsm", "lsmp", "lsvfs", "mDNSResponder", "mDNSResponderHelper", "macerror", "machine", "macoserror", "mandoc_soelim", "mib2c", "mib2c-update", "mkbom", "mkextunpack", "mklocale", "mkpassdb", "mnthome", "modelcatalogdump", "modelmanagerdump", "mp2bug", "mpioutil", "mpsgraphtool", "nbdst", "ncal", "ncctl", "ncdestroy", "ncinit", "nclist", "ncurses5.4-config", "nlcontrol", "nohup", "nsupdate", "openssl", "otctl", "pagesize", "pagestuff", "pcsctest", "pl", "plockstat", "pluginkit", "podchecker", "power_report.sh", "pp", "ppdc", "ppdhtml", "ppdi", "ppdmerge", "ppdpo", "pppd", "pr", "printenv", "printf", "procsystime", "psm", "ptar", "ptardiff", "ptargrep", "pwd", "read", "reset", "resolveLinks", "rotatelogs", "rs", "rtadvd", "sa", "sampleproc", "sc_auth", "sc_usage", "scselect", "sdp", "sdx", "serverinfo", "servertool", "setkey", "setregion", "sfltool", "sharing", "shazam", "shlock", "shortcuts", "skywalkctl", "sleep", "slogin", "sndiskmove", "snfsdefrag", "snquota", "sntp", "sntpd", "spfd", "spfquery", "stapler", "stringdups", "stty", "stz", "swcutil", "symbolscache", "sync", "system-override", "systemextensionsctl", "systemsetup", "systemsoundserverd", "systemstats", "tab2space", "tabs", "tailspin", "test", "tic", "tidy", "time", "timerfires", "timesyncanalyse", "tkcon", "tkmib", "tkpp", "toe", "tops", "topsyscall", "topsysproc", "tput", "trace", "traptoemail", "treereg", "true", "tset", "tsig-keygen", "tsort", "tty", "ul", "ulimit", "umask", "umtool", "unalias", "uname", "unifdef", "unifdefall", "universalaccessd", "unlink", "unsetpassword", "unvis", "update_mcdp29xx", "usbcfwflasher", "usdcat", "usdchecker", "usdcrush", "usdextract", "usdrecord", "usdtree", "usdzip", "usernoted", "uttype", "uuchk", "uucico", "uuconv", "uucp", "uudecode", "uuencode", "uuidgen", "uulog", "uuname", "uupick", "uusched", "uustat", "uuto", "uux", "uuxqt", "vifs", "vipw", "vis", "vpnd", "wait", "wait4path", "wc", "wfsctl", "what", "wish8.5", "xcdebug", "xip", "xml2-config", "xml2man", "xmlcatalog", "xmllint", "xpath", "xsanctl", "xscertadmin", "xslt-config", "xsltproc", "xsubpp", "yaa", "yes", "zdump", "zic", "zprint"], "Xcode / Apple dev tooling": ["DeRez", "GetFileInfo", "ResMerger", "Rez", "SetFile", "SplitForks", "actool", "agvtool", "assetutil", "codesign", "gatherheaderdoc", "hdxml2manxml", "headerdoc2html", "ibtool", "iconutil", "osacompile", "osadecompile", "osalang", "safaridriver", "sdef", "sdiff", "xcscontrol", "xcsdiagnose"], "Media, documents & printing": ["afclip", "afconvert", "afhash", "afida", "afinfo", "afplay", "cancel", "cups-config", "cupsaccept", "cupsctl", "cupsd", "cupsdisable", "cupsenable", "cupsfilter", "cupsreject", "cupstestppd", "ippeveprinter", "ippfind", "ipptool", "lpadmin", "lpc", "lpinfo", "lpmove", "lpoptions", "lpq", "lpr", "lprm", "qlmanage", "sips", "textutil", "tiff2icns", "tiffutil"], "Disk, volume & filesystem management": ["apfs_hfs_convert", "apfs_unlockfv", "disklabel", "diskutil", "dot_clean", "edquota", "fdisk", "fsck", "fsck_apfs", "fsck_cs", "fsck_exfat", "fsck_fskit", "fsck_hfs", "fsck_msdos", "fsck_udf", "fstyp", "fstyp_hfs", "fstyp_msdos", "fstyp_ntfs", "fstyp_udf", "gpt", "hdid", "hdik", "hdiutil", "mount", "mount_apfs", "mount_cd9660", "mount_cddafs", "mount_devfs", "mount_exfat", "mount_fdesc", "mount_hfs", "mount_msdos", "mount_tmpfs", "mount_udf", "mount_virtiofs", "mtree", "newfs_apfs", "newfs_exfat", "newfs_fskit", "newfs_hfs", "newfs_msdos", "newfs_udf", "nvram", "pdisk", "quota", "quotacheck", "quotaoff", "quotaon", "repquota", "setquota", "tmutil", "trash", "trimforce", "umount", "vsdbutil"], "Directory services / enterprise auth (LDAP, Kerberos)": ["app-sso", "dscl", "dsconfigad", "dsconfigldap", "dseditgroup", "dsenableroot", "dserr", "dsexport", "dsimport", "dsmemberutil", "kadmin", "kadmin.local", "kcc", "kdcsetup", "kdestroy", "kgetcred", "kinit", "klist", "klist_cdhashes", "kpasswd", "krb5-config", "kswitch", "ktutil", "ldapadd", "ldapcompare", "ldapdelete", "ldapexop", "ldapmodify", "ldapmodrdn", "ldappasswd", "ldapsearch", "ldapurl", "ldapwhoami", "mcxquery", "mcxrefresh", "pwpolicy", "slapacl", "slapadd", "slapauth", "slapcat", "slapconfig", "slapdn", "slapindex", "slappasswd", "slapschema", "slaptest", "sso_util"], "Core text/data utilities": ["apropos", "awk", "basename", "bc", "cat", "chflags", "chgrp", "chmod", "chown", "cksum", "colrm", "column", "comm", "crc32", "csplit", "cut", "dc", "diff", "diff3", "dirname", "expand", "expr", "fmt", "fold", "hash", "hexdump", "iconv", "join", "jot", "ln", "locale", "localedef", "man", "mandoc", "manpath", "md5", "md5sum", "mkfifo", "mkfile", "mknod", "mktemp", "nl", "od", "paste", "pathchk", "readlink", "realpath", "rev", "rm", "rmdir", "sed", "seq", "sha1", "sha1sum", "sha224", "sha224sum", "sha256", "sha256sum", "sha384", "sha384sum", "sha512", "sha512sum", "split", "sum", "tail", "touch", "tr", "truncate", "type", "unexpand", "uniq", "units", "whatis", "whereis", "which", "xattr", "xxd"], "Dev toolchain (compile/link/debug)": ["ar", "as", "atos", "bison", "c++", "c89", "c99", "cc", "clang", "clang++", "clangd", "cmpdylib", "codesign_allocate", "cpp", "ctags", "dsymutil", "dtruss", "dwarfdump", "dyld_info", "dyld_usage", "flex", "flex++", "g++", "gcc", "gcore", "gcov", "gnumake", "gperf", "heap", "indent", "install_name_tool", "ld", "leaks", "libtool", "lipo", "lldb", "llvm-g++", "llvm-gcc", "m4", "make", "malloc_history", "mig", "nm", "nmedit", "objdump", "opendiff", "otool", "patch", "ranlib", "sample", "segedit", "size", "sourcekit-lsp", "spindump", "strings", "strip", "swift", "swift-inspect", "swiftc", "symbols", "update_dyld_shared_cache", "vmmap", "vtool", "xcode-select", "xcodebuild", "xcrun", "xctrace", "xed", "yacc"], "Logging & diagnostics": ["aslmanager", "audit", "auditd", "auditreduce", "dddiagnose", "diagnose-fu", "eslogger", "hpmdiagnose", "log", "logger", "mddiagnose", "newsyslog", "nscurl", "praudit", "sysdiagnose", "syslog", "syslogd", "tbtdiagnose", "tmdiagnose", "uasysdiagnose", "usbdiagnose", "viewdiagnostic"], "Shells & interactive editors": ["bash", "bashbug", "csh", "dash", "dtrace", "ed", "expect", "ksh", "less", "lessecho", "mg", "more", "nano", "pico", "screen", "script", "sh", "tclsh", "tclsh8.5", "tcsh", "vi", "view", "vim", "vimdiff", "vimtutor", "wish", "zsh"], "Compression & archives": ["binhex", "binhex.pl", "bsdtar", "bunzip2", "bzcat", "bzcmp", "bzdiff", "bzegrep", "bzfgrep", "bzgrep", "bzip2", "bzip2recover", "bzless", "bzmore", "compress", "compression_tool", "cpio", "ditto", "funzip", "gunzip", "gzcat", "gzip", "macbinary", "pax", "shar", "uncompress", "unzip", "unzipsfx", "xar", "xargs", "xartutil", "zcat", "zcmp", "zdiff", "zegrep", "zfgrep", "zforce", "zgrep", "zip", "zipcloak", "zipdetails", "zipgrep", "zipinfo", "zipnote", "zipsplit", "zless", "zmore", "znew"], "Perl/CPAN toolchain": ["binhex5.34.pl", "config_data", "config_data5.34", "corelist", "corelist5.34", "cpan", "cpan5.34", "crc325.34", "dbicadmin", "dbicadmin5.34", "dbilogstrip", "dbilogstrip5.34", "dbiprof", "dbiprof5.34", "dbiproxy", "dbiproxy5.34", "debinhex.pl", "debinhex5.34.pl", "enc2xs", "enc2xs5.34", "encguess", "encguess5.34", "eyapp", "eyapp5.34", "findrule", "findrule5.34", "gm4", "h2ph", "h2ph5.34", "h2xs", "h2xs5.34", "htmltree5.34", "instmodsh", "instmodsh5.34", "ip2cc", "ip2cc5.34", "ipcount", "ipcount5.34", "iptab", "iptab5.34", "json_pp", "json_pp5.34", "json_xs", "json_xs5.34", "libnetcfg5.34", "lwp-download", "lwp-download5.34", "lwp-dump", "lwp-dump5.34", "lwp-mirror", "lwp-mirror5.34", "lwp-request", "lwp-request5.34", "macerror5.34", "moose-outdated", "moose-outdated5.34", "net-server", "net-server5.34", "package-stash-conflicts", "package-stash-conflicts5.34", "par.pl", "par5.34.pl", "parl", "parl5.34", "parldyn", "parldyn5.34", "perl", "perl5.34", "perlbug", "perlbug5.34", "perldoc", "perldoc5.34", "perlivp", "perlivp5.34", "perlthanks", "perlthanks5.34", "piconv", "piconv5.34", "pl2pm", "pl2pm5.34", "pod2html", "pod2html5.34", "pod2man", "pod2man5.34", "pod2readme", "pod2readme5.34", "pod2text", "pod2text5.34", "pod2usage", "pod2usage5.34", "podchecker5.34", "pp5.34", "prove", "prove5.34", "ptar5.34", "ptardiff5.34", "ptargrep5.34", "scandeps.pl", "scandeps5.34.pl", "shasum", "shasum5.34", "spfd5.34", "spfquery5.34", "splain", "splain5.34", "streamzip", "streamzip5.34", "test-yaml", "test-yaml5.34", "tidy_changelog", "tidy_changelog5.34", "tkpp5.34", "treereg5.34", "xgettext.pl", "xgettext5.34.pl", "xpath5.34", "xsubpp5.34", "yamlpp-events", "yamlpp-events5.34", "yamlpp-highlight", "yamlpp-highlight5.34", "yamlpp-load", "yamlpp-load-dump", "yamlpp-load-dump5.34", "yamlpp-load5.34", "yamlpp-parse-emit", "yamlpp-parse-emit5.34", "yapp", "yapp5.34", "zipdetails5.34"], "DTrace one-liners": ["bitesize.d", "cpu_profiler.d", "cpuwalk.d", "creatbyproc.d", "dispqlen.d", "filebyproc.d", "hotspot.d", "iofile.d", "iofileb.d", "kill.d", "loads.d", "newproc.d", "pathopens.d", "pidpersec.d", "priclass.d", "pridist.d", "rwbypid.d", "rwbytype.d", "seeksize.d", "setuids.d", "sigdist.d", "syscallbypid.d", "syscallbyproc.d", "syscallbysysc.d", "timer_analyser.d"], "Kernel extensions & low-level system": ["BootCacheControl", "cfprefsd", "distnoted", "dynamic_pager", "filecoordinationd", "gssd", "halt", "installer", "kextcache", "kextfind", "kextlibs", "kextload", "kextstat", "kextunload", "kextutil", "ktrace", "launchd", "mdutil", "notifyd", "notifyutil", "odutil", "pkgbuild", "pkgutil", "productbuild", "productsign", "reboot", "shutdown"], "Security, keychain & code trust": ["bputil", "certtool", "ckksctl", "csfdiagnose", "csreq", "csrutil", "encode_keychange", "fdesetup", "firmwarepasswd", "ocspcheck", "ocspd", "passwd", "profiles", "pwd_mkdb", "sandbox-exec", "security", "securityd", "spctl", "su", "sudo", "sysadminctl", "syspolicy_check", "systemkeychain", "tccutil", "trustcachectl", "visudo", "weakpass_edit", "xprotect"], "Networking & diagnostics": ["brctl", "curl", "curl-config", "dnctl", "finger", "fping", "host", "ipconfig", "iperf3-darwin", "nc", "ndp", "netstat", "networkQuality", "nslookup", "pcap-config", "pfctl", "ping6", "rsync", "scp", "sftp", "spray", "ssh", "ssh-add", "ssh-agent", "ssh-copy-id", "ssh-keygen", "ssh-keyscan", "sshd", "talk", "tcpdump", "tftp", "traceroute", "traceroute6", "wall", "wdutil", "whois", "write"], "Process / performance monitoring": ["caffeinate", "execsnoop", "footprint", "fs_usage", "iosnoop", "iostat", "iotop", "killall", "latency", "memory_pressure", "nettop", "nice", "opensnoop", "pgrep", "pkill", "powermetrics", "purge", "renice", "rwsnoop", "taskinfo", "taskpolicy", "thermal", "top"], "User & session management": ["chfn", "chpass", "chsh", "createhomedir", "groups", "id", "last", "lastcomm", "login", "logname", "mesg", "newgrp", "nologin", "repairHomePermissions", "users", "w", "who", "whoami"], "Ruby ecosystem": ["erb", "gem", "irb", "rails", "rake", "rdoc", "ri", "ruby", "rview", "rvim"], "Java ecosystem": ["jar", "jarsigner", "java", "javac", "javadoc", "javap", "javaws", "jcmd", "jconsole", "jcontrol", "jdb", "jdeps", "jhsdb", "jimage", "jinfo", "jjs", "jlink", "jmap", "jpackage", "jps", "jrunscript", "jshell", "jstack", "jstat", "jstatd", "keytool", "orbd", "pack200", "policytool", "rmic", "rmid", "rmiregistry", "serialver", "tnameserv", "unpack200"], "Mail transfer agent (Postfix/sendmail)": ["mail", "mailq", "mailx", "newaliases", "postalias", "postcat", "postconf", "postdrop", "postfix", "postkick", "postlock", "postlog", "postmap", "postmulti", "postqueue", "postsuper", "sendmail"], "NFS / RPC / network filesystems": ["mount_9p", "mount_acfs", "mount_afp", "mount_ftp", "mount_nfs", "mount_smbfs", "mount_webdav", "netbiosd", "nfs4mapid", "nfsd", "nfsiod", "nfsstat", "racoon", "rarpd", "rpc.lockd", "rpc.statd", "rpcbind", "rpcgen", "rpcinfo", "showmount", "smbd", "smbdiagnose", "smbutil"], "SNMP tooling": ["net-snmp-cert", "net-snmp-config", "net-snmp-create-v3-user", "snmp-bridge-mib", "snmpbulkget", "snmpbulkwalk", "snmpconf", "snmpd", "snmpdelta", "snmpdf", "snmpget", "snmpgetnext", "snmpinform", "snmpnetstat", "snmpset", "snmpstatus", "snmptable", "snmptest", "snmptranslate", "snmptrap", "snmptrapd", "snmpusm", "snmpvacm", "snmpwalk"], "Python ecosystem": ["pip3", "python3"]};
+
+const CANDIDATES = [
+  {bin:"security", cat:"Security & keychain", risk:"high",
+   desc:"<b>Keychain access.</b> Read, add, or delete generic/internet passwords and certificates from the command line."},
+  {bin:"tmutil", cat:"Storage", risk:"med",
+   desc:"<b>Time Machine control.</b> Backup status, latest snapshot, start/stop a backup, list local snapshots."},
+  {bin:"diskutil", cat:"Storage", risk:"med",
+   desc:"<b>Disk & volume management.</b> List mounted volumes/disks, mount, eject, rename — read side is trivially safe, mutate side needs the stage→commit pattern."},
+  {bin:"hdiutil", cat:"Storage", risk:"med",
+   desc:"<b>Disk images.</b> Mount, create, or verify a <code>.dmg</code> — common for inspecting downloaded installers."},
+  {bin:"sips", cat:"Media", risk:"low",
+   desc:"<b>Image conversion.</b> Resize, rotate, convert format, read EXIF/ICC metadata — no AppleScript detour needed."},
+  {bin:"textutil", cat:"Media", risk:"low",
+   desc:"<b>Document conversion.</b> Convert between rtf/docx/html/txt — pairs naturally with the filesystem domain."},
+  {bin:"qlmanage", cat:"Media", risk:"low",
+   desc:"<b>Quick Look previews.</b> Generate a thumbnail/preview image for any file Quick Look already knows how to render."},
+  {bin:"caffeinate", cat:"Power", risk:"low",
+   desc:"<b>Sleep prevention.</b> Hold the system (or display) awake for N seconds or for the life of a process — the missing half of the <code>pmset</code>/low-power story already on the roadmap."},
+  {bin:"shortcuts", cat:"Automation", risk:"med",
+   desc:"<b>Run Shortcuts.app automations.</b> List and invoke a user's existing Shortcuts by name — a second automation bridge alongside <code>osascript</code>, but hands control to whatever the shortcut does."},
+  {bin:"log", cat:"Diagnostics", risk:"med",
+   desc:"<b>Unified system log.</b> <code>log show</code>/<code>log stream</code> — far richer than <code>syslog</code>, but predicates can surface sensitive app/process detail."},
+  {bin:"codesign / spctl", cat:"Security", risk:"low",
+   desc:"<b>Signature & Gatekeeper checks (read-only verify mode).</b> Is this app signed, notarized, sandboxed? Useful for a \"can I trust this .app\" tool without touching enforcement."},
+  {bin:"csrutil", cat:"Security", risk:"low",
+   desc:"<b>SIP status.</b> Read-only report of whether System Integrity Protection is enabled — informational only, no mutate path exists via the CLI."},
+  {bin:"xattr", cat:"Filesystem", risk:"med",
+   desc:"<b>Extended attributes.</b> Read or strip flags like <code>com.apple.quarantine</code> — genuinely useful, but a write path is a policy decision (quietly defeating Gatekeeper's download warning)."},
+  {bin:"top / powermetrics / iostat / nettop", cat:"Diagnostics", risk:"low",
+   desc:"<b>Deeper live telemetry.</b> Read-only snapshots that go further than the existing <code>cpu_load</code>/<code>memory_stats</code> builtins (per-core, per-process energy, disk/network throughput)."},
+  {bin:"traceroute / whois / nslookup / netstat", cat:"Networking", risk:"low",
+   desc:"<b>Extra network diagnostics.</b> Same trust story as the existing <code>ping</code>/<code>dig</code>/<code>arp</code> builtins, just more of them."},
+  {bin:"dscacheutil", cat:"Networking", risk:"low",
+   desc:"<b>DNS cache.</b> Query or flush the local resolver cache — small, but pairs with the existing <code>dns_lookup</code>/<code>dns_servers</code> ops."},
+  {bin:"hidutil", cat:"Input devices", risk:"med",
+   desc:"<b>HID property query/remap.</b> Inspect connected keyboards/mice and their key-remap tables."},
+  {bin:"sharing", cat:"System", risk:"med",
+   desc:"<b>macOS sharing services.</b> Query/toggle screen sharing, file sharing, remote login — security-relevant, belongs behind stage→commit if ever added."},
+];
+
+const EXCLUDED = [
+  {bin:"sudo, su, passwd, sysadminctl, dscl", why:"privilege escalation and account mutation — exactly the blast radius the transactional-state guardrails exist to contain, with no reversible fallback (there's no \"undo\" for a changed password)."},
+  {bin:"nvram, fdesetup, csrutil (write mode)", why:"firmware and disk-encryption state; a wrong write here can require a full reinstall or lock the disk. No Trash-style fallback is possible."},
+  {bin:"rm, killall, mount / umount (raw)", why:"the project already routes the equivalent needs through safer builtins — Trash-backed delete instead of raw rm, pid-scoped quit/terminate instead of kill-by-name, and no bare filesystem mount surface."},
+  {bin:"ldap*, slap*, snmp*, kadmin/kinit, postfix/sendmail family", why:"enterprise directory/mail-server administration tooling — outside a single-user Mac's job entirely, and mostly absent on a machine that isn't running those services."},
+  {bin:"perl, ruby, python3, java, clang, git, make, …", why:"language runtimes and the dev toolchain — general-purpose code execution, not a Darwin system capability; already out of scope per the \"bridge native, don't reimplement a runtime\" stance."},
+];
+
+function riskLabel(r){ return r === "high" ? "guardrail-heavy" : r === "med" ? "needs staging" : "read-only safe"; }
+
+const candWrap = document.getElementById("candidates");
+CANDIDATES.forEach(c => {
+  const row = document.createElement("div");
+  row.className = "cand";
+  row.innerHTML = `
+    <div class="bin">${c.bin}</div>
+    <div class="desc">${c.desc}<span class="cat">${c.cat}</span></div>
+    <span class="badge ${c.risk}">${riskLabel(c.risk)}</span>
+  `;
+  candWrap.appendChild(row);
+});
+
+const exWrap = document.getElementById("excluded-list");
+EXCLUDED.forEach(e => {
+  const li = document.createElement("li");
+  li.innerHTML = `<code>${e.bin}</code><span>${e.why}</span>`;
+  exWrap.appendChild(li);
+});
+
+const catList = document.getElementById("cat-list");
+const entries = Object.entries(CATEGORIES).sort((a,b) => b[1].length - a[1].length);
+const details = [];
+
+entries.forEach(([name, bins], i) => {
+  const d = document.createElement("details");
+  d.className = "cat";
+  if (i === 0) d.open = true;
+  const summary = document.createElement("summary");
+  summary.innerHTML = `<span class="name">${name}</span><span class="count">${bins.length}</span>`;
+  const body = document.createElement("div");
+  body.className = "cat-body";
+  bins.forEach(b => {
+    const span = document.createElement("span");
+    span.textContent = b;
+    span.dataset.name = b.toLowerCase();
+    body.appendChild(span);
+  });
+  d.appendChild(summary);
+  d.appendChild(body);
+  catList.appendChild(d);
+  details.push({el: d, name: name.toLowerCase(), spans: [...body.children]});
+});
+
+const search = document.getElementById("search");
+const hint = document.getElementById("search-hint");
+search.addEventListener("input", () => {
+  const q = search.value.trim().toLowerCase();
+  if (!q) {
+    details.forEach(({el, spans}) => {
+      el.classList.remove("hidden-by-search");
+      spans.forEach(s => { s.classList.remove("hit"); s.classList.remove("dim"); });
+    });
+    hint.textContent = "Matching categories expand automatically. Bold = current match.";
+    return;
+  }
+  let totalHits = 0;
+  details.forEach(({el, name, spans}) => {
+    let catHits = 0;
+    spans.forEach(s => {
+      const isHit = s.dataset.name.includes(q);
+      s.classList.toggle("hit", isHit);
+      s.classList.toggle("dim", !isHit);
+      if (isHit) catHits++;
+    });
+    const nameHit = name.includes(q);
+    const show = catHits > 0 || nameHit;
+    el.classList.toggle("hidden-by-search", !show);
+    if (show && catHits > 0) el.open = true;
+    totalHits += catHits;
+  });
+  hint.textContent = `${totalHits} match${totalHits === 1 ? "" : "es"} for "${search.value.trim()}"`;
+});
+</script>
