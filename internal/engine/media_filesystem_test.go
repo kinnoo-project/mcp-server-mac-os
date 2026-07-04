@@ -291,6 +291,49 @@ func TestStageQuicklookThumbnail_Plan(t *testing.T) {
 	}
 }
 
+// TestStageQuicklookThumbnail_RoundTrip generates a real Quick Look thumbnail
+// with qlmanage and then undoes it, proving the preview PNG lands in the scratch
+// directory and the Trash inverse removes that directory. qlmanage on a small
+// PNG is fast and exits 0 (unlike a directory target, which can hang — see
+// TestStageQuicklookThumbnail_RejectsDirectory).
+func TestStageQuicklookThumbnail_RoundTrip(t *testing.T) {
+	home := redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	src := writeTinyPNG(t, dir, "in.png")
+
+	plan, err := stageQuicklookThumbnail(context.Background(), registry.Capability{},
+		map[string]any{"path": src, "size": 128})
+	if err != nil {
+		t.Fatalf("stageQuicklookThumbnail: %v", err)
+	}
+	outDir := plan.Forward.Args[4]
+	defer os.RemoveAll(outDir)
+
+	runPlanCommand(t, plan.Forward)
+	thumb := filepath.Join(outDir, filepath.Base(src)+".png")
+	if _, err := os.Stat(thumb); err != nil {
+		t.Fatalf("expected generated thumbnail at %s: %v", thumb, err)
+	}
+	runPlanCommand(t, *plan.Inverse)
+	if _, err := os.Stat(outDir); !os.IsNotExist(err) {
+		t.Errorf("after undo, %s should be gone, stat err = %v", outDir, err)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(home, ".Trash")); len(entries) == 0 {
+		t.Errorf("expected the thumbnail folder to be recycled into %s/.Trash", home)
+	}
+}
+
+// TestStageQuicklookThumbnail_RejectsDirectory pins the fail-fast guard: a
+// directory target is refused at stage time (qlmanage can hang on one), and no
+// scratch directory is created as a side effect of that rejection.
+func TestStageQuicklookThumbnail_RejectsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := stageQuicklookThumbnail(context.Background(), registry.Capability{},
+		map[string]any{"path": dir}); err == nil || !strings.Contains(err.Error(), "is a directory") {
+		t.Fatalf("expected a directory rejection, got %v", err)
+	}
+}
+
 func TestStageQuicklookThumbnail_RejectsDashPath(t *testing.T) {
 	if _, err := stageQuicklookThumbnail(context.Background(), registry.Capability{},
 		map[string]any{"path": "-e"}); err == nil || !strings.Contains(err.Error(), "'-'") {

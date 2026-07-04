@@ -285,6 +285,17 @@ func stageQuicklookThumbnail(_ context.Context, _ registry.Capability, in map[st
 	if err != nil {
 		return nil, err
 	}
+	// Reject a directory before creating any scratch dir. This is a correctness
+	// guard, not just tidiness: qlmanage does not merely fail on a directory
+	// target — it can HANG indefinitely (observed: a directory input blocks past
+	// two minutes with no output), which would otherwise leave a stray scratch
+	// directory behind and lean entirely on the request context to unwedge it.
+	// Failing fast here keeps quicklook_thumbnail a "preview a file" operation.
+	if info, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("quicklook_thumbnail: cannot inspect %q: %w", path, err)
+	} else if info.IsDir() {
+		return nil, fmt.Errorf("quicklook_thumbnail: %q is a directory; quicklook_thumbnail previews a single file", path)
+	}
 	size := defaultThumbnailSize
 	if n, ok := getInt(in, "size"); ok {
 		size = n
