@@ -76,6 +76,18 @@ func runLargestFiles(ctx context.Context, _ registry.Capability, in map[string]a
 	if !info.IsDir() {
 		return "", fmt.Errorf("largest_files: %q is not a directory", root)
 	}
+	// filepath.WalkDir below does NOT follow a symlinked ROOT argument (it Lstats
+	// root itself, sees a symlink rather than a directory, and silently walks
+	// nothing) even though os.Stat above happily followed it to confirm it's a
+	// directory. /etc, /tmp, and /var are all top-level symlinks on macOS, so
+	// without this resolution "biggest files under /etc" would silently come
+	// back empty instead of erroring. Falling back to the unresolved root on
+	// error keeps the prior (broken-on-symlinks) behavior for anything
+	// EvalSymlinks itself can't handle, rather than turning a walk failure into
+	// a resolution failure.
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
+	}
 
 	top := &minHeap{}
 	var scanned, skipped int

@@ -105,6 +105,36 @@ func TestRun_LargestFiles_DefaultCount(t *testing.T) {
 	}
 }
 
+// TestRun_LargestFiles_FollowsSymlinkedRoot proves largest_files works when 'dir'
+// is itself a symlink to a populated directory (e.g. macOS's /etc, /tmp, and /var
+// are all top-level symlinks to /private/*). Without resolving the symlink first,
+// filepath.WalkDir does not follow a symlinked ROOT argument: it Lstats root, sees
+// a symlink rather than a directory, and silently walks nothing, so the answer
+// would come back empty instead of erroring — a wrong answer, not a crash, which
+// is exactly what shipped and went unnoticed until this test was added.
+func TestRun_LargestFiles_FollowsSymlinkedRoot(t *testing.T) {
+	real := makeSizedTree(t)
+	link := filepath.Join(t.TempDir(), "link-to-real")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	out, err := New().Run(context.Background(), largestFilesCapability(t), map[string]any{
+		"dir":   link,
+		"count": float64(3),
+	})
+	if err != nil {
+		t.Fatalf("Run largest_files on symlinked root: %v", err)
+	}
+	lines := rankLines(out)
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 ranked files through the symlinked root, got %d:\n%s", len(lines), out)
+	}
+	if !strings.Contains(lines[0], "huge.dat") {
+		t.Errorf("expected the largest file to still rank first through a symlinked root, got:\n%s", out)
+	}
+}
+
 // TestRun_LargestFiles_NotADirectory confirms a non-directory target is a clear
 // error rather than an empty or misleading result.
 func TestRun_LargestFiles_NotADirectory(t *testing.T) {

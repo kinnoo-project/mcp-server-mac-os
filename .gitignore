@@ -32,3 +32,11 @@ go.work.sum
 # .idea/
 # .vscode/
 prompts/
+
+# Eval run reports capture live machine state (IPs, ports/PIDs, installed apps,
+# disk/battery info, and worse if a report isn't as careful as it should be about
+# redacting device names/network lists/serial numbers) -- same PII hazard class
+# as prompts/ above, and this repo has been burned by exactly that before. Keep
+# these local; commit only the durable, code-scoped findings (docs/issues/,
+# docs/pr-reviews/) that come out of a run, not the raw run output itself.
+evals/outputs/
