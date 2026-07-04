@@ -73,14 +73,14 @@ const nowPlayingScript = asDateHelpers + `on run argv
 	set sep to (character id 31)
 	if not (application "Music" is running) then return "NOTRUNNING"
 	tell application "Music"
-		set st to (player state as string)
-		if st is "stopped" then return st & sep & "" & sep & "" & sep & ""
+		set stateVal to (player state as string)
+		if stateVal is "stopped" then return stateVal & sep & "" & sep & "" & sep & ""
 		set t to current track
 		set tName to my _clean(name of t)
 		set tArtist to my _clean(artist of t)
 		set tAlbum to my _clean(album of t)
 	end tell
-	return st & sep & tName & sep & tArtist & sep & tAlbum
+	return stateVal & sep & tName & sep & tArtist & sep & tAlbum
 end run`
 
 // musicReadyProbeScript is the shared readiness check the mutating controls run

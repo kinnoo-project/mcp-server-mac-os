@@ -57,8 +57,8 @@ const getContactAddrHelper = `on _addr(ad)
 	if s is not "" then set end of parts to s
 	set c to my _str(city of ad)
 	if c is not "" then set end of parts to c
-	set st to my _str(state of ad)
-	if st is not "" then set end of parts to st
+	set stVal to my _str(state of ad)
+	if stVal is not "" then set end of parts to stVal
 	set z to my _str(zip of ad)
 	if z is not "" then set end of parts to z
 	set cn to my _str(country of ad)
