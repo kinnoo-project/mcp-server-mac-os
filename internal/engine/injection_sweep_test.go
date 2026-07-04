@@ -59,6 +59,7 @@ var hostileValues = []string{
 // and a regression test, then list it here.
 var reviewedFreeTextBuiltins = map[string]string{
 	"largest_files":       "in-process filepath.WalkDir; dir is used with the standard library, never passed to any binary",
+	"image_info":          "sips: path validated by validateExistingOperand (rejects dash-leading, resolves absolute) before argv; sips has NO '--' terminator, so the absolute-path resolution is the guard; see media_filesystem_test.go",
 	"spotlight_search":    "mdfind: dash-leading query rejected (mdfind has no '--'); optional scope dir resolved to an absolute path (leading '/') before -onlyin; see builtins_spotlight_test.go",
 	"capture_screen":      "screencapture: output_path rejected if dash-leading and only ever used to CREATE a file (never overwrite); see builtins_screenshot_test.go",
 	"capture_region":      "screencapture: output_path rejected if dash-leading (shared resolveScreenshotPath) and only ever used to CREATE a file; region is four validated ints, never free text; see builtins_screenshot_region_test.go",
@@ -130,6 +131,16 @@ var reviewedFreeTextMutators = map[string]string{
 	"append_to_file": "tee -a with '--' before the path, content via Stdin; dash-leading path rejected; see mutate_filesystem_test.go",
 	"compress":       "tar -c with '--' before member operands; dash-leading archive/source rejected; see mutate_filesystem_test.go",
 	"extract":        "tar -x: archive/dest are -f/-C flag values (no positionals); dash-leading rejected; bsdtar's zip-slip defaults kept; see mutate_filesystem_test.go",
+
+	// Media & document conversion: sips has NO '--' terminator, so every path is
+	// dash-rejected AND resolved absolute (so it starts with '/', never a flag)
+	// before argv; textutil/qlmanage also honour '--' before the source as
+	// defense in depth; the 'format' is a registry-validated enum. Destinations
+	// are proven absent at stage time; inverse mv-to-Trash. See media_filesystem_test.go.
+	"convert_image":       "sips: source via validateExistingOperand + destination via validateNewOutputPath (both dash-rejected, absolute); format is an enum; sips has no '--'; inverse mv to Trash; see media_filesystem_test.go",
+	"resize_image":        "sips: source/destination dash-rejected + absolute; dimension is a bounded int; format-free; sips has no '--'; inverse mv to Trash; see media_filesystem_test.go",
+	"convert_document":    "textutil -convert with '--' before the source; source/destination dash-rejected + absolute; format is an enum; inverse mv to Trash; see media_filesystem_test.go",
+	"quicklook_thumbnail": "qlmanage -t with '--' before the path; path via validateExistingOperand (dash-rejected, absolute); output dir is server-created scratch; size is a clamped int; inverse mv to Trash; see media_filesystem_test.go",
 
 	// Clipboard / speech / notification: payload travels via Stdin or after a
 	// "--" terminator or as osascript argv data — never as a bare operand.

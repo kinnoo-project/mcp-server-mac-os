@@ -48,6 +48,10 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 - *"Which files in this project mention `TODO`?"*
 - *"How big is my Downloads folder?"*
 - *"How many lines are in `/var/log/system.log`?"*
+- *"What are the dimensions and format of this photo?"* *(reads the image's pixel size, format, DPI — read-only)*
+- **"Convert this HEIC to a JPEG."** · **"Resize this image to 800px wide."** *(writes a new file, never overwriting the original — previewed; undo trashes it)*
+- **"Convert my notes.rtf to a Word document."** *(text/HTML/RTF/RTFD/DOCX/ODT — previewed; undo trashes the new file)*
+- *"Make me a thumbnail preview of this PDF."* *(a Quick Look preview PNG in a temp folder — runs immediately; undoable)*
 - **"Create a folder called `drafts` in my Documents."** *(previewed; undoable)*
 - **"Move `test.txt` from Downloads to the Desktop."** · **"Move all the screenshots on my Desktop into `~/Desktop/screenshots`."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
 - **"Delete `old-draft.txt`."** *(moved to the Trash, never hard-deleted — previewed; undoable)*
