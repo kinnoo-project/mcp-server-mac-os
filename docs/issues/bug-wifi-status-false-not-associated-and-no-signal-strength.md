@@ -43,14 +43,18 @@ a plain-language quality rating (excellent ≥ -50, good ≥ -60, fair ≥ -70, 
 Robustness: the network name/signal come only from the interface whose `_name`
 matches the resolved Wi-Fi device, which excludes the peer-to-peer `awdl0`
 (AirDrop) interface; only the *current* network is read, so the neighbor SSIDs
-system_profiler also lists are never emitted; and a profiler failure degrades to
-the authoritative radio-power answer rather than failing. When the radio is on
-but no network is joined, it reports "Not currently joined to a Wi-Fi network"
-instead of asserting anything a permission artifact could fake.
+system_profiler also lists are never emitted. The renderer distinguishes three
+network states rather than two, so a failed/unreadable probe never masquerades
+as "not connected" (which would recreate this very bug): a populated interface
+with an SSID reads as joined; the interface present but SSID-less reads as a
+trustworthy "Not currently joined to a Wi-Fi network"; and an empty, unparseable,
+or interface-absent profiler result reads as "Unable to determine the current
+Wi-Fi network (system_profiler data unavailable)" while still reporting the
+authoritative radio power.
 
 Verified end-to-end on a live Mac connected to a real network: the tool now
 reports `Connected to: <SSID>` with `Signal strength: -42 dBm (excellent)` where
 it previously said "You are not associated with an AirPort network." Regression
-coverage: `TestRenderWifiStatus_Connected` / `_NotConnected` / `_RadioOff` /
-`_ProfilerUnavailable`, `TestParseRSSI`, and `TestDescribeSignal` in
-`internal/engine/builtins_system_test.go`.
+coverage: `TestRenderWifiStatus_Connected` / `_NotConnected` / `_InterfaceAbsent`
+/ `_RadioOff` / `_ProfilerUnavailable` / `_ProfilerUnparseable`, `TestParseRSSI`,
+and `TestDescribeSignal` in `internal/engine/builtins_system_test.go`.

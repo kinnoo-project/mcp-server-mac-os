@@ -56,13 +56,31 @@ func TestRenderWifiStatus_Connected(t *testing.T) {
 }
 
 func TestRenderWifiStatus_NotConnected(t *testing.T) {
-	// Radio on, but en0 reports no current network (no SSID) — the genuine
-	// not-joined case. It must NOT claim a network, and must NOT reproduce the
-	// old false-negative by asserting anything a permission artifact could fake.
+	// Radio on, and en0 IS present in the profiler output but carries no SSID —
+	// a trustworthy, genuine not-joined answer. Because the profiler spoke to our
+	// interface, "Not currently joined" is correct here (distinct from the
+	// unknown case below).
 	notJoined := `{"SPAirPortDataType":[{"spairport_airport_interfaces":[{"_name":"en0","spairport_current_network_information":{"spairport_network_type":"spairport_network_type_station"}}]}]}`
 	out := renderWifiStatus("en0", "Wi-Fi Power (en0): On", []byte(notJoined))
 	if !strings.Contains(out, "Not currently joined") {
 		t.Errorf("expected not-joined message, got: %s", out)
+	}
+	if strings.Contains(out, "Unable to determine") {
+		t.Errorf("genuine not-joined must not be reported as unknown, got: %s", out)
+	}
+}
+
+func TestRenderWifiStatus_InterfaceAbsent(t *testing.T) {
+	// The profiler returned data, but not for our interface (only awdl0). We
+	// cannot speak to en0's connectivity, so this is "unknown", NOT "not joined"
+	// — reporting the latter would reintroduce a false-negative connectivity claim.
+	onlyOther := `{"SPAirPortDataType":[{"spairport_airport_interfaces":[{"_name":"awdl0","spairport_current_network_information":{"spairport_network_type":"spairport_network_type_station"}}]}]}`
+	out := renderWifiStatus("en0", "Wi-Fi Power (en0): On", []byte(onlyOther))
+	if !strings.Contains(out, "Unable to determine") {
+		t.Errorf("missing interface should be unknown, got: %s", out)
+	}
+	if strings.Contains(out, "Not currently joined") {
+		t.Errorf("missing interface must not be reported as not-joined, got: %s", out)
 	}
 }
 
@@ -79,11 +97,27 @@ func TestRenderWifiStatus_RadioOff(t *testing.T) {
 }
 
 func TestRenderWifiStatus_ProfilerUnavailable(t *testing.T) {
-	// If the system_profiler probe failed (nil bytes) we must degrade to a
-	// truthful "can't name a network" rather than crash or fabricate one.
+	// If the system_profiler probe failed (nil bytes) connectivity is genuinely
+	// unknown. We must say so — NOT claim "not connected", which would recreate
+	// the very false-negative this fix removes — while still surfacing the
+	// authoritative radio power.
 	out := renderWifiStatus("en0", "Wi-Fi Power (en0): On", nil)
-	if !strings.Contains(out, "Not currently joined") {
-		t.Errorf("expected graceful degrade, got: %s", out)
+	if !strings.Contains(out, "Unable to determine") {
+		t.Errorf("profiler-unavailable should degrade to unknown, got: %s", out)
+	}
+	if strings.Contains(out, "Not currently joined") {
+		t.Errorf("unknown must not be reported as not-joined, got: %s", out)
+	}
+	if !strings.Contains(out, "On") {
+		t.Errorf("authoritative radio power should still be reported, got: %s", out)
+	}
+}
+
+func TestRenderWifiStatus_ProfilerUnparseable(t *testing.T) {
+	// Garbage/truncated profiler output is also "unknown", never "not joined".
+	out := renderWifiStatus("en0", "Wi-Fi Power (en0): On", []byte("{not valid json"))
+	if !strings.Contains(out, "Unable to determine") {
+		t.Errorf("unparseable profiler output should degrade to unknown, got: %s", out)
 	}
 }
 

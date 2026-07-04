@@ -78,7 +78,9 @@ func runWifiStatus(ctx context.Context, _ registry.Capability, _ map[string]any)
 //
 // It reports ONLY the currently-joined network — system_profiler also lists
 // every neighboring SSID in range, which is private and irrelevant here, so
-// those are never read or emitted.
+// those are never read or emitted. It distinguishes three network states —
+// joined, genuinely not-joined, and "could not determine" — so that a failed or
+// unreadable profiler probe never masquerades as a "not connected" answer.
 func renderWifiStatus(dev, powerStdout string, profilerJSON []byte) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Wi-Fi interface: %s\n", dev)
@@ -91,12 +93,18 @@ func renderWifiStatus(dev, powerStdout string, profilerJSON []byte) string {
 		return b.String()
 	}
 
-	net, ok := parseCurrentWifiNetwork(profilerJSON, dev)
-	if !ok {
-		// Radio is on but system_profiler reported no current network. This is
-		// the genuine "not connected" case OR (rarely) an SSID redaction; either
-		// way we cannot name a network, so say so plainly without asserting a
-		// false negative about connectivity.
+	net, status := parseCurrentWifiNetwork(profilerJSON, dev)
+	switch status {
+	case wifiUnknown:
+		// We could not read the current-network data at all (the profiler probe
+		// failed, its output was unparseable, or our interface was absent from
+		// it). We must NOT claim "not connected" here — that is precisely the
+		// false negative this fix exists to eliminate. Say it's unknown.
+		b.WriteString("Unable to determine the current Wi-Fi network (system_profiler data unavailable). The radio power above is authoritative.\n")
+		return b.String()
+	case wifiNotJoined:
+		// The profiler reported on our interface and it carries no SSID — a
+		// genuine, trustworthy "not joined" answer.
 		b.WriteString("Not currently joined to a Wi-Fi network.\n")
 		return b.String()
 	}
@@ -123,15 +131,34 @@ type wifiNetwork struct {
 	Channel   string // e.g. "7 (2GHz, 20MHz)"
 }
 
+// wifiLookup is the three-way outcome of trying to read the current network from
+// system_profiler. It deliberately separates "we could not tell" from "we could
+// tell, and the answer is not-joined" so the renderer never dresses the former
+// up as the latter — reporting a false "not connected" is the exact bug this
+// whole change exists to fix.
+type wifiLookup int
+
+const (
+	// wifiUnknown means the current-network data could not be read: the profiler
+	// bytes were empty (probe failed), unparseable, or did not contain our
+	// interface at all. Connectivity is genuinely unknown, not "not joined".
+	wifiUnknown wifiLookup = iota
+	// wifiNotJoined means the profiler reported on our interface and it carries
+	// no SSID — a trustworthy "the radio is on but not associated" answer.
+	wifiNotJoined
+	// wifiJoined means our interface reported a current network (the returned
+	// wifiNetwork is populated).
+	wifiJoined
+)
+
 // parseCurrentWifiNetwork pulls the current-network block for interface dev out
-// of system_profiler's SPAirPortDataType JSON. It returns ok=false when the
-// bytes are empty/unparseable, when the interface isn't present, or when the
-// interface reports no joined network (no SSID). Matching on the interface name
-// is what excludes peer-to-peer interfaces like awdl0 (AirDrop), which also
-// carry a current-network block but never a real SSID.
-func parseCurrentWifiNetwork(jsonBytes []byte, dev string) (wifiNetwork, bool) {
+// of system_profiler's SPAirPortDataType JSON, returning which of the three
+// wifiLookup outcomes applies. Matching on the interface name is what excludes
+// peer-to-peer interfaces like awdl0 (AirDrop), which also carry a
+// current-network block but never a real SSID.
+func parseCurrentWifiNetwork(jsonBytes []byte, dev string) (wifiNetwork, wifiLookup) {
 	if len(jsonBytes) == 0 {
-		return wifiNetwork{}, false
+		return wifiNetwork{}, wifiUnknown
 	}
 	var report struct {
 		SPAirPortDataType []struct {
@@ -146,7 +173,7 @@ func parseCurrentWifiNetwork(jsonBytes []byte, dev string) (wifiNetwork, bool) {
 		} `json:"SPAirPortDataType"`
 	}
 	if err := json.Unmarshal(jsonBytes, &report); err != nil {
-		return wifiNetwork{}, false
+		return wifiNetwork{}, wifiUnknown
 	}
 	for _, block := range report.SPAirPortDataType {
 		for _, iface := range block.Interfaces {
@@ -156,16 +183,18 @@ func parseCurrentWifiNetwork(jsonBytes []byte, dev string) (wifiNetwork, bool) {
 			// A joined network always carries an SSID (_name); its absence means
 			// the interface is on but not associated.
 			if iface.CurrentNetwork.Name == "" {
-				return wifiNetwork{}, false
+				return wifiNetwork{}, wifiNotJoined
 			}
 			return wifiNetwork{
 				SSID:      iface.CurrentNetwork.Name,
 				SignalRaw: iface.CurrentNetwork.SignalNoise,
 				Channel:   iface.CurrentNetwork.Channel,
-			}, true
+			}, wifiJoined
 		}
 	}
-	return wifiNetwork{}, false
+	// The profiler returned data but not for our interface — we cannot speak to
+	// this interface's connectivity, so it is unknown rather than not-joined.
+	return wifiNetwork{}, wifiUnknown
 }
 
 // parseRSSI extracts the received-signal-strength value (in dBm) from
