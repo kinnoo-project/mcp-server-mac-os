@@ -198,14 +198,37 @@ func runQuarantineInfo(ctx context.Context, _ registry.Capability, in map[string
 	if err != nil {
 		return "", err
 	}
+	return interpretQuarantineResult(path, res)
+}
+
+// interpretQuarantineResult renders the outcome of `xattr -p com.apple.quarantine`
+// into a report. It is the security-relevant seam of quarantine_info, so it is a
+// pure function with its own accept/reject tests. It separates THREE cases that a
+// naive "non-zero exit ⇒ not quarantined" check would conflate:
+//
+//   - the attribute is PRESENT (exit 0 with a value): decode it;
+//   - the attribute is simply ABSENT: xattr exits non-zero and prints
+//     "No such xattr", the common, benign not-quarantined case;
+//   - ANY OTHER failure — permission denied, an I/O error, a file that vanished
+//     after validation — which must surface as an ERROR, never be reported as
+//     "not quarantined". Silently calling a failed read "not quarantined" could
+//     hide a real download flag and mislead a trust decision (Copilot review, PR #62).
+func interpretQuarantineResult(path string, res *runResult) (string, error) {
 	value := strings.TrimSpace(res.Stdout)
-	if res.ExitCode != 0 || value == "" {
-		// A non-zero exit here means the attribute is not set — i.e. the file was
-		// not downloaded/quarantined (or the flag was already cleared). That is a
-		// normal answer, not a failure.
+	if res.ExitCode == 0 && value != "" {
+		return renderQuarantine(path, value), nil
+	}
+	stderr := strings.TrimSpace(res.Stderr)
+	// "No such xattr" is xattr's message for an unset attribute; a clean exit-0
+	// with empty output is treated the same way (an odd but harmless empty value).
+	if strings.Contains(stderr, "No such xattr") || (res.ExitCode == 0 && value == "") {
 		return fmt.Sprintf("%s is NOT quarantined — macOS has no download-origin flag on it, so it will open without a Gatekeeper prompt.", path), nil
 	}
-	return renderQuarantine(path, value), nil
+	detail := stderr
+	if detail == "" {
+		detail = fmt.Sprintf("xattr exited with status %d and produced no detail", res.ExitCode)
+	}
+	return "", fmt.Errorf("quarantine_info: could not read the quarantine attribute of %q: %s", path, detail)
 }
 
 // renderQuarantine decodes a raw com.apple.quarantine attribute value into a

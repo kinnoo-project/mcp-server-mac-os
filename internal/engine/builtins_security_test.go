@@ -125,6 +125,43 @@ func TestRenderQuarantine(t *testing.T) {
 	}
 }
 
+// TestInterpretQuarantineResult pins the three-way branching that a security
+// trust decision depends on: a present attribute is decoded, a genuinely absent
+// one ("No such xattr") reads as not-quarantined, but ANY other failure (e.g. a
+// permission error) surfaces as an error rather than being misreported as
+// "not quarantined" (Copilot review, PR #62).
+func TestInterpretQuarantineResult(t *testing.T) {
+	const path = "/tmp/x"
+
+	// Present: exit 0 with a value → decoded quarantine report.
+	if out, err := interpretQuarantineResult(path, &runResult{Stdout: "0083;6553f100;Safari;UUID", ExitCode: 0}); err != nil {
+		t.Errorf("present attribute: unexpected error %v", err)
+	} else if !strings.Contains(out, "IS quarantined") {
+		t.Errorf("present attribute: want quarantined verdict, got %q", out)
+	}
+
+	// Absent: xattr's "No such xattr" on a non-zero exit → not quarantined.
+	if out, err := interpretQuarantineResult(path, &runResult{
+		Stderr:   "xattr: /tmp/x: No such xattr: com.apple.quarantine",
+		ExitCode: 1,
+	}); err != nil {
+		t.Errorf("absent attribute: unexpected error %v", err)
+	} else if !strings.Contains(out, "NOT quarantined") {
+		t.Errorf("absent attribute: want not-quarantined verdict, got %q", out)
+	}
+
+	// Other failure: a permission error must NOT be reported as not-quarantined.
+	out, err := interpretQuarantineResult(path, &runResult{
+		Stderr:   "xattr: [Errno 13] Permission denied: '/tmp/x'",
+		ExitCode: 1,
+	})
+	if err == nil {
+		t.Errorf("permission error: expected an error, got output %q", out)
+	} else if strings.Contains(err.Error(), "NOT quarantined") {
+		t.Errorf("permission error: must not claim not-quarantined, got %v", err)
+	}
+}
+
 // TestSecurityBuiltins_Live exercises the real binaries end-to-end. Skipped unless
 // MCP_SECURITY_LIVE=1 because it shells out and its output depends on host state.
 // /bin/ls is a stable, always-present, Apple-signed target for the signing/assess
