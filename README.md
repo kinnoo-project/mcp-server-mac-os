@@ -223,13 +223,19 @@ it opens the exact pane *and* tells you what to click once you're there.
 ### 🌐 Network & diagnostics
 
 Answer everyday network questions and let the model diagnose connectivity issues
-by composing these probes. All read-only — nothing here changes your network
-configuration.
+by composing these probes. Read-only except for one benign, self-healing action
+(flushing the DNS cache) — nothing here changes your network configuration.
 
 - *"What's my IP, router, and MAC address? How many devices fit on this network?"*
 - *"What DNS servers am I using?"* · *"What other devices are on my network?"*
 - *"Can you ping the router? Can you reach 8.8.8.8?"* · *"Does apple.com resolve?"*
+- *"Trace the route to 8.8.8.8 — where does it slow down?"* *(hop-by-hop path with
+  per-hop latency, so a stalling or slow router is pinpointed, not just "unreachable")*
+- *"Who owns example.com and when does it expire?"* *(WHOIS registration record)*
+- *"Show my routing table"* · *"Which interface is carrying traffic, and any errors?"*
 - *"What ports am I listening on, and which apps own them?"*
+- *"Flush my DNS cache"* *(clears the on-demand resolver cache; it repopulates by
+  itself — a full mDNSResponder reset still needs admin rights)*
 - *"I can't reach the internet — can you diagnose it?"* *(checks the gateway, then a
   public IP, then DNS — and tells you where it breaks)*
 

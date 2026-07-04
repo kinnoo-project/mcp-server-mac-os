@@ -1,16 +1,22 @@
 // builtins_network.go implements the read-only network-diagnostics builtins:
 // "where am I on the network" (current_network), DNS resolver listing
 // (dns_servers), reachability and name-resolution probes (ping_host,
-// dns_lookup), local listening sockets (listening_ports), and LAN device
-// discovery both passively (lan_devices, from the ARP cache) and actively
-// (scan_lan, a bounded ping sweep). Together they let the agent answer everyday
-// connectivity questions and compose its own diagnoses ("can't reach the
-// internet" → check the gateway, then a public IP, then DNS).
+// dns_lookup), local listening sockets (listening_ports), LAN device discovery
+// both passively (lan_devices, from the ARP cache) and actively (scan_lan, a
+// bounded ping sweep), path tracing (trace_route), registration lookups
+// (whois_lookup), routing/interface state (route_table, interface_stats), and
+// directory-services name resolution (dns_cache_lookup). Together they let the
+// agent answer everyday connectivity questions and compose its own diagnoses
+// ("can't reach the internet" → check the gateway, then a public IP, then DNS).
+// The one mutating network operation, flush_dns_cache, lives in
+// mutate_network.go on the mutation seam.
 //
-// Two of these operations — ping_host and dns_lookup — take a model-controlled
-// host string into a subprocess. `dig` has no `--` end-of-options terminator and
-// parses leading-dash / `@` / `+` arguments as its own options, so the defense
-// here is a strict allowlist (validateNetworkHost), applied before any argv is
+// Several of these operations — ping_host, dns_lookup, trace_route,
+// whois_lookup, dns_cache_lookup — take a model-controlled host string into a
+// subprocess. None of the underlying binaries (dig, ping, traceroute, whois,
+// dscacheutil) exposes a usable `--` end-of-options terminator, and each parses
+// leading-dash / `@` / `+` arguments as its own options, so the defense here is
+// a single strict allowlist (validateNetworkHost), applied before any argv is
 // assembled, per .claude/rules/darwin-execution.md §4. Every other operation
 // either takes no input or only an enum, so it carries no injection surface.
 package engine
@@ -304,13 +310,16 @@ func runPingHost(ctx context.Context, _ registry.Capability, in map[string]any) 
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	res, err := runCommand(runCtx, bin, "-c", strconv.Itoa(count), "-W", "2000", "--", host)
-	if err != nil {
-		return "", err
-	}
 	// The backstop fired (and it wasn't the caller cancelling the request):
-	// report the timeout as data rather than ping's signal-killed output.
+	// report the timeout as data rather than ping's signal-killed output. This is
+	// checked BEFORE the error branch because a fired deadline ALSO surfaces as a
+	// runCommand error — checking the error first would make this branch dead code
+	// and turn an expected timeout into a hard failure.
 	if ctx.Err() == nil && runCtx.Err() != nil {
 		return fmt.Sprintf("Host %s did not respond within %s — treating it as unreachable.", host, timeout), nil
+	}
+	if err != nil {
+		return "", err
 	}
 	out := strings.TrimSpace(res.Stdout)
 	if out == "" {
@@ -661,6 +670,203 @@ func subnetHosts(ipStr, mask string) ([]string, error) {
 // u32ToIPString renders a packed IPv4 address as a dotted-quad string.
 func u32ToIPString(n uint32) string {
 	return fmt.Sprintf("%d.%d.%d.%d", byte(n>>24), byte(n>>16), byte(n>>8), byte(n))
+}
+
+// clampMaxHops bounds a caller-supplied traceroute hop limit into the supported
+// 1–30 range. A hop cap that is too small returns nothing useful; one that is
+// too large lets a single trace run for minutes, so both ends are pinned. It is
+// pulled out as a pure function so the clamp can be unit-tested without a live
+// traceroute.
+func clampMaxHops(n int) int {
+	switch {
+	case n < 1:
+		return 1
+	case n > 30:
+		return 30
+	default:
+		return n
+	}
+}
+
+// traceRouteArgs assembles the fixed traceroute argument vector for a validated
+// host and an already-clamped hop limit. `-w 2` caps the per-hop wait at two
+// seconds and `-q 1` sends a single probe per hop, together keeping the trace
+// brief; `-m` bounds the hop count. The host is placed last with no "--" before
+// it because traceroute has no end-of-options terminator — the caller MUST have
+// run validateNetworkHost first, which is what actually keeps a dash-leading
+// value from being read as a traceroute flag. Split out so the argv layout is
+// unit-testable.
+func traceRouteArgs(host string, maxHops int) []string {
+	return []string{"-w", "2", "-q", "1", "-m", strconv.Itoa(maxHops), host}
+}
+
+// runTraceRoute traces the network path to a host, hop by hop. The host is
+// validated first (traceroute, like dig, has no "--" terminator, so the
+// allowlist is the sole option-injection defense), and the whole trace is bound
+// by a context deadline that grows with the hop count — a plain hop cap does not
+// bound wall-clock time when intermediate routers silently drop probes.
+func runTraceRoute(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
+	host, _ := getString(in, "host")
+	if err := validateNetworkHost(host); err != nil {
+		return "", err
+	}
+	maxHops := 15
+	if n, ok := getInt(in, "max_hops"); ok {
+		maxHops = n
+	}
+	maxHops = clampMaxHops(maxHops)
+
+	bin, err := policy.ResolveBinary("traceroute")
+	if err != nil {
+		return "", err
+	}
+	// Each hop can wait up to -w seconds; budget that per hop plus a fixed
+	// margin so a filtered path can't hang past a bounded deadline.
+	timeout := time.Duration(maxHops*2+10) * time.Second
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	res, err := runCommand(runCtx, bin, traceRouteArgs(host, maxHops)...)
+	// Classify the outcome once the run returns. Ordering matters here: when the
+	// per-trace deadline fires, runCommand ALSO reports a (signal-killed / timed-
+	// out) error, so the timeout must be recognised BEFORE the error is surfaced,
+	// otherwise a bounded, expected timeout would leak out as a hard failure.
+	// classifyTraceResult encodes that precedence and is unit-tested directly.
+	return classifyTraceResult(host, timeout, res, err, ctx.Err() != nil, runCtx.Err() != nil)
+}
+
+// classifyTraceResult renders a finished — or timed-out — traceroute run. It is
+// split out because the precedence between its two failure signals is subtle:
+// when the per-trace deadline fires, the runner returns both a non-nil error AND
+// leaves runCtx.Err() set, and the deadline case must win so a filtered/distant
+// path yields a bounded, user-friendly message (with any partial hops collected
+// so far) instead of a hard error. parentCancelled reflects the ORIGINAL request
+// context — a genuine caller cancellation is not massaged into a "timed out"
+// message. Pulling this into a pure function lets the ordering be tested without
+// a live traceroute that actually has to hang.
+func classifyTraceResult(host string, timeout time.Duration, res *runResult, runErr error, parentCancelled, deadlineFired bool) (string, error) {
+	var stdout, stderr string
+	if res != nil {
+		stdout = strings.TrimSpace(res.Stdout)
+		stderr = strings.TrimSpace(res.Stderr)
+	}
+	// A per-trace deadline that fired (and was not the caller cancelling) is
+	// reported as data — including whatever partial route was gathered — never as
+	// an error. Checked first precisely because runErr is also set in this case.
+	if !parentCancelled && deadlineFired {
+		msg := fmt.Sprintf("Trace to %s did not complete within %s — it may be a distant host or one whose path filters probes.", host, timeout)
+		if stdout != "" {
+			return fmt.Sprintf("%s\n\nPartial route gathered so far:\n\n%s", msg, compactOutput(stdout)), nil
+		}
+		return msg, nil
+	}
+	// Any other error (including a genuine caller cancellation) is a real failure.
+	if runErr != nil {
+		return "", runErr
+	}
+	out := stdout
+	if out == "" {
+		out = stderr
+	}
+	if out == "" {
+		return fmt.Sprintf("No route information was returned for %s.", host), nil
+	}
+	return fmt.Sprintf("Route to %s:\n\n%s", host, compactOutput(out)), nil
+}
+
+// runWhoisLookup returns the WHOIS registration record for a domain or IP. The
+// query value is validated by the same host allowlist used elsewhere — whois has
+// no "--" terminator and would read a leading-dash value as its own option (for
+// example -h, which redirects the query to an arbitrary WHOIS server), so the
+// allowlist is the defense. Records are frequently long, so the output is passed
+// through the shared 32 KB compaction.
+func runWhoisLookup(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
+	domain, _ := getString(in, "domain")
+	if err := validateNetworkHost(domain); err != nil {
+		return "", err
+	}
+	bin, err := policy.ResolveBinary("whois")
+	if err != nil {
+		return "", err
+	}
+	res, err := runCommand(ctx, bin, domain)
+	if err != nil {
+		return "", err
+	}
+	out := strings.TrimSpace(res.Stdout)
+	if out == "" {
+		out = strings.TrimSpace(res.Stderr)
+	}
+	if out == "" {
+		return fmt.Sprintf("whois returned no information for %s.", domain), nil
+	}
+	return fmt.Sprintf("whois %s:\n\n%s", domain, compactOutput(out)), nil
+}
+
+// runRouteTable reports the kernel routing table for both address families. The
+// invocation is a fixed argv (no model input reaches it), so there is no
+// injection surface; the two families are queried separately and labelled so the
+// combined report is readable.
+func runRouteTable(ctx context.Context, _ registry.Capability, _ map[string]any) (string, error) {
+	bin, err := policy.ResolveBinary("netstat")
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	for _, fam := range []struct{ flag, label string }{{"inet", "IPv4"}, {"inet6", "IPv6"}} {
+		res, err := runCommand(ctx, bin, "-rn", "-f", fam.flag)
+		if err != nil {
+			return "", err
+		}
+		out := strings.TrimSpace(res.Stdout)
+		if out == "" {
+			out = "(no routes)"
+		}
+		fmt.Fprintf(&b, "%s routing table:\n%s\n\n", fam.label, out)
+	}
+	return compactOutput(strings.TrimRight(b.String(), "\n")), nil
+}
+
+// runInterfaceStats reports per-interface traffic and error counters via
+// `netstat -ib`. Fixed argv, no model input, no injection surface.
+func runInterfaceStats(ctx context.Context, _ registry.Capability, _ map[string]any) (string, error) {
+	bin, err := policy.ResolveBinary("netstat")
+	if err != nil {
+		return "", err
+	}
+	res, err := runCommand(ctx, bin, "-ib")
+	if err != nil {
+		return "", err
+	}
+	out := strings.TrimSpace(res.Stdout)
+	if out == "" {
+		return "No interface statistics were returned.", nil
+	}
+	return compactOutput(out), nil
+}
+
+// runDNSCacheLookup resolves a hostname through macOS's directory-services layer
+// (`dscacheutil -q host -a name <host>`), the resolution path apps actually use.
+// The host is validated by the shared allowlist first: dscacheutil has no "--"
+// terminator, so rejecting dash-leading/punctuated values up front is what keeps
+// the name from being read as one of its flags.
+func runDNSCacheLookup(ctx context.Context, _ registry.Capability, in map[string]any) (string, error) {
+	host, _ := getString(in, "host")
+	if err := validateNetworkHost(host); err != nil {
+		return "", err
+	}
+	bin, err := policy.ResolveBinary("dscacheutil")
+	if err != nil {
+		return "", err
+	}
+	res, err := runCommand(ctx, bin, "-q", "host", "-a", "name", host)
+	if err != nil {
+		return "", err
+	}
+	out := strings.TrimSpace(res.Stdout)
+	if out == "" {
+		return fmt.Sprintf("Directory services returned no cached entry for %s (it resolves on demand via DNS rather than from a stored cache).", host), nil
+	}
+	return fmt.Sprintf("Directory-services resolution for %s:\n\n%s", host, compactOutput(out)), nil
 }
 
 // sweepSubnet pings every host concurrently with a tight per-probe deadline. The

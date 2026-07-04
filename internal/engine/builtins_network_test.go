@@ -9,9 +9,11 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"mcp-server-mac-os/internal/registry"
 )
@@ -41,6 +43,156 @@ func TestNetworkBuiltins_Live(t *testing.T) {
 		t.Errorf("runPingHost: %v", err)
 	} else if !strings.Contains(out, "reachable") {
 		t.Errorf("ping of loopback should be reachable, got: %s", out)
+	}
+	if out, err := runTraceRoute(ctx, cap, map[string]any{"host": "127.0.0.1", "max_hops": 1}); err != nil {
+		t.Errorf("runTraceRoute: %v", err)
+	} else {
+		t.Logf("trace_route:\n%s", out)
+	}
+	if out, err := runRouteTable(ctx, cap, nil); err != nil {
+		t.Errorf("runRouteTable: %v", err)
+	} else if !strings.Contains(out, "routing table") {
+		t.Errorf("route_table should label the tables, got: %s", out)
+	}
+	if out, err := runInterfaceStats(ctx, cap, nil); err != nil {
+		t.Errorf("runInterfaceStats: %v", err)
+	} else {
+		t.Logf("interface_stats:\n%s", out)
+	}
+	if out, err := runDNSCacheLookup(ctx, cap, map[string]any{"host": "localhost"}); err != nil {
+		t.Errorf("runDNSCacheLookup: %v", err)
+	} else {
+		t.Logf("dns_cache_lookup:\n%s", out)
+	}
+}
+
+// TestNetworkDiagnostics_RejectHostileHost is the per-operation option-injection
+// regression required by CLAUDE.md §4 for the three V1 read builtins that take a
+// model-controlled host. Each funnels its host through validateNetworkHost
+// BEFORE resolving or running any binary, so every hostile value (a
+// flag-lookalike or a metacharacter-laden string) must come back as an error
+// with no subprocess ever launched. Because the guard runs first, this also
+// proves the "-e lands as data, never a flag" property for these operations.
+func TestNetworkDiagnostics_RejectHostileHost(t *testing.T) {
+	ctx := context.Background()
+	cap := registry.Capability{}
+	fns := map[string]struct {
+		fn    BuiltinFunc
+		param string
+	}{
+		"trace_route":      {runTraceRoute, "host"},
+		"whois_lookup":     {runWhoisLookup, "domain"},
+		"dns_cache_lookup": {runDNSCacheLookup, "host"},
+	}
+	for name, spec := range fns {
+		for _, h := range hostileValues {
+			if _, err := spec.fn(ctx, cap, map[string]any{spec.param: h}); err == nil {
+				t.Errorf("%s with hostile host %q = nil error, want rejection before any subprocess", name, h)
+			}
+		}
+	}
+}
+
+// TestClampMaxHops pins the traceroute hop-limit bounds: out-of-range values are
+// clamped into 1–30 rather than passed through to a run that could hang or be
+// useless.
+func TestClampMaxHops(t *testing.T) {
+	cases := map[int]int{-5: 1, 0: 1, 1: 1, 15: 15, 30: 30, 31: 30, 1000: 30}
+	for in, want := range cases {
+		if got := clampMaxHops(in); got != want {
+			t.Errorf("clampMaxHops(%d) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+// TestTraceRouteArgs pins traceroute's argument vector: the speed-limiting flags
+// are present and fixed, the hop count is rendered from the (already-clamped)
+// value, and the host is the final operand (no "--" before it, since traceroute
+// has none — the allowlist is the guard).
+func TestTraceRouteArgs(t *testing.T) {
+	got := traceRouteArgs("8.8.8.8", 12)
+	want := []string{"-w", "2", "-q", "1", "-m", "12", "8.8.8.8"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Errorf("traceRouteArgs = %v, want %v", got, want)
+	}
+	if got[len(got)-1] != "8.8.8.8" {
+		t.Errorf("host must be the final operand, got argv %v", got)
+	}
+}
+
+// TestClassifyTraceResult pins the subtle precedence in how a traceroute run is
+// rendered — specifically that a fired per-trace deadline is reported as data
+// even though the runner ALSO returns an error for it, so a bounded timeout can
+// never leak out as a hard failure (the Copilot-reported ordering bug).
+func TestClassifyTraceResult(t *testing.T) {
+	timeout := 40 * time.Second
+	sentinel := errors.New("timed out after 2m0s") // what the runner returns on a killed child
+
+	// Deadline fired, parent not cancelled, partial hops present: the runErr is
+	// IGNORED and a friendly message with the partial route is returned.
+	out, err := classifyTraceResult("8.8.8.8", timeout,
+		&runResult{Stdout: " 1  router (192.168.1.1)  1.2 ms\n"}, sentinel, false, true)
+	if err != nil {
+		t.Fatalf("timeout case returned error %v, want nil (must be reported as data)", err)
+	}
+	if !strings.Contains(out, "did not complete within") || !strings.Contains(out, "Partial route") || !strings.Contains(out, "router") {
+		t.Errorf("timeout case text = %q, want a timeout message with the partial route", out)
+	}
+
+	// Deadline fired but no partial output: still a message, still no error.
+	out, err = classifyTraceResult("8.8.8.8", timeout, &runResult{}, sentinel, false, true)
+	if err != nil || strings.Contains(out, "Partial route") {
+		t.Errorf("empty-timeout case = (%q, %v), want a message with no partial section and nil error", out, err)
+	}
+
+	// A genuine caller cancellation (parent cancelled) is NOT massaged into a
+	// timeout message — it surfaces the real error.
+	if _, err := classifyTraceResult("8.8.8.8", timeout, &runResult{}, sentinel, true, true); err == nil {
+		t.Error("caller-cancelled case = nil error, want the real error surfaced")
+	}
+
+	// A non-timeout error with no deadline surfaces as an error.
+	if _, err := classifyTraceResult("8.8.8.8", timeout, &runResult{}, errors.New("boom"), false, false); err == nil {
+		t.Error("plain-error case = nil error, want the error surfaced")
+	}
+
+	// Clean success: the route is rendered.
+	out, err = classifyTraceResult("8.8.8.8", timeout,
+		&runResult{Stdout: " 1  gw  1 ms\n 2  8.8.8.8  9 ms\n"}, nil, false, false)
+	if err != nil || !strings.Contains(out, "Route to 8.8.8.8") || !strings.Contains(out, "8.8.8.8") {
+		t.Errorf("success case = (%q, %v), want a rendered route", out, err)
+	}
+
+	// Success with no stdout falls back to the no-information message.
+	out, _ = classifyTraceResult("8.8.8.8", timeout, &runResult{}, nil, false, false)
+	if !strings.Contains(out, "No route information") {
+		t.Errorf("empty-success case = %q, want the no-information message", out)
+	}
+}
+
+// TestStageFlushDNSCache pins the one mutating network op: it flushes via a fixed
+// dscacheutil argv, carries no inverse (a flushed cache cannot be restored), and
+// its preview describes the effect and the mDNSResponder scope caveat without
+// pre-empting the auto-commit path's own "cannot be undone" note.
+func TestStageFlushDNSCache(t *testing.T) {
+	plan, err := stageFlushDNSCache(context.Background(), registry.Capability{}, nil)
+	if err != nil {
+		t.Fatalf("stageFlushDNSCache: %v", err)
+	}
+	if plan.Forward.Binary != "dscacheutil" {
+		t.Errorf("forward binary = %q, want dscacheutil", plan.Forward.Binary)
+	}
+	if strings.Join(plan.Forward.Args, " ") != "-flushcache" {
+		t.Errorf("forward args = %v, want [-flushcache]", plan.Forward.Args)
+	}
+	if plan.Inverse != nil {
+		t.Errorf("flush_dns_cache must be irreversible (nil inverse), got %+v", *plan.Inverse)
+	}
+	if !strings.Contains(plan.Preview, "cache") {
+		t.Errorf("preview should describe the flush, got %q", plan.Preview)
+	}
+	if strings.Contains(plan.Preview, "cannot be undone") {
+		t.Errorf("preview should NOT include the auto-commit suffix itself, got %q", plan.Preview)
 	}
 }
 

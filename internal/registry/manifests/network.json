@@ -100,5 +100,97 @@
     "risk": "low",
     "builder": "scan_lan",
     "params": []
+  },
+  {
+    "name": "trace_route",
+    "summary": "Trace the network path to a host, listing every router (hop) between this Mac and the destination with the round-trip time to each. Use it to find WHERE a connection breaks or slows down: a hop that stops responding or spikes in latency localizes the problem far beyond a plain ping (which only says reachable / not reachable).",
+    "category": "network",
+    "binary": "traceroute",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "trace_route",
+    "params": [
+      {
+        "name": "host",
+        "type": "string",
+        "required": true,
+        "description": "IP or hostname to trace the route to (e.g. 8.8.8.8, apple.com). Bare host only; option-like or punctuated values are rejected.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "max_hops",
+        "type": "int",
+        "default": 15,
+        "description": "Maximum number of hops (routers) to probe before giving up (1–30, default 15). Lower finishes faster; raise it only for a distant host that legitimately needs more than 15 hops.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "whois_lookup",
+    "summary": "Look up the WHOIS registration record for a domain or IP — who owns it, the registrar, and the create/expiry dates. Answers 'who owns this domain' and 'when does it expire'.",
+    "category": "network",
+    "binary": "whois",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "whois_lookup",
+    "params": [
+      {
+        "name": "domain",
+        "type": "string",
+        "required": true,
+        "description": "Domain name (e.g. apple.com) or IP address to look up. Bare host only; option-like or punctuated values are rejected.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "route_table",
+    "summary": "Show this Mac's kernel routing table (IPv4 and IPv6): which gateway and interface each destination network is reached through. Use it to confirm the default route and spot a stray or VPN-added route that is sending traffic the wrong way.",
+    "category": "network",
+    "binary": "netstat",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "route_table",
+    "params": []
+  },
+  {
+    "name": "interface_stats",
+    "summary": "Report per-interface traffic counters (packets in/out and errors) for every network interface. Use it to see which interface is actually carrying traffic and whether an interface is logging errors or drops.",
+    "category": "network",
+    "binary": "netstat",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "interface_stats",
+    "params": []
+  },
+  {
+    "name": "dns_cache_lookup",
+    "summary": "Resolve a hostname through macOS's directory-services layer (dscacheutil), the same path apps use. Complements dns_lookup (which queries DNS directly with dig): comparing the two shows whether a name is being served from a local cache/override rather than fresh DNS.",
+    "category": "network",
+    "binary": "dscacheutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "dns_cache_lookup",
+    "params": [
+      {
+        "name": "host",
+        "type": "string",
+        "required": true,
+        "description": "Hostname to resolve through directory services (e.g. apple.com). Bare host only; option-like or punctuated values are rejected.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "flush_dns_cache",
+    "summary": "Flush this Mac's directory-services DNS cache so the next name lookups resolve fresh. Use it after changing DNS servers or when a hostname is resolving to a stale IP. Benign and runs immediately (the cache simply repopulates on demand). Note: this clears dscacheutil's cache only — a full mDNSResponder reset needs administrator rights and is out of scope.",
+    "category": "network",
+    "binary": "dscacheutil",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "flush_dns_cache",
+    "auto_commit": true,
+    "params": []
   }
 ]
