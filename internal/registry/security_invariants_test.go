@@ -30,10 +30,18 @@ import (
 // SIGTERM-only terminate_process) whose own guards are tested elsewhere. The
 // deny list therefore names tools that have no such constrained use today;
 // adding one back is a conscious, reviewable edit to this list.
+//
+// csrutil and spctl were on this list until the security domain (V5) added
+// read-only app-trust probes over them (sip_status, gatekeeper_check). They are
+// deliberately NOT re-added: their safety now rests on verb pinning instead — the
+// engine invokes each ONLY with its single read-only sub-command (csrutil
+// "status", spctl "--assess") and can never reach a state-changing verb. That pin
+// is asserted by engine.TestSecurity_ConstrainedBinaryVerbs, the moved-forward
+// equivalent of a deny-list entry for a binary that now has one constrained use.
 var deniedBinaries = map[string]bool{
 	"rm": true, "rmdir": true, "dd": true, "mkfs": true, "newfs": true,
 	"diskutil": true, "hdiutil": true, "asr": true, "fsck": true,
-	"csrutil": true, "spctl": true, "nvram": true, "fdesetup": true,
+	"nvram": true, "fdesetup": true,
 	"dscl": true, "killall": true, "shutdown": true, "reboot": true,
 	"halt": true, "chflags": true, "ditto": true, "tmutil": true,
 }

@@ -114,6 +114,11 @@ var builtins = map[string]BuiltinFunc{
 	"gpu_stats":      runGPUStats,
 	"startup_items":  runStartupItems,
 	"top_processes":  runTopProcesses,
+
+	"verify_signature": runVerifySignature,
+	"gatekeeper_check": runGatekeeperCheck,
+	"sip_status":       runSipStatus,
+	"quarantine_info":  runQuarantineInfo,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
