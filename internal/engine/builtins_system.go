@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -458,4 +459,116 @@ func renderPowerStatus(battOut, settingsOut string) string {
 	}
 	fmt.Fprintf(&b, "Low Power Mode: %s", lpm)
 	return b.String()
+}
+
+// sleepPreventingAssertions are the power-assertion types that actually stop the
+// Mac (or its display) from sleeping. `pmset -g assertions` reports many other
+// booleans (UserIsActive, NetworkClientActive, ...) that are informational and
+// do not keep the machine awake; restricting the summary to these keeps the
+// answer to the real question — "what is holding this Mac awake right now?".
+var sleepPreventingAssertions = map[string]string{
+	"PreventUserIdleSystemSleep":  "system idle sleep",
+	"PreventSystemSleep":          "system sleep",
+	"PreventUserIdleDisplaySleep": "display idle sleep",
+	"InternalPreventDisplaySleep": "display sleep",
+}
+
+// assertionHolder is one process currently holding a sleep-preventing power
+// assertion, parsed from the "Listed by owning process" section of `pmset -g
+// assertions`: the owning PID and process name, the assertion type, and the
+// human label the process attached (e.g. "caffeinate command-line tool").
+type assertionHolder struct {
+	pid   string
+	name  string
+	kind  string
+	label string
+}
+
+// assertionHolderRe matches one owning-process line, e.g.
+//
+//	pid 2588(caffeinate): [0x000597c9000187e6] 00:00:15 PreventUserIdleSystemSleep named: "caffeinate command-line tool"
+//
+// capturing the pid, the process name, the assertion type, and the quoted label.
+var assertionHolderRe = regexp.MustCompile(`pid (\d+)\(([^)]*)\):.*? (\w+) named: "(.*)"\s*$`)
+
+// runSleepAssertions reports what, if anything, is currently preventing this Mac
+// from sleeping. It reads `pmset -g assertions` (no admin rights needed) and
+// summarises only the sleep-preventing assertion types and the processes holding
+// them, so the model gets a direct answer instead of pmset's verbose dump.
+//
+// No model input reaches argv (the invocation is a fixed constant), so there is
+// no injection surface to guard.
+func runSleepAssertions(ctx context.Context, _ registry.Capability, _ map[string]any) (string, error) {
+	bin, err := policy.ResolveBinary("pmset")
+	if err != nil {
+		return "", err
+	}
+	res, err := runCommand(ctx, bin, "-g", "assertions")
+	if err != nil {
+		return "", err
+	}
+	return renderSleepAssertions(res.Stdout), nil
+}
+
+// renderSleepAssertions is the pure formatting half of runSleepAssertions,
+// separated so the parser can be unit-tested against canned pmset output. It
+// leads with a one-line verdict, lists which sleep-preventing assertion types
+// are active system-wide, and then names the processes responsible.
+func renderSleepAssertions(stdout string) string {
+	active, holders := parseSleepAssertions(stdout)
+
+	var b strings.Builder
+	if len(active) == 0 {
+		b.WriteString("Nothing is currently keeping this Mac awake — it can sleep normally.")
+		return b.String()
+	}
+
+	b.WriteString("This Mac is being kept awake. Active sleep-preventing assertions:\n")
+	// Emit in a stable order so the output is deterministic across runs.
+	for _, kind := range []string{
+		"PreventUserIdleSystemSleep", "PreventSystemSleep",
+		"PreventUserIdleDisplaySleep", "InternalPreventDisplaySleep",
+	} {
+		if active[kind] {
+			fmt.Fprintf(&b, "  - %s (%s)\n", kind, sleepPreventingAssertions[kind])
+		}
+	}
+
+	if len(holders) == 0 {
+		b.WriteString("\nNo owning process was listed for these assertions.")
+		return strings.TrimRight(b.String(), "\n")
+	}
+	b.WriteString("\nHeld by:\n")
+	for _, h := range holders {
+		fmt.Fprintf(&b, "  - pid %s (%s): %s — %q\n", h.pid, h.name, h.kind, h.label)
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// parseSleepAssertions extracts, from `pmset -g assertions` output, which
+// sleep-preventing assertion types are currently held (value > 0 in the
+// system-wide status block) and the processes holding a sleep-preventing
+// assertion. Non-sleep assertions (UserIsActive, ...) and their holders are
+// ignored so the summary stays focused on what keeps the Mac awake.
+func parseSleepAssertions(stdout string) (active map[string]bool, holders []assertionHolder) {
+	active = make(map[string]bool)
+	for _, line := range strings.Split(stdout, "\n") {
+		fields := strings.Fields(line)
+		// The system-wide block lists "TypeName <int>" pairs; keep the ones we
+		// care about whose value is non-zero.
+		if len(fields) == 2 {
+			if _, ok := sleepPreventingAssertions[fields[0]]; ok {
+				if v, err := strconv.Atoi(fields[1]); err == nil && v > 0 {
+					active[fields[0]] = true
+				}
+			}
+			continue
+		}
+		if m := assertionHolderRe.FindStringSubmatch(line); m != nil {
+			if _, ok := sleepPreventingAssertions[m[3]]; ok {
+				holders = append(holders, assertionHolder{pid: m[1], name: m[2], kind: m[3], label: m[4]})
+			}
+		}
+	}
+	return active, holders
 }

@@ -33,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **19 domains, 131 operations**, each invokable in plain
+the Mac you already use. **19 domains, 145 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -223,6 +223,12 @@ it opens the exact pane *and* tells you what to click once you're there.
 - **"Turn my Wi-Fi off."** · **"Turn Wi-Fi back on."** *(toggles the Wi-Fi radio;
   staged for confirmation because turning it off drops your connection, and undo
   restores the previous state — joining a specific network still needs the Wi-Fi pane)*
+- **"Keep my Mac awake for the next hour."** *(prevents display and idle sleep for a
+  set time — 1 minute to 4 hours; staged for confirmation, stops on its own when the
+  timer runs out)* · **"Let it sleep normally again."** *(ends the keep-awake session
+  right away)*
+- *"Why won't my Mac go to sleep — what's keeping it awake?"* *(lists the active
+  sleep-preventing power assertions and the apps holding them)*
 
 ### 🌐 Network & diagnostics
 

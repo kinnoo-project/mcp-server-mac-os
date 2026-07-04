@@ -194,5 +194,45 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "keep_awake",
+    "summary": "Keep this Mac awake for a set time — block display sleep and idle system sleep (e.g. during a long download or presentation). Staged for confirmation because it changes power behaviour for up to hours. The session stops on its own when the timer expires; there is no automatic undo — end it early with allow_sleep. To see what is currently keeping the Mac awake, use sleep_assertions.",
+    "category": "system",
+    "binary": "caffeinate",
+    "reversibility": "irreversible",
+    "risk": "medium",
+    "builder": "keep_awake",
+    "params": [
+      {
+        "name": "duration_seconds",
+        "type": "int",
+        "required": false,
+        "default": 3600,
+        "description": "How long to keep the Mac awake, in seconds (60 to 14400, i.e. 1 minute to 4 hours). Defaults to 3600 (1 hour).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "allow_sleep",
+    "summary": "End any keep-awake session so this Mac can sleep normally again. Cancels the keep_awake sessions this user started (by stopping their caffeinate helpers). Runs immediately; cannot be undone (start a new session with keep_awake if needed). If no session is active, it reports that nothing needed changing.",
+    "category": "system",
+    "binary": "kill",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "allow_sleep",
+    "auto_commit": true,
+    "params": []
+  },
+  {
+    "name": "sleep_assertions",
+    "summary": "Report what is currently keeping this Mac awake: which sleep-preventing power assertions are active (idle system sleep, display sleep, ...) and which processes are holding them (e.g. a caffeinate session, a video call, a download). Read-only — answers 'why won't my Mac sleep?'.",
+    "category": "system",
+    "binary": "pmset",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "sleep_assertions",
+    "params": []
   }
 ]

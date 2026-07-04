@@ -202,3 +202,59 @@ func TestRenderPowerStatus(t *testing.T) {
 		t.Errorf("expected Low Power Mode off, got: %s", out)
 	}
 }
+
+// sampleAssertionsActive is a trimmed `pmset -g assertions` dump with a real
+// caffeinate session holding a sleep-preventing assertion, plus non-sleep
+// assertions (UserIsActive) that the summary must ignore.
+const sampleAssertionsActive = `2026-07-04 11:03:08 -0700
+Assertion status system-wide:
+   BackgroundTask                 0
+   UserIsActive                   1
+   PreventUserIdleDisplaySleep    1
+   PreventSystemSleep             0
+   PreventUserIdleSystemSleep     1
+   NetworkClientActive            0
+Listed by owning process:
+   pid 373(WindowServer): [0x0005969200098793] 00:00:00 UserIsActive named: "com.apple.iohideventsystem.queue.tickle"
+   pid 2588(caffeinate): [0x000597c9000187e6] 00:00:15 PreventUserIdleSystemSleep named: "caffeinate command-line tool"
+	Details: caffeinate asserting for 300 secs
+`
+
+// sampleAssertionsIdle has no sleep-preventing assertion held (only the
+// informational UserIsActive), so the Mac is free to sleep.
+const sampleAssertionsIdle = `2026-07-04 11:03:08 -0700
+Assertion status system-wide:
+   UserIsActive                   1
+   PreventUserIdleSystemSleep     0
+   PreventUserIdleDisplaySleep    0
+Listed by owning process:
+   pid 373(WindowServer): [0x0005969200098793] 00:00:00 UserIsActive named: "tickle"
+`
+
+// TestRenderSleepAssertions_Active confirms an active caffeinate session is
+// summarised: the sleep-preventing types are named, the caffeinate holder is
+// listed, and the informational UserIsActive assertion is filtered out.
+func TestRenderSleepAssertions_Active(t *testing.T) {
+	out := renderSleepAssertions(sampleAssertionsActive)
+	if !strings.Contains(out, "kept awake") {
+		t.Errorf("expected a 'kept awake' verdict, got: %s", out)
+	}
+	if !strings.Contains(out, "PreventUserIdleSystemSleep") || !strings.Contains(out, "PreventUserIdleDisplaySleep") {
+		t.Errorf("expected the active sleep-preventing types, got: %s", out)
+	}
+	if !strings.Contains(out, "pid 2588 (caffeinate)") || !strings.Contains(out, "caffeinate command-line tool") {
+		t.Errorf("expected the caffeinate holder to be listed, got: %s", out)
+	}
+	if strings.Contains(out, "UserIsActive") {
+		t.Errorf("informational UserIsActive assertion must be filtered out, got: %s", out)
+	}
+}
+
+// TestRenderSleepAssertions_Idle confirms that when nothing holds a
+// sleep-preventing assertion the summary says the Mac can sleep normally.
+func TestRenderSleepAssertions_Idle(t *testing.T) {
+	out := renderSleepAssertions(sampleAssertionsIdle)
+	if !strings.Contains(out, "Nothing is currently keeping this Mac awake") {
+		t.Errorf("expected the idle verdict, got: %s", out)
+	}
+}
