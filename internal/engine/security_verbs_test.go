@@ -53,6 +53,17 @@ var constrainedBinaryVerbs = map[string]struct {
 		allowedFirstArgs: []string{"-p"},
 		forbiddenTokens:  []string{"-w", "-d", "-c"},
 	},
+	// security (keychain, V6): metadata READS only. The item-search sub-commands
+	// find-generic-password / find-internet-password may run, and list-keychains,
+	// but never with the secret-printing flags -w (password to stdout) or -g
+	// (password to stderr); and the whole-keychain secret dump (dump-keychain, and
+	// its -d "dump data" flag) must never appear. This pin is what keeps the
+	// keychain domain to "does a saved password EXIST and under what account",
+	// never the password value itself.
+	"security": {
+		allowedFirstArgs: []string{"find-generic-password", "find-internet-password", "list-keychains"},
+		forbiddenTokens:  []string{"-w", "-g", "-d", "dump-keychain"},
+	},
 }
 
 // TestSecurity_ConstrainedBinaryVerbs asserts every constrained binary's real
@@ -75,6 +86,12 @@ func TestSecurity_ConstrainedBinaryVerbs(t *testing.T) {
 		{"gatekeeper_check", "spctl", spctlAssessArgs(samplePath)},
 		{"sip_status", "csrutil", csrutilStatusArgs()},
 		{"quarantine_info", "xattr", xattrQuarantineArgs(samplePath)},
+		// Keychain metadata reads (V6): both find-* forms and the list form, none
+		// of which may ever carry -w/-g/-d/dump-keychain. Sample service/account
+		// values are benign data, irrelevant to what the verb pin proves.
+		{"find_credential", "security", findGenericPasswordArgs("SampleService", "sample@example.com")},
+		{"find_internet_credential", "security", findInternetPasswordArgs("example.com", "sample")},
+		{"list_keychains", "security", listKeychainsArgs()},
 	}
 
 	covered := map[string]bool{}

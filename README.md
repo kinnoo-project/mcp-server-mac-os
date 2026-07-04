@@ -33,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **20 domains, 152 operations**, each invokable in plain
+the Mac you already use. **20 domains, 155 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -309,11 +309,21 @@ read-only checks that inspect trust state and never change a security setting.
 - *"Was this file downloaded from the internet — and by what?"* *(reads the
   `com.apple.quarantine` flag that triggers the "are you sure?" prompt, decoding
   which app fetched it and when)*
+- *"Do I have a saved password for this Wi-Fi network / service?"* *(checks the
+  keychain and reports only the item's metadata — the service, account, label, and
+  dates — via `security find-generic-password`)*
+- *"Have I saved a login for example.com?"* *(the website/server equivalent, via
+  `security find-internet-password`)*
+- *"What keychains do I have?"* *(lists the keychain files on the search list —
+  `security list-keychains`)*
 
-> 🔒 Every operation here is a strict read. The underlying tools (`codesign`,
-> `spctl`, `csrutil`, `xattr`) are pinned to a single read-only sub-command each,
-> enforced by a build-time invariant test — they can never sign, re-assess, alter
-> SIP, or write a file attribute.
+> 🔒 Every operation here is a strict read. The app-trust tools (`codesign`,
+> `spctl`, `csrutil`, `xattr`) are each pinned to a single read-only sub-command,
+> and the keychain lookups run `security` **without the `-w`/`-g` flags that print
+> a password** — so a stored secret's *value* is never requested or shown, only
+> whether the item exists and its non-secret attributes. Both pins are enforced by
+> a build-time invariant test; the keychain output is additionally filtered through
+> an allowlist so only reviewed, non-secret fields can ever appear.
 
 ---
 

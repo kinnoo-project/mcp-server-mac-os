@@ -62,5 +62,65 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "find_credential",
+    "summary": "Check whether a saved password exists in the login keychain for an app or service, and report only its non-secret metadata — the service name, account/username, label, and when it was created/modified. Use for 'do I have a saved password for X / what account did I store for Y'. Read-only and secret-safe: it runs `security find-generic-password` WITHOUT the -w/-g flags, so the password value itself is never requested or shown. Give at least one of service or account to narrow the search.",
+    "category": "security",
+    "binary": "security",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "find_credential",
+    "params": [
+      {
+        "name": "service",
+        "type": "string",
+        "required": false,
+        "description": "The service/app name the password is stored under, e.g. 'AirPort' or 'com.example.app'. Must not start with '-'. Provide this, account, or both.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "account",
+        "type": "string",
+        "required": false,
+        "description": "The account/username the password is stored for, e.g. 'jane@example.com'. Must not start with '-'. Provide this, service, or both.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "find_internet_credential",
+    "summary": "Check whether a saved internet password exists (a website/server login) and report only its non-secret metadata — the server, account, protocol, path, and dates. Use for 'do I have a saved login for example.com'. Read-only and secret-safe: it runs `security find-internet-password` WITHOUT the -w/-g flags, so the password value is never requested or shown. Give at least one of server or account.",
+    "category": "security",
+    "binary": "security",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "find_internet_credential",
+    "params": [
+      {
+        "name": "server",
+        "type": "string",
+        "required": false,
+        "description": "The server/host the login is stored under, e.g. 'example.com'. Must not start with '-'. Provide this, account, or both.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "account",
+        "type": "string",
+        "required": false,
+        "description": "The account/username the login is stored for, e.g. 'jane'. Must not start with '-'. Provide this, server, or both.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "list_keychains",
+    "summary": "List the keychain files on the search list (typically the user's login keychain and the system keychain). Use for 'what keychains do I have / where are my passwords stored'. Read-only; runs `security list-keychains` with a fixed argument list and shows only file paths, never any stored secret.",
+    "category": "security",
+    "binary": "security",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "list_keychains",
+    "params": []
   }
 ]

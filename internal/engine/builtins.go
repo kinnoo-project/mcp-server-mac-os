@@ -119,6 +119,10 @@ var builtins = map[string]BuiltinFunc{
 	"gatekeeper_check": runGatekeeperCheck,
 	"sip_status":       runSipStatus,
 	"quarantine_info":  runQuarantineInfo,
+
+	"find_credential":          runFindCredential,
+	"find_internet_credential": runFindInternetCredential,
+	"list_keychains":           runListKeychains,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.
