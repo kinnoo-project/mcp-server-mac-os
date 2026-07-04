@@ -1,0 +1,47 @@
+[
+  {
+    "id": "convert_image_selection",
+    "description": "Asking to change an image's format maps to filesystem/convert_image, and because it writes a new file it must STAGE (never auto-execute). A pure selection/staging check — nothing is executed, so no real image fixture is needed.",
+    "prompt": "Convert ~/Pictures/holiday.heic to a JPEG saved as ~/Pictures/holiday.jpg.",
+    "expect": {"tool": "filesystem", "operation": "convert_image", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "image_info_selection",
+    "description": "Asking for an image's pixel dimensions maps to filesystem/image_info (sips), not the generic stat/file (which report only the on-disk type and byte size, not pixel width/height). Read-only, so nothing stages or executes.",
+    "prompt": "What are the pixel dimensions and format of ~/Pictures/holiday.heic?",
+    "expect": {"tool": "filesystem", "operation": "image_info", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "convert_document_stage_execute_undo",
+    "description": "Full stage->execute->undo on a real document conversion (textutil handles a plain-text source, so an empty scratch .txt works CI-safe — no image fixture needed). Converting to HTML stages first (never auto-executes), executing lands the new .html while preserving the source .txt, and undo removes the created .html (recycled to the Trash). Self-cleans via teardown.",
+    "setup": {"scratch": "docs", "files": ["notes.txt"]},
+    "teardown": {"remove_scratch": true},
+    "turns": [
+      {
+        "prompt": "Convert {{scratch}}/notes.txt to HTML at {{scratch}}/notes.html.",
+        "expect": {"tool": "filesystem", "operation": "convert_document", "forbid_tools": ["execute"]}
+      },
+      {
+        "prompt": "Yes, go ahead.",
+        "expect": {
+          "tool": "execute",
+          "tool_succeeds": true,
+          "state": {
+            "exists": ["{{scratch}}/notes.html", "{{scratch}}/notes.txt"]
+          }
+        }
+      },
+      {
+        "prompt": "Actually, undo that.",
+        "expect": {
+          "tool": "undo",
+          "tool_succeeds": true,
+          "state": {
+            "absent": ["{{scratch}}/notes.html"],
+            "exists": ["{{scratch}}/notes.txt"]
+          }
+        }
+      }
+    ]
+  }
+]
