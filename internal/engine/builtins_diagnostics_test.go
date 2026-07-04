@@ -10,6 +10,7 @@ package engine
 import (
 	"context"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -61,7 +62,9 @@ func TestComposeLogPredicate(t *testing.T) {
 		"x\x00y",
 	}
 	for _, h := range hostileProcess {
-		t.Run("reject_process/"+h, func(t *testing.T) {
+		// strconv.Quote keeps the subtest name readable and stable when the value
+		// contains a newline or NUL, while the assertion still checks the raw value.
+		t.Run("reject_process/"+strconv.Quote(h), func(t *testing.T) {
 			if _, err := composeLogPredicate(h, ""); err == nil {
 				t.Errorf("composeLogPredicate(process=%q) = nil error, want rejection", h)
 			}
@@ -78,7 +81,7 @@ func TestComposeLogPredicate(t *testing.T) {
 		"a\nb",
 	}
 	for _, h := range hostileSubsystem {
-		t.Run("reject_subsystem/"+h, func(t *testing.T) {
+		t.Run("reject_subsystem/"+strconv.Quote(h), func(t *testing.T) {
 			if _, err := composeLogPredicate("", h); err == nil {
 				t.Errorf("composeLogPredicate(subsystem=%q) = nil error, want rejection", h)
 			}
@@ -148,6 +151,7 @@ func TestRenderThermalState(t *testing.T) {
 		{"throttled", "CPU_Speed_Limit \t= 80\nCPU_Available_CPUs = 8", "throttled to 80%"},
 		{"full speed", "CPU_Speed_Limit = 100\nCPU_Available_CPUs = 8", "full speed"},
 		{"no warning recorded", "Note: No thermal warning level has been recorded", "No thermal pressure"},
+		{"unrecognized wording still gets a verdict", "Some_Other_Field = 42\nCPU_Scheduler_Limit = 100", "No explicit throttling indicator"},
 		{"empty", "", "No thermal information"},
 	}
 	for _, tc := range cases {

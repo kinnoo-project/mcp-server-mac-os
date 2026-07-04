@@ -298,20 +298,28 @@ func renderThermalState(stdout string) string {
 		return "No thermal information was returned by pmset."
 	}
 
-	var b strings.Builder
-	b.WriteString("Thermal state:\n")
+	// Always resolve to exactly one plain-language verdict so the function's
+	// contract ("leads with a verdict") holds even when pmset's wording changes:
+	// prefer the parsed CPU_Speed_Limit, fall back to the "no warning recorded"
+	// phrasing, and finally to an explicit "no indicator found" line rather than
+	// silently emitting only the raw output.
+	verdict := "No explicit throttling indicator was reported; see the raw pmset output below."
 	if m := thermSpeedLimitRe.FindStringSubmatch(out); m != nil {
 		if limit, err := strconv.Atoi(m[1]); err == nil {
 			if limit < 100 {
-				fmt.Fprintf(&b, "CPU speed is currently throttled to %d%% of maximum to manage heat.\n", limit)
+				verdict = fmt.Sprintf("CPU speed is currently throttled to %d%% of maximum to manage heat.", limit)
 			} else {
-				b.WriteString("CPU is running at full speed — no thermal throttling.\n")
+				verdict = "CPU is running at full speed — no thermal throttling."
 			}
 		}
 	} else if strings.Contains(out, "No thermal warning level") {
-		b.WriteString("No thermal pressure has been recorded — the CPU is not being throttled.\n")
+		verdict = "No thermal pressure has been recorded — the CPU is not being throttled."
 	}
-	b.WriteString("\nRaw pmset output:\n")
+
+	var b strings.Builder
+	b.WriteString("Thermal state:\n")
+	b.WriteString(verdict)
+	b.WriteString("\n\nRaw pmset output:\n")
 	b.WriteString(out)
 	return b.String()
 }
