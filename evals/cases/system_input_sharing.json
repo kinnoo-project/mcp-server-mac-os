@@ -1,0 +1,33 @@
+[
+  {
+    "id": "remap_key_stages_not_executes",
+    "description": "Asking to remap Caps Lock maps to system/remap_key. Because it is a medium-risk, reversible mutation it must STAGE (return a token) rather than run in the same turn — staging only reads the current mapping (hidutil --get), so this is CI-safe. It must route to remap_key, not open_settings (which is the toggle hand-off for other panes) or key_remap_status (which only reports the current mapping).",
+    "prompt": "Make my Caps Lock key act as Escape.",
+    "expect": {"tool": "system", "operation": "remap_key", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "sharing_status_read",
+    "description": "Asking whether screen sharing / remote login is on maps to system/sharing_status, a read-only probe that runs immediately (a loopback port check) with no stage/execute round trip. It must not route to open_settings (the hand-off to CHANGE the setting) or to a network listening-ports scan.",
+    "prompt": "Is Screen Sharing turned on for this Mac? Can anyone connect to it right now?",
+    "expect": {"tool": "system", "operation": "sharing_status", "tool_succeeds": true, "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "key_remap_status_read",
+    "description": "Asking what the keyboard is currently remapped to maps to system/key_remap_status, a read-only hidutil probe. Distinct from remap_key (which CHANGES the mapping) — a question about the present state must not stage a mutation.",
+    "prompt": "Is my Caps Lock key remapped to anything right now?",
+    "expect": {"tool": "system", "operation": "key_remap_status", "tool_succeeds": true, "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "m_remap_key_roundtrip",
+    "description": "MANUAL (applies a real key remap, then undoes it). Stages a Caps Lock → Escape remap, the confirmation executes it (verify Caps Lock now types Escape, e.g. in a text field), then undo restores the prior mapping (verify Caps Lock behaves normally again). key_remap_status can confirm each state.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Remap Caps Lock to Escape.",
+        "expect": {"tool": "system", "operation": "remap_key", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, apply it.", "expect": {"tool": "execute"}},
+      {"prompt": "Actually, undo that.", "expect": {"tool": "undo"}}
+    ]
+  }
+]

@@ -122,7 +122,7 @@ func TestIntegration_ToolSurface(t *testing.T) {
 			t.Errorf("printer tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"wifi_status", "list_preferred_wifi", "bluetooth_status", "power_status", "open_settings"} {
+	for _, op := range []string{"wifi_status", "list_preferred_wifi", "bluetooth_status", "power_status", "open_settings", "remap_key", "key_remap_status", "sharing_status"} {
 		if !strings.Contains(descs["system"], op) {
 			t.Errorf("system tool description missing operation %q", op)
 		}
@@ -461,6 +461,43 @@ func TestSettingsPanes_MatchManifestEnum(t *testing.T) {
 	for i := range manifestEnum {
 		if manifestEnum[i] != engineKeys[i] {
 			t.Fatalf("manifest enum and engine pane map diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
+		}
+	}
+}
+
+// TestRemapEnumMatchesCuratedTable guards the remap_key capability the same way
+// TestSettingsPanes_MatchManifestEnum guards open_settings: the set of remaps is
+// declared twice (the manifest's "remap" enum and the engine's curatedRemaps
+// table), and this asserts the two stay identical so the enum can never admit a
+// remap the engine has no mapping for, nor hide one the model cannot select.
+func TestRemapEnumMatchesCuratedTable(t *testing.T) {
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatalf("registry.Load(): %v", err)
+	}
+	capability, ok := reg.Lookup("remap_key")
+	if !ok {
+		t.Fatal("remap_key capability not found in registry")
+	}
+	var manifestEnum []string
+	for _, p := range capability.Params {
+		if p.Name == "remap" {
+			manifestEnum = p.Enum
+		}
+	}
+	if manifestEnum == nil {
+		t.Fatal("remap_key manifest entry has no 'remap' param with an enum")
+	}
+	sort.Strings(manifestEnum)
+	engineKeys := engine.CuratedRemapKeys() // already sorted
+
+	if len(manifestEnum) != len(engineKeys) {
+		t.Fatalf("manifest enum has %d remaps, engine table has %d: manifest=%v engine=%v",
+			len(manifestEnum), len(engineKeys), manifestEnum, engineKeys)
+	}
+	for i := range manifestEnum {
+		if manifestEnum[i] != engineKeys[i] {
+			t.Fatalf("manifest enum and engine remap table diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
 		}
 	}
 }

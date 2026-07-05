@@ -182,6 +182,7 @@ var mutators = map[string]Mutator{
 	"attach_disk_image":   stageAttachDiskImage,
 	"detach_disk_image":   stageDetachDiskImage,
 	"run_shortcut":        stageRunShortcut,
+	"remap_key":           stageRemapKey,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.

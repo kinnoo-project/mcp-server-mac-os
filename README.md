@@ -234,6 +234,13 @@ it opens the exact pane *and* tells you what to click once you're there.
   spamming the log?" or "what did that app just report?")*
 - *"Is my CPU being throttled because it's running hot?"* *(reports thermal pressure —
   a speed limit below 100% means macOS is clamping performance to cool down)*
+- **"Make Caps Lock act as Escape."** · **"Swap my Command and Option keys."** ·
+  **"Disable Caps Lock."** *(a short menu of vetted keyboard remaps — staged for
+  confirmation, and undo restores your previous mapping; note macOS clears key
+  remaps on reboot)* · *"Is my Caps Lock remapped to anything right now?"*
+- *"Is Screen Sharing on? Can anyone SSH into my Mac?"* *(reports whether Remote
+  Login, Screen Sharing, and File Sharing are turned on — turning them on/off
+  stays in the Sharing pane)*
 
 ### 🌐 Network & diagnostics
 
