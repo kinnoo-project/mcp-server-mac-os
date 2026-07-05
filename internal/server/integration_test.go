@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "clipboard", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "application-photos", "application-safari", "application-contacts", "application-music", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "clipboard", "security", "storage", "shortcuts", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "application-photos", "application-safari", "application-contacts", "application-music", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 22 {
-		t.Errorf("expected exactly 22 tools (filesystem, preferences, application, printer, system, network, process, screenshot, clipboard, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, application-safari, application-contacts, application-music, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 25 {
+		t.Errorf("expected exactly 25 tools (filesystem, preferences, application, printer, system, network, process, screenshot, clipboard, security, storage, shortcuts, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, application-safari, application-contacts, application-music, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head", "compress", "extract"} {
@@ -122,19 +122,34 @@ func TestIntegration_ToolSurface(t *testing.T) {
 			t.Errorf("printer tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"wifi_status", "list_preferred_wifi", "bluetooth_status", "power_status", "open_settings"} {
+	for _, op := range []string{"wifi_status", "list_preferred_wifi", "bluetooth_status", "power_status", "open_settings", "remap_key", "key_remap_status", "sharing_status", "keep_awake", "allow_sleep", "sleep_assertions", "system_log", "thermal_state"} {
 		if !strings.Contains(descs["system"], op) {
 			t.Errorf("system tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"current_network", "dns_servers", "ping_host", "dns_lookup", "listening_ports", "lan_devices", "scan_lan"} {
+	for _, op := range []string{"current_network", "dns_servers", "ping_host", "dns_lookup", "listening_ports", "lan_devices", "scan_lan", "trace_route", "flush_dns_cache", "list_ssh_keys", "list_ssh_hosts", "ssh_connect"} {
 		if !strings.Contains(descs["network"], op) {
 			t.Errorf("network tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"list_processes", "process_info", "cpu_load", "memory_stats", "gpu_stats", "startup_items", "quit_process", "terminate_process"} {
+	for _, op := range []string{"list_processes", "process_info", "cpu_load", "memory_stats", "gpu_stats", "startup_items", "top_processes", "quit_process", "terminate_process"} {
 		if !strings.Contains(descs["process"], op) {
 			t.Errorf("process tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"verify_signature", "gatekeeper_check", "sip_status", "quarantine_info", "find_credential", "find_internet_credential", "list_keychains"} {
+		if !strings.Contains(descs["security"], op) {
+			t.Errorf("security tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"time_machine_status", "list_backups", "list_volumes", "volume_info", "mount_volume", "attach_disk_image", "detach_disk_image", "eject_volume"} {
+		if !strings.Contains(descs["storage"], op) {
+			t.Errorf("storage tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_shortcuts", "run_shortcut"} {
+		if !strings.Contains(descs["shortcuts"], op) {
+			t.Errorf("shortcuts tool description missing operation %q", op)
 		}
 	}
 	if !strings.Contains(descs["screenshot"], "capture_screen") {
@@ -461,6 +476,43 @@ func TestSettingsPanes_MatchManifestEnum(t *testing.T) {
 	for i := range manifestEnum {
 		if manifestEnum[i] != engineKeys[i] {
 			t.Fatalf("manifest enum and engine pane map diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
+		}
+	}
+}
+
+// TestRemapEnumMatchesCuratedTable guards the remap_key capability the same way
+// TestSettingsPanes_MatchManifestEnum guards open_settings: the set of remaps is
+// declared twice (the manifest's "remap" enum and the engine's curatedRemaps
+// table), and this asserts the two stay identical so the enum can never admit a
+// remap the engine has no mapping for, nor hide one the model cannot select.
+func TestRemapEnumMatchesCuratedTable(t *testing.T) {
+	reg, err := registry.Load()
+	if err != nil {
+		t.Fatalf("registry.Load(): %v", err)
+	}
+	capability, ok := reg.Lookup("remap_key")
+	if !ok {
+		t.Fatal("remap_key capability not found in registry")
+	}
+	var manifestEnum []string
+	for _, p := range capability.Params {
+		if p.Name == "remap" {
+			manifestEnum = p.Enum
+		}
+	}
+	if manifestEnum == nil {
+		t.Fatal("remap_key manifest entry has no 'remap' param with an enum")
+	}
+	sort.Strings(manifestEnum)
+	engineKeys := engine.CuratedRemapKeys() // already sorted
+
+	if len(manifestEnum) != len(engineKeys) {
+		t.Fatalf("manifest enum has %d remaps, engine table has %d: manifest=%v engine=%v",
+			len(manifestEnum), len(engineKeys), manifestEnum, engineKeys)
+	}
+	for i := range manifestEnum {
+		if manifestEnum[i] != engineKeys[i] {
+			t.Fatalf("manifest enum and engine remap table diverge: manifest=%v engine=%v", manifestEnum, engineKeys)
 		}
 	}
 }

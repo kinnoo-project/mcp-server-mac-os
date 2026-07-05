@@ -30,6 +30,7 @@ var builtins = map[string]BuiltinFunc{
 	"pwd":                runPwd,
 	"read_setting":       runReadSetting,
 	"largest_files":      runLargestFiles,
+	"image_info":         runImageInfo,
 	"spotlight_search":   runSpotlightSearch,
 	"read_clipboard":     runReadClipboard,
 	"search_mail":        runSearchMail,
@@ -82,6 +83,9 @@ var builtins = map[string]BuiltinFunc{
 	"about_this_mac":        runAboutThisMac,
 	"disk_usage":            runDiskUsage,
 	"software_update_check": runSoftwareUpdateCheck,
+	"sleep_assertions":      runSleepAssertions,
+	"system_log":            runSystemLog,
+	"thermal_state":         runThermalState,
 
 	"list_airplay_devices": runListAirplayDevices,
 	"list_input_sources":   runListInputSources,
@@ -90,13 +94,18 @@ var builtins = map[string]BuiltinFunc{
 	"capture_region": runCaptureRegion,
 	"capture_window": runCaptureWindow,
 
-	"current_network": runCurrentNetwork,
-	"dns_servers":     runDNSServers,
-	"ping_host":       runPingHost,
-	"dns_lookup":      runDNSLookup,
-	"listening_ports": runListeningPorts,
-	"lan_devices":     runLanDevices,
-	"scan_lan":        runScanLan,
+	"current_network":  runCurrentNetwork,
+	"dns_servers":      runDNSServers,
+	"ping_host":        runPingHost,
+	"dns_lookup":       runDNSLookup,
+	"listening_ports":  runListeningPorts,
+	"lan_devices":      runLanDevices,
+	"scan_lan":         runScanLan,
+	"trace_route":      runTraceRoute,
+	"whois_lookup":     runWhoisLookup,
+	"route_table":      runRouteTable,
+	"interface_stats":  runInterfaceStats,
+	"dns_cache_lookup": runDNSCacheLookup,
 
 	"list_processes": runListProcesses,
 	"process_info":   runProcessInfo,
@@ -104,6 +113,30 @@ var builtins = map[string]BuiltinFunc{
 	"memory_stats":   runMemoryStats,
 	"gpu_stats":      runGPUStats,
 	"startup_items":  runStartupItems,
+	"top_processes":  runTopProcesses,
+
+	"verify_signature": runVerifySignature,
+	"gatekeeper_check": runGatekeeperCheck,
+	"sip_status":       runSipStatus,
+	"quarantine_info":  runQuarantineInfo,
+
+	"find_credential":          runFindCredential,
+	"find_internet_credential": runFindInternetCredential,
+	"list_keychains":           runListKeychains,
+
+	"time_machine_status": runTimeMachineStatus,
+	"list_backups":        runListBackups,
+	"list_volumes":        runListVolumes,
+	"volume_info":         runVolumeInfo,
+	"eject_volume":        runEjectVolume,
+
+	"list_shortcuts": runListShortcuts,
+
+	"key_remap_status": runKeyRemapStatus,
+	"sharing_status":   runSharingStatus,
+
+	"list_ssh_keys":  runListSSHKeys,
+	"list_ssh_hosts": runListSSHHosts,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.

@@ -71,6 +71,14 @@ type Command struct {
 	// file's PRIOR contents — undo would otherwise return data to the client
 	// that it never read through any approved operation.
 	DiscardStdout bool
+	// Detach runs the command as a background process that OUTLIVES the tool
+	// call, returning its PID immediately instead of waiting for it to exit. It
+	// is set only by mutators whose effect is a long-lived helper the request
+	// context must NOT cancel — today keep_awake's detached caffeinate, which
+	// must keep running for the requested duration after the commit call returns.
+	// The engine routes such a Command through execDetached (see RunCommand); a
+	// detached Command carries no Stdin.
+	Detach bool
 }
 
 // StagedPlan is the product of staging a mutating capability: everything needed
@@ -117,6 +125,10 @@ var mutators = map[string]Mutator{
 	"append_to_file":      stageAppendToFile,
 	"compress":            stageCompress,
 	"extract":             stageExtract,
+	"convert_image":       stageConvertImage,
+	"resize_image":        stageResizeImage,
+	"convert_document":    stageConvertDocument,
+	"quicklook_thumbnail": stageQuicklookThumbnail,
 	"write_clipboard":     stageWriteClipboard,
 	"write_setting":       stageWriteSetting,
 	"set_appearance":      stageSetAppearance,
@@ -161,8 +173,17 @@ var mutators = map[string]Mutator{
 	"speak":               stageSpeak,
 	"display_sleep":       stageDisplaySleep,
 	"wifi_set_power":      stageWifiSetPower,
+	"keep_awake":          stageKeepAwake,
+	"allow_sleep":         stageAllowSleep,
 	"quit_process":        stageQuitProcess,
 	"terminate_process":   stageTerminateProcess,
+	"flush_dns_cache":     stageFlushDNSCache,
+	"mount_volume":        stageMountVolume,
+	"attach_disk_image":   stageAttachDiskImage,
+	"detach_disk_image":   stageDetachDiskImage,
+	"run_shortcut":        stageRunShortcut,
+	"remap_key":           stageRemapKey,
+	"ssh_connect":         stageSSHConnect,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.
@@ -213,6 +234,23 @@ func (e *Engine) RunCommand(ctx context.Context, cmd Command) (string, error) {
 	bin, err := policy.ResolveBinary(cmd.Binary)
 	if err != nil {
 		return "", err
+	}
+	// A detached command (keep_awake's caffeinate) must outlive this call, so it
+	// takes the fire-and-return path that starts the child and reports its PID
+	// rather than waiting for it under the request context. The detach path does
+	// not wire stdin (execDetached never reads it), so a payload here would be
+	// silently lost — reject it explicitly rather than let a future mutator
+	// attach one unnoticed. This enforces the "detached carries no stdin"
+	// contract documented on Command.Detach.
+	if cmd.Detach {
+		if len(cmd.Stdin) > 0 {
+			return "", fmt.Errorf("engine: a detached command must not carry stdin (%d bytes supplied)", len(cmd.Stdin))
+		}
+		res, err := execDetached(ctx, bin, cmd.Args...)
+		if err != nil {
+			return "", err
+		}
+		return formatRunResult(res), nil
 	}
 	res, err := execCommand(ctx, bin, cmd.Stdin, cmd.Args...)
 	if err != nil {

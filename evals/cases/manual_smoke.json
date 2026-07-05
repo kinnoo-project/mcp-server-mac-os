@@ -349,5 +349,21 @@
     "manual": true,
     "prompt": "Download Firefox for me.",
     "expect": {"tool": "application", "operation": "open_website", "forbid_tools": ["execute"]}
+  },
+  {
+    "id": "m_keep_awake_then_allow_sleep",
+    "description": "MANUAL (actually starts a background caffeinate, then stops it). Full keep-awake round trip: 'keep my Mac awake for 2 minutes' stages system/keep_awake (medium risk, no auto-run); confirming calls execute, which starts a detached caffeinate -t 120 and reports its PID. Then 'let it sleep normally' maps to system/allow_sleep, an auto_commit op that SIGTERMs the caffeinate immediately. Verify with sleep_assertions between steps if you like; leaves no lingering session.",
+    "manual": true,
+    "turns": [
+      {
+        "prompt": "Keep my Mac awake for the next 2 minutes.",
+        "expect": {"tool": "system", "operation": "keep_awake", "forbid_tools": ["execute"]}
+      },
+      {"prompt": "Yes, go ahead.", "expect": {"tool": "execute"}},
+      {
+        "prompt": "Okay, you can let it sleep normally again now.",
+        "expect": {"tool": "system", "operation": "allow_sleep", "tool_succeeds": true}
+      }
+    ]
   }
 ]

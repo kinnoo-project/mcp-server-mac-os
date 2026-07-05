@@ -33,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **19 domains, 131 operations**, each invokable in plain
+the Mac you already use. **22 domains, 171 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -48,6 +48,10 @@ Find things, measure things, and tidy up — without memorizing `find` flags or
 - *"Which files in this project mention `TODO`?"*
 - *"How big is my Downloads folder?"*
 - *"How many lines are in `/var/log/system.log`?"*
+- *"What are the dimensions and format of this photo?"* *(reads the image's pixel size, format, DPI — read-only)*
+- **"Convert this HEIC to a JPEG."** · **"Resize this image to 800px wide."** *(writes a new file, never overwriting the original — previewed; undo trashes it)*
+- **"Convert my notes.rtf to a Word document."** *(text/HTML/RTF/RTFD/DOCX/ODT — previewed; undo trashes the new file)*
+- *"Make me a thumbnail preview of this PDF."* *(a Quick Look preview PNG in a temp folder — runs immediately; undoable)*
 - **"Create a folder called `drafts` in my Documents."** *(previewed; undoable)*
 - **"Move `test.txt` from Downloads to the Desktop."** · **"Move all the screenshots on my Desktop into `~/Desktop/screenshots`."** · **"Copy this report into `~/Backups`."** *(previewed; undoable)*
 - **"Delete `old-draft.txt`."** *(moved to the Trash, never hard-deleted — previewed; undoable)*
@@ -198,7 +202,7 @@ it opens the exact pane *and* tells you what to click once you're there.
 
 - *"What printers do I have, and are they on?"* · *"What's in the print queue?"*
 - **"Print this PDF."** · **"Print a test page on the office laser."**
-- *"Is Wi-Fi on, and what am I joined to?"* · *"Battery level? Is Low Power Mode on? How's my battery health?"*
+- *"Is Wi-Fi on, what am I joined to, and is the signal any good?"* · *"Battery level? Is Low Power Mode on? How's my battery health?"*
 - *"Is Bluetooth on? What's connected, and what's paired?"*
 - *"What Mac do I have — which chip, how much memory?"* · *"How long since my last reboot?"*
 - *"How much free disk space do I have?"* *(every mounted volume, sized like Finder shows)*
@@ -219,22 +223,58 @@ it opens the exact pane *and* tells you what to click once you're there.
 - **"Turn my Wi-Fi off."** · **"Turn Wi-Fi back on."** *(toggles the Wi-Fi radio;
   staged for confirmation because turning it off drops your connection, and undo
   restores the previous state — joining a specific network still needs the Wi-Fi pane)*
+- **"Keep my Mac awake for the next hour."** *(prevents display and idle sleep for a
+  set time — 1 minute to 4 hours; staged for confirmation, stops on its own when the
+  timer runs out)* · **"Let it sleep normally again."** *(ends the keep-awake session
+  right away)*
+- *"Why won't my Mac go to sleep — what's keeping it awake?"* *(lists the active
+  sleep-preventing power assertions and the apps holding them)*
+- *"What has bluetoothd been logging for the last few minutes?"* *(a recent slice of
+  the unified system log, narrowable to one process and/or subsystem — for "what's
+  spamming the log?" or "what did that app just report?")*
+- *"Is my CPU being throttled because it's running hot?"* *(reports thermal pressure —
+  a speed limit below 100% means macOS is clamping performance to cool down)*
+- **"Make Caps Lock act as Escape."** · **"Swap my Command and Option keys."** ·
+  **"Disable Caps Lock."** *(a short menu of vetted keyboard remaps — staged for
+  confirmation, and undo restores your previous mapping; note macOS clears key
+  remaps on reboot)* · *"Is my Caps Lock remapped to anything right now?"*
+- *"Is Screen Sharing on? Can anyone SSH into my Mac?"* *(reports whether Remote
+  Login, Screen Sharing, and File Sharing are turned on — turning them on/off
+  stays in the Sharing pane)*
 
 ### 🌐 Network & diagnostics
 
 Answer everyday network questions and let the model diagnose connectivity issues
-by composing these probes. All read-only — nothing here changes your network
-configuration.
+by composing these probes. Read-only except for one benign, self-healing action
+(flushing the DNS cache) — nothing here changes your network configuration.
 
 - *"What's my IP, router, and MAC address? How many devices fit on this network?"*
 - *"What DNS servers am I using?"* · *"What other devices are on my network?"*
 - *"Can you ping the router? Can you reach 8.8.8.8?"* · *"Does apple.com resolve?"*
+- *"Trace the route to 8.8.8.8 — where does it slow down?"* *(hop-by-hop path with
+  per-hop latency, so a stalling or slow router is pinpointed, not just "unreachable")*
+- *"Who owns example.com and when does it expire?"* *(WHOIS registration record)*
+- *"Show my routing table"* · *"Which interface is carrying traffic, and any errors?"*
 - *"What ports am I listening on, and which apps own them?"*
+- *"Flush my DNS cache"* *(clears the on-demand resolver cache; it repopulates by
+  itself — a full mDNSResponder reset still needs admin rights)*
 - *"I can't reach the internet — can you diagnose it?"* *(checks the gateway, then a
   public IP, then DNS — and tells you where it breaks)*
+- *"What SSH keys do I have?"* · *"Which servers can I SSH to?"* *(a private-key-**safe**
+  inventory: only the public `.pub` side of each key is ever read/fingerprinted, and
+  the `~/.ssh/config` hosts are parsed in-process — no private key bytes are opened)*
+- *"SSH into 192.0.2.10 as jane"* — opens a **new Terminal window** on the constructed
+  `ssh` command (it picks the right key from `~/.ssh/config`, your sole key, or one you
+  name). **Staged for your confirmation**, and the interactive part — host-key prompt,
+  password/passphrase — happens in that Terminal under your control; the server never
+  sees your password.
 
 > ℹ️ Turning Bluetooth on/off has no command line on macOS, so the model hands you
 > off to System Settings for that — it can still tell you what's connected and paired.
+
+> ℹ️ Starting an SSH session opens Terminal.app, so the first use asks macOS to grant
+> the host app **Automation** access to Terminal (System Settings → Privacy & Security
+> → Automation). Approve it once and future connects go straight through.
 
 ### 📊 Processes & resources
 
@@ -242,6 +282,8 @@ See what's running and what it costs, find runaway or zombie processes, and stop
 misbehaving one *gracefully* — never a force-kill.
 
 - *"What's eating my CPU / memory / battery right now?"* · *"Show the top memory hogs."*
+- *"Which processes are hammering my CPU this very second?"* *(a live `top` sample —
+  instantaneous %CPU, versus the averaged snapshot the ranked list reports)*
 - *"How loaded is my Mac overall?"* *(load average, per-core)* · *"How much RAM is free?"*
 - *"How busy is the GPU?"* *(whole-device — per-process GPU isn't exposed without admin rights)*
 - *"Tell me everything about PID 1234."* *(command, the binary responsible, parent,
@@ -270,6 +312,86 @@ what any of them is currently set to, and switch between Dark and Light mode.
 > `/var/log`?"* — and the model composes the right tools for you. The full
 > capability catalog, with the exact tool each prompt maps to, is in
 > **[the architecture reference](docs/architecture.md#capabilities)**.
+
+### 🛡️ Security & app trust
+
+Answer "can I trust this app, and is my Mac's own protection turned on?" — all
+read-only checks that inspect trust state and never change a security setting.
+
+- *"Is /Applications/Safari.app properly code-signed, and who signed it?"*
+  *(the signing authority chain, the developer's Team ID, and whether the
+  signature is intact — via `codesign`, verify mode only)*
+- *"Would Gatekeeper let me open this app, or would it block it?"* *(the same
+  trust decision macOS makes on first launch — `spctl --assess`, never enable/disable)*
+- *"Is System Integrity Protection turned on?"* *(the kernel-level protection that
+  stops even root from touching system files — `csrutil status`)*
+- *"Was this file downloaded from the internet — and by what?"* *(reads the
+  `com.apple.quarantine` flag that triggers the "are you sure?" prompt, decoding
+  which app fetched it and when)*
+- *"Do I have a saved password for this Wi-Fi network / service?"* *(checks the
+  keychain and reports only the item's metadata — the service, account, label, and
+  dates — via `security find-generic-password`)*
+- *"Have I saved a login for example.com?"* *(the website/server equivalent, via
+  `security find-internet-password`)*
+- *"What keychains do I have?"* *(lists the keychain files on the search list —
+  `security list-keychains`)*
+
+> 🔒 Every operation here is a strict read. The app-trust tools (`codesign`,
+> `spctl`, `csrutil`, `xattr`) are each pinned to a single read-only sub-command,
+> and the keychain lookups run `security` **without the `-w`/`-g` flags that print
+> a password** — so a stored secret's *value* is never requested or shown, only
+> whether the item exists and its non-secret attributes. Both pins are enforced by
+> a build-time invariant test; the keychain output is additionally filtered through
+> an allowlist so only reviewed, non-secret fields can ever appear.
+
+---
+
+### 💽 Backups & disks
+
+Check on Time Machine, see what drives are attached, and open or mount volumes —
+with the risky part (ejecting a disk) deliberately handed back to you.
+
+- *"Is Time Machine backing up right now, and when did my Mac last back up?"*
+  *(live backup progress plus the newest completed snapshot — `tmutil status` +
+  `latestbackup`)*
+- *"What Time Machine restore points do I have?"* *(the backups on the backup disk
+  and the local hourly snapshots — `tmutil listbackups` / `listlocalsnapshots`)*
+- *"What disks and volumes are connected?"* *(every drive and mounted image with
+  its identifier and size — `diskutil list`)*
+- *"How much free space is on my external drive?"* *(filesystem, size, and mount
+  point of one volume — `diskutil info`)*
+- **"Mount the volume disk4s2."** *(brings an attached-but-unmounted volume online
+  — staged for confirmation)*
+- **"Open this .dmg."** *(attaches a disk image so it mounts under /Volumes —
+  staged; close it again with detach)*
+- *"Eject my external drive."* *(does **not** eject it — instead it confirms the
+  disk and hands you the exact `diskutil eject` command to run, with a warning, so
+  a disk is never pulled out from under an app that's using it)*
+
+> 🔒 `tmutil`, `diskutil`, and `hdiutil` can erase disks and delete backups, so
+> each is pinned to a closed set of read-only or benign verbs (list / info / mount
+> / status / attach / detach) and can never reach a destructive one — enforced by
+> the same build-time invariant test that guards the app-trust binaries. The
+> mount/attach operations are staged for your approval and are **not** auto-undone;
+> the result tells you the exact command to reverse them.
+
+### ⚡ Shortcuts
+
+Trigger the automations you've built in the Shortcuts app — the sanctioned path
+to everything that has no clean command of its own: Focus / Do-Not-Disturb modes,
+HomeKit scenes, and any flow you've authored yourself.
+
+- *"What Shortcuts do I have set up?"* *(lists your shortcuts with their
+  identifiers — `shortcuts list`)*
+- **"Run my Morning Routine shortcut."** *(runs it — but first confirms the
+  shortcut really exists and names it back to you, then waits for your approval)*
+
+> 🔒 Running a shortcut is the single most powerful thing this server can do — a
+> shortcut is automation *you* authored, so its effect is unbounded and there's no
+> way to undo it. It is therefore treated as the highest risk tier: always staged
+> for explicit confirmation, never auto-run, and pinned as irreversible by the
+> security test gate so that classification can't be quietly softened. Listing is
+> read-only and can never trigger a shortcut.
 
 ---
 
@@ -369,9 +491,9 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 19 domain tools (`filesystem`, `preferences`, `application`,
+You'll now have the 22 domain tools (`filesystem`, `preferences`, `application`,
 `application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`,
-`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`) plus the shared
+`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`, `security`, `storage`, `shortcuts`) plus the shared
 `execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 

@@ -4,11 +4,122 @@
 package engine
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
+
+// TestExecDetached_ReturnsImmediatelyAndOutlivesRequest proves the detach path:
+// a long-lived child (`sleep`) is started in the background, RunCommand returns
+// right away naming its PID, and — crucially — the child keeps running after the
+// call returns rather than being killed with the request. It is cleaned up with
+// a SIGTERM at the end so the test leaves nothing behind.
+func TestExecDetached_ReturnsImmediatelyAndOutlivesRequest(t *testing.T) {
+	start := time.Now()
+	out, err := New().RunCommand(context.Background(), Command{
+		Binary: "sleep",
+		Args:   []string{"30"},
+		Detach: true,
+	})
+	if err != nil {
+		t.Fatalf("RunCommand(detached): %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("detached command should return immediately, took %s", elapsed)
+	}
+	if !strings.Contains(out, "PID") {
+		t.Errorf("detached result should report the PID, got %q", out)
+	}
+
+	pid := parsePIDFromDetachOutput(t, out)
+	// The process must still be alive: signal 0 checks existence without killing.
+	if err := syscall.Kill(pid, 0); err != nil {
+		t.Errorf("detached child (pid %d) should still be running, signal-0 err: %v", pid, err)
+	}
+	// Clean up so the background sleep does not linger.
+	_ = syscall.Kill(pid, syscall.SIGTERM)
+}
+
+// TestExecDetached_ReapsChildNoZombie proves the async reaper runs: a short-lived
+// detached child is reaped after it exits rather than lingering as a zombie. A
+// zombie still responds to signal 0 (it occupies a process-table slot); once
+// reaped, signal 0 returns ESRCH. Polling for that transition proves the parent
+// collected the exit status instead of leaking the slot.
+func TestExecDetached_ReapsChildNoZombie(t *testing.T) {
+	out, err := New().RunCommand(context.Background(), Command{
+		Binary: "sleep",
+		Args:   []string{"1"},
+		Detach: true,
+	})
+	if err != nil {
+		t.Fatalf("RunCommand(detached): %v", err)
+	}
+	pid := parsePIDFromDetachOutput(t, out)
+
+	// The child exits after ~1s; give the reaper generous slack before failing.
+	deadline := time.Now().Add(8 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := syscall.Kill(pid, 0); err != nil {
+			return // ESRCH: the process is gone AND reaped — success.
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	// Still signalable after the child should have exited and been reaped: either
+	// it never exited (it should have) or it is a lingering zombie.
+	_ = syscall.Kill(pid, syscall.SIGTERM)
+	t.Errorf("detached child (pid %d) was still present after 8s — it was not reaped (zombie leak)", pid)
+}
+
+// TestRunCommand_DetachRejectsStdin pins the enforced contract that a detached
+// command carries no stdin: supplying a payload is an error, not a silent drop.
+func TestRunCommand_DetachRejectsStdin(t *testing.T) {
+	_, err := New().RunCommand(context.Background(), Command{
+		Binary: "sleep",
+		Args:   []string{"1"},
+		Detach: true,
+		Stdin:  []byte("payload"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "stdin") {
+		t.Fatalf("expected a detached command with stdin to be rejected, got err = %v", err)
+	}
+}
+
+// TestExecDetached_HonoursCancelledContext confirms a cancelled request starts
+// nothing on the detach path, exactly as the waiting path does.
+func TestExecDetached_HonoursCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := New().RunCommand(ctx, Command{Binary: "sleep", Args: []string{"30"}, Detach: true}); err == nil {
+		t.Fatal("expected a cancelled context to start nothing on the detach path")
+	}
+}
+
+// parsePIDFromDetachOutput extracts the integer PID from execDetached's
+// "... (PID 1234)." line.
+func parsePIDFromDetachOutput(t *testing.T, out string) int {
+	t.Helper()
+	i := strings.LastIndex(out, "PID ")
+	if i < 0 {
+		t.Fatalf("no PID in detach output %q", out)
+	}
+	rest := out[i+len("PID "):]
+	end := strings.IndexFunc(rest, func(r rune) bool { return r < '0' || r > '9' })
+	if end < 0 {
+		end = len(rest)
+	}
+	pid := 0
+	for _, r := range rest[:end] {
+		pid = pid*10 + int(r-'0')
+	}
+	if pid <= 1 {
+		t.Fatalf("parsed implausible pid %d from %q", pid, out)
+	}
+	return pid
+}
 
 // TestCompactOutput confirms short output is untouched and long output shrinks
 // with a truncation notice.

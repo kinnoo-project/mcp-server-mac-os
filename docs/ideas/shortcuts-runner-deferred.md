@@ -1,8 +1,9 @@
 # Shortcuts Runner — Deferred Design
 
-> **Tabled pending owner decision — not in the active build order.** Preserved
-> verbatim from the capability-expansion roadmap (2026-07-01) so it can be picked
-> up later without re-derivation.
+> **✅ Implemented in V8 (2026-07-04).** This design is no longer deferred — the
+> `shortcuts` domain (`list_shortcuts` + `run_shortcut`) ships exactly as
+> specified below. See `docs/issues/note-v8-shortcuts-design.md` for the
+> as-built notes. The text is preserved for provenance.
 
 **new tool: `shortcuts` *(force multiplier — most careful security review)***
 

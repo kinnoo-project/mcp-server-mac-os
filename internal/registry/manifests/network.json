@@ -100,5 +100,155 @@
     "risk": "low",
     "builder": "scan_lan",
     "params": []
+  },
+  {
+    "name": "trace_route",
+    "summary": "Trace the network path to a host, listing every router (hop) between this Mac and the destination with the round-trip time to each. Use it to find WHERE a connection breaks or slows down: a hop that stops responding or spikes in latency localizes the problem far beyond a plain ping (which only says reachable / not reachable).",
+    "category": "network",
+    "binary": "traceroute",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "trace_route",
+    "params": [
+      {
+        "name": "host",
+        "type": "string",
+        "required": true,
+        "description": "IP or hostname to trace the route to (e.g. 8.8.8.8, apple.com). Bare host only; option-like or punctuated values are rejected.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "max_hops",
+        "type": "int",
+        "default": 15,
+        "description": "Maximum number of hops (routers) to probe before giving up (1–30, default 15). Lower finishes faster; raise it only for a distant host that legitimately needs more than 15 hops.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "whois_lookup",
+    "summary": "Look up the WHOIS registration record for a domain or IP — who owns it, the registrar, and the create/expiry dates. Answers 'who owns this domain' and 'when does it expire'.",
+    "category": "network",
+    "binary": "whois",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "whois_lookup",
+    "params": [
+      {
+        "name": "domain",
+        "type": "string",
+        "required": true,
+        "description": "Domain name (e.g. apple.com) or IP address to look up. Bare host only; option-like or punctuated values are rejected.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "route_table",
+    "summary": "Show this Mac's kernel routing table (IPv4 and IPv6): which gateway and interface each destination network is reached through. Use it to confirm the default route and spot a stray or VPN-added route that is sending traffic the wrong way.",
+    "category": "network",
+    "binary": "netstat",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "route_table",
+    "params": []
+  },
+  {
+    "name": "interface_stats",
+    "summary": "Report per-interface traffic counters (packets in/out and errors) for every network interface. Use it to see which interface is actually carrying traffic and whether an interface is logging errors or drops.",
+    "category": "network",
+    "binary": "netstat",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "interface_stats",
+    "params": []
+  },
+  {
+    "name": "dns_cache_lookup",
+    "summary": "Resolve a hostname through macOS's directory-services layer (dscacheutil), the same path apps use. Complements dns_lookup (which queries DNS directly with dig): comparing the two shows whether a name is being served from a local cache/override rather than fresh DNS.",
+    "category": "network",
+    "binary": "dscacheutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "dns_cache_lookup",
+    "params": [
+      {
+        "name": "host",
+        "type": "string",
+        "required": true,
+        "description": "Hostname to resolve through directory services (e.g. apple.com). Bare host only; option-like or punctuated values are rejected.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "flush_dns_cache",
+    "summary": "Flush this Mac's directory-services DNS cache so the next name lookups resolve fresh. Use it after changing DNS servers or when a hostname is resolving to a stale IP. Benign and runs immediately (the cache simply repopulates on demand). Note: this clears dscacheutil's cache only — a full mDNSResponder reset needs administrator rights and is out of scope.",
+    "category": "network",
+    "binary": "dscacheutil",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "flush_dns_cache",
+    "auto_commit": true,
+    "params": []
+  },
+  {
+    "name": "list_ssh_keys",
+    "summary": "List the SSH key pairs in this Mac's ~/.ssh directory: for each public key, its type (e.g. ed25519, RSA), fingerprint, comment, and whether the matching private key is present. Use it to see which identities are available before ssh_connect, or to answer 'what SSH keys do I have'. Read-only and private-key SAFE: only the public (.pub) side is ever read and fingerprinted — private key bytes are never opened.",
+    "category": "network",
+    "binary": "ssh-keygen",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_ssh_keys",
+    "params": []
+  },
+  {
+    "name": "list_ssh_hosts",
+    "summary": "List the host aliases defined in this Mac's ~/.ssh/config: for each, its real hostname, the login user, the chosen identity file, and the port. Use it to see 'what servers can I ssh to' or to find the exact alias to pass to ssh_connect. Read-only, parsed entirely in-process (no subprocess).",
+    "category": "network",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "list_ssh_hosts",
+    "params": []
+  },
+  {
+    "name": "ssh_connect",
+    "summary": "Open Terminal.app and start an SSH session to a server (ssh [-i key] [-p port] user@host). The server does NOT run ssh itself or read any password — it hands a fully-constructed, validated ssh command to a new Terminal window where the interactive session (host-key prompt, password/passphrase entry) happens under your control. Changes state (a new Terminal session), so it is STAGED for confirmation; there is nothing to auto-undo (close the window yourself to end the session).",
+    "category": "network",
+    "binary": "osascript",
+    "reversibility": "irreversible",
+    "risk": "medium",
+    "builder": "ssh_connect",
+    "params": [
+      {
+        "name": "host",
+        "type": "string",
+        "required": true,
+        "description": "The server to connect to: a hostname, an IP address, or an alias from ~/.ssh/config (e.g. myserver, 192.0.2.10, host.example.com). Bare host only; option-like or punctuated values are rejected.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "user",
+        "type": "string",
+        "required": true,
+        "description": "The login username on the server (e.g. ubuntu, jane). Letters, digits, and '._-' only, starting with a letter or underscore; anything else is rejected.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "key",
+        "type": "string",
+        "required": false,
+        "description": "Optional path to the private key to authenticate with (e.g. ~/.ssh/id_ed25519). Must resolve to an existing file inside ~/.ssh. If omitted, the server picks the identity from ~/.ssh/config for the host, or the sole key in ~/.ssh, or lets ssh use its defaults.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "port",
+        "type": "int",
+        "required": false,
+        "description": "Optional TCP port of the SSH server (1–65535). Defaults to 22 when omitted.",
+        "arg": { "kind": "none" }
+      }
+    ]
   }
 ]

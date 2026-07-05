@@ -30,12 +30,24 @@ import (
 // SIGTERM-only terminate_process) whose own guards are tested elsewhere. The
 // deny list therefore names tools that have no such constrained use today;
 // adding one back is a conscious, reviewable edit to this list.
+//
+// csrutil and spctl were on this list until the security domain (V5) added
+// read-only app-trust probes over them (sip_status, gatekeeper_check); tmutil,
+// diskutil, and hdiutil came off it when the storage domain (V7) added Time
+// Machine / volume / disk-image operations. None of the five is re-added: their
+// safety now rests on verb pinning instead — the engine invokes each ONLY with a
+// closed set of read-only or benign sub-commands (csrutil "status", spctl
+// "--assess", tmutil status/list*, diskutil list/info/mount, hdiutil
+// attach/detach) and can never reach a state-changing verb (diskutil erase,
+// tmutil delete, hdiutil create, …). That pin is asserted by
+// engine.TestSecurity_ConstrainedBinaryVerbs, the moved-forward equivalent of a
+// deny-list entry for a binary that now has one constrained use.
 var deniedBinaries = map[string]bool{
 	"rm": true, "rmdir": true, "dd": true, "mkfs": true, "newfs": true,
-	"diskutil": true, "hdiutil": true, "asr": true, "fsck": true,
-	"csrutil": true, "spctl": true, "nvram": true, "fdesetup": true,
+	"asr": true, "fsck": true,
+	"nvram": true, "fdesetup": true,
 	"dscl": true, "killall": true, "shutdown": true, "reboot": true,
-	"halt": true, "chflags": true, "ditto": true, "tmutil": true,
+	"halt": true, "chflags": true, "ditto": true,
 }
 
 // dangerousOps are the irreversible, high-blast-radius operations whose entire
@@ -47,6 +59,11 @@ var dangerousOps = []string{
 	"send_mail", "send_message", "call",
 	"print_file", "print_test_page",
 	"quit_process", "terminate_process",
+	// run_shortcut (V8) runs arbitrary user-authored automation: unbounded blast
+	// radius, no meaningful inverse. Its high/irreversible/staged classification
+	// must never be softened, so it is pinned here alongside the other
+	// irrecoverable operations.
+	"run_shortcut",
 }
 
 func loadRegistry(t *testing.T) *Registry {

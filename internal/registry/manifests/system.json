@@ -1,7 +1,7 @@
 [
   {
     "name": "wifi_status",
-    "summary": "Report the Wi-Fi radio's power state and the network it is currently joined to (if any).",
+    "summary": "Report the Wi-Fi radio's power state, the network it is currently joined to (if any), and that connection's signal strength (RSSI in dBm, with a plain-language quality rating). Answers 'what Wi-Fi am I on?' and 'is my signal any good?'.",
     "category": "system",
     "binary": "networksetup",
     "reversibility": "read_only",
@@ -101,7 +101,7 @@
   },
   {
     "name": "open_settings",
-    "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly — because they need admin rights (connecting/re-enabling a printer, joining a Wi-Fi network, battery/Low-Power settings) or have no command line at all (pairing a Bluetooth device, signing into iCloud, toggling a Focus, adding a keyboard language, starting screen mirroring). ALWAYS tell the user the exact click-path to finish in the opened pane — e.g. bluetooth: 'put the device in pairing mode, then click Connect next to it under Nearby Devices'; apple_id: 'sign in or manage iCloud here'; focus: 'turn a Focus like Do Not Disturb on or off here'; keyboard: 'Text Input > Input Sources > Edit, then + to add a language'; displays: 'the AirPlay/mirroring control is the + dropdown here'. Runs immediately; cannot be undone (it just opens a window).",
+    "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly — because they need admin rights (connecting/re-enabling a printer, joining a Wi-Fi network, battery/Low-Power settings, turning a sharing service on or off) or have no command line at all (pairing a Bluetooth device, signing into iCloud, toggling a Focus, adding a keyboard language, starting screen mirroring). ALWAYS tell the user the exact click-path to finish in the opened pane — e.g. bluetooth: 'put the device in pairing mode, then click Connect next to it under Nearby Devices'; apple_id: 'sign in or manage iCloud here'; focus: 'turn a Focus like Do Not Disturb on or off here'; keyboard: 'Text Input > Input Sources > Edit, then + to add a language'; displays: 'the AirPlay/mirroring control is the + dropdown here'; sharing: 'toggle Remote Login, Screen Sharing, or File Sharing here'. Runs immediately; cannot be undone (it just opens a window).",
     "category": "system",
     "binary": "open",
     "reversibility": "irreversible",
@@ -113,8 +113,8 @@
         "name": "pane",
         "type": "enum",
         "required": true,
-        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network", "focus", "keyboard", "apple_id"],
-        "description": "Which System Settings pane to open. 'focus' = Focus/Do Not Disturb; 'keyboard' = keyboard and input sources (add/change a typing language); 'apple_id' = Apple Account / iCloud; 'displays' = display arrangement and AirPlay screen mirroring.",
+        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network", "focus", "keyboard", "apple_id", "sharing"],
+        "description": "Which System Settings pane to open. 'focus' = Focus/Do Not Disturb; 'keyboard' = keyboard and input sources (add/change a typing language); 'apple_id' = Apple Account / iCloud; 'displays' = display arrangement and AirPlay screen mirroring; 'sharing' = Sharing (Remote Login/SSH, Screen Sharing, File Sharing toggles).",
         "arg": { "kind": "none" }
       }
     ]
@@ -194,5 +194,127 @@
         "arg": { "kind": "none" }
       }
     ]
+  },
+  {
+    "name": "keep_awake",
+    "summary": "Keep this Mac awake for a set time — block display sleep and idle system sleep (e.g. during a long download or presentation). Staged for confirmation because it changes power behaviour for up to hours. The session stops on its own when the timer expires; there is no automatic undo — end it early with allow_sleep. To see what is currently keeping the Mac awake, use sleep_assertions.",
+    "category": "system",
+    "binary": "caffeinate",
+    "reversibility": "irreversible",
+    "risk": "medium",
+    "builder": "keep_awake",
+    "params": [
+      {
+        "name": "duration_seconds",
+        "type": "int",
+        "required": false,
+        "default": 3600,
+        "description": "How long to keep the Mac awake, in seconds (60 to 14400, i.e. 1 minute to 4 hours). Defaults to 3600 (1 hour).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "allow_sleep",
+    "summary": "Let this Mac sleep normally again by stopping every caffeinate helper this user is running. This ends keep_awake sessions started through this tool, but also stops any other caffeinate processes the same user launched (e.g. one started from a terminal) — it cancels by process, not by session origin. Sends SIGTERM only (never a force-kill). Runs immediately; cannot be undone (start a new session with keep_awake if needed). If no caffeinate session is active, it returns an error saying the Mac is already free to sleep.",
+    "category": "system",
+    "binary": "kill",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "allow_sleep",
+    "auto_commit": true,
+    "params": []
+  },
+  {
+    "name": "sleep_assertions",
+    "summary": "Report what is currently keeping this Mac awake: which sleep-preventing power assertions are active (idle system sleep, display sleep, ...) and which processes are holding them (e.g. a caffeinate session, a video call, a download). Read-only — answers 'why won't my Mac sleep?'.",
+    "category": "system",
+    "binary": "pmset",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "sleep_assertions",
+    "params": []
+  },
+  {
+    "name": "system_log",
+    "summary": "Show a recent slice of the unified system log (what macOS and its apps have been recording), optionally narrowed to one process and/or subsystem. Answers 'what's spamming the log?' and 'what did app X just report?'. Read-only. Covers the last few minutes only (1–30); an unfiltered window can be large and is truncated to fit — narrow it with 'process' and/or 'subsystem' to see more of what you care about.",
+    "category": "system",
+    "binary": "log",
+    "reversibility": "read_only",
+    "risk": "low",
+    "builder": "system_log",
+    "params": [
+      {
+        "name": "duration_minutes",
+        "type": "int",
+        "required": false,
+        "default": 5,
+        "description": "How far back to look, in minutes (1–30). Defaults to 5. Smaller windows return faster and are less likely to be truncated.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "process",
+        "type": "string",
+        "required": false,
+        "description": "Optional: show only entries logged by this process/app (e.g. 'Safari', 'bluetoothd'). Matched exactly against the process name.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "subsystem",
+        "type": "string",
+        "required": false,
+        "description": "Optional: show only entries from this logging subsystem, a reverse-DNS identifier (e.g. 'com.apple.wifi'). Combined with 'process' when both are given.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "thermal_state",
+    "summary": "Report whether the CPU is currently being throttled to manage heat (thermal pressure), read from pmset. Answers 'why is my Mac suddenly slow or hot?' — a CPU speed limit below 100% means macOS is clamping performance to cool down. Read-only.",
+    "category": "system",
+    "binary": "pmset",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "thermal_state",
+    "params": []
+  },
+  {
+    "name": "remap_key",
+    "summary": "Remap a keyboard modifier key to a common alternative — e.g. make Caps Lock act as Escape or Control, swap the Command and Option keys, or disable Caps Lock entirely. Only a fixed menu of vetted remaps is offered (you cannot supply an arbitrary mapping). Staged for confirmation because it changes how the keyboard behaves. Reversible: undo restores whatever mapping was in effect before. NOTE: hidutil remaps do NOT survive a reboot (macOS clears UserKeyMapping on restart) — to make one permanent the user must set it up as a login item themselves. Use key_remap_status to see the current mapping.",
+    "category": "system",
+    "binary": "hidutil",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "remap_key",
+    "params": [
+      {
+        "name": "remap",
+        "type": "enum",
+        "required": true,
+        "enum": ["caps_lock_to_escape", "caps_lock_to_control", "swap_command_option", "swap_control_command", "disable_caps_lock"],
+        "description": "Which vetted remap to apply. 'caps_lock_to_escape' = Caps Lock types Escape; 'caps_lock_to_control' = Caps Lock acts as Control; 'swap_command_option' = swap the Command and Option keys (both sides); 'swap_control_command' = swap the Control and Command keys (both sides); 'disable_caps_lock' = Caps Lock does nothing.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "key_remap_status",
+    "summary": "Report the keyboard key remapping currently in effect (macOS's hidutil UserKeyMapping) — answers 'is Caps Lock remapped right now?'. Read-only. Names the remap when it matches a known one (e.g. Caps Lock → Escape), otherwise lists the raw source→destination key pairs. Reports 'no custom remapping' when the keyboard is at its defaults. Remaps set via remap_key are cleared by a reboot.",
+    "category": "system",
+    "binary": "hidutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "key_remap_status",
+    "params": []
+  },
+  {
+    "name": "sharing_status",
+    "summary": "Report whether this Mac's main sharing services are turned on: Remote Login (SSH), Screen Sharing, and File Sharing. Answers 'is screen sharing on?' / 'can someone SSH into my Mac?'. Read-only — it detects each service by checking whether the Mac is listening on that service's port (22, 5900, 445) on its own loopback interface. To turn any of them on or off, use open_settings (pane 'sharing').",
+    "category": "system",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "sharing_status",
+    "params": []
   }
 ]

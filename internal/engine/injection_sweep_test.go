@@ -58,34 +58,46 @@ var hostileValues = []string{
 // a free-text builtin missing from this map — that is the signal to add a guard
 // and a regression test, then list it here.
 var reviewedFreeTextBuiltins = map[string]string{
-	"largest_files":       "in-process filepath.WalkDir; dir is used with the standard library, never passed to any binary",
-	"spotlight_search":    "mdfind: dash-leading query rejected (mdfind has no '--'); optional scope dir resolved to an absolute path (leading '/') before -onlyin; see builtins_spotlight_test.go",
-	"capture_screen":      "screencapture: output_path rejected if dash-leading and only ever used to CREATE a file (never overwrite); see builtins_screenshot_test.go",
-	"capture_region":      "screencapture: output_path rejected if dash-leading (shared resolveScreenshotPath) and only ever used to CREATE a file; region is four validated ints, never free text; see builtins_screenshot_region_test.go",
-	"capture_window":      "screencapture + osascript: app validated by validateAppNameValue then passed as argv data after '--' (probeWindowGeometry); output_path rejected if dash-leading; see builtins_screenshot_region_test.go",
-	"list_applications":   "mdfind: dash-leading query rejected (mdfind has no '--'); see builtins_apps_test.go",
-	"search_applications": "mdfind: dash-leading query rejected; see builtins_apps_test.go",
-	"search_app_store":    "outbound HTTPS (no shell/argv): query carried only as the url.Values 'term' parameter (percent-encoded); scheme/host/path are Go-side constants, so a hostile value can only land as an encoded query value; see builtins_appstore_test.go",
-	"list_windows":        "osascript via runOsascript: app filter passed as argv data after '--'; dash-leading/control-char rejected by validateAppNameValue; see builtins_windowing_test.go",
-	"query_events":        "dates parsed via time.Parse; calendar name passed as osascript argv data after '--'; see builtins_calendar_test.go",
-	"search_mail":         "mdfind: dash-leading query rejected (no '--' terminator); see builtins_mail_test.go",
-	"list_inbox":          "osascript via runOsascript: mailbox passed as argv data after '--'; see builtins_mail_reads_test.go",
-	"read_message":        "osascript via runOsascript: id validated numeric then passed as argv data after '--'; see builtins_mail_reads_test.go",
-	"search_messages":     "sqlite3: term embedded via escapeSQLLiteral (quotes doubled, NUL rejected); see builtins_messages_test.go and builtins_messages_sqlinjection_test.go",
-	"read_conversation":   "sqlite3: email validated then escaped, phone reduced to digits; see builtins_messages_test.go",
-	"list_notes":          "osascript via runOsascript: folder passed as argv data after '--'; see builtins_notes_test.go",
-	"search_notes":        "osascript via runOsascript: query/folder passed as argv data after '--'; see builtins_notes_test.go",
-	"read_note":           "osascript via runOsascript: id passed as argv data after '--'; see builtins_notes_test.go",
-	"find_contact":        "in-process Contacts lookup via osascript argv data after '--'; see builtins_phone_test.go",
-	"get_contact":         "in-process Contacts lookup via osascript argv data after '--'; name query is inert data; see builtins_contacts_test.go",
-	"ping_host":           "validateNetworkHost rejects dash-leading and metacharacters (ping/dig have no usable '--'); see builtins_network_test.go",
-	"dns_lookup":          "validateNetworkHost rejects dash-leading and metacharacters; see builtins_network_test.go",
-	"list_processes":      "ps with a fixed argv; filter applied in-process as a substring, never passed to the binary; see builtins_process_test.go",
-	"list_reminders":      "in-process Reminders read; list name passed as osascript argv data after '--'; see builtins_reminders.go",
-	"search_photos":       "osascript via runOsascript: query passed as argv data after '--' (Photos' own search); see builtins_photos_test.go",
-	"get_photo":           "osascript via runOsascript: id passed as argv data after '--'; see builtins_photos_test.go",
-	"get_album_photos":    "osascript via runOsascript: album name passed as argv data after '--'; see builtins_photos_test.go",
-	"export_photo":        "osascript via runOsascript: id/destination passed as argv data after '--'; dash-leading destination rejected; exports only into a fresh empty dir (never overwrites); see builtins_photos_export_test.go",
+	"largest_files":            "in-process filepath.WalkDir; dir is used with the standard library, never passed to any binary",
+	"image_info":               "sips: path validated by validateExistingOperand (rejects dash-leading, resolves absolute) before argv; sips has NO '--' terminator, so the absolute-path resolution is the guard; see media_filesystem_test.go",
+	"spotlight_search":         "mdfind: dash-leading query rejected (mdfind has no '--'); optional scope dir resolved to an absolute path (leading '/') before -onlyin; see builtins_spotlight_test.go",
+	"capture_screen":           "screencapture: output_path rejected if dash-leading and only ever used to CREATE a file (never overwrite); see builtins_screenshot_test.go",
+	"capture_region":           "screencapture: output_path rejected if dash-leading (shared resolveScreenshotPath) and only ever used to CREATE a file; region is four validated ints, never free text; see builtins_screenshot_region_test.go",
+	"capture_window":           "screencapture + osascript: app validated by validateAppNameValue then passed as argv data after '--' (probeWindowGeometry); output_path rejected if dash-leading; see builtins_screenshot_region_test.go",
+	"list_applications":        "mdfind: dash-leading query rejected (mdfind has no '--'); see builtins_apps_test.go",
+	"search_applications":      "mdfind: dash-leading query rejected; see builtins_apps_test.go",
+	"search_app_store":         "outbound HTTPS (no shell/argv): query carried only as the url.Values 'term' parameter (percent-encoded); scheme/host/path are Go-side constants, so a hostile value can only land as an encoded query value; see builtins_appstore_test.go",
+	"list_windows":             "osascript via runOsascript: app filter passed as argv data after '--'; dash-leading/control-char rejected by validateAppNameValue; see builtins_windowing_test.go",
+	"query_events":             "dates parsed via time.Parse; calendar name passed as osascript argv data after '--'; see builtins_calendar_test.go",
+	"search_mail":              "mdfind: dash-leading query rejected (no '--' terminator); see builtins_mail_test.go",
+	"list_inbox":               "osascript via runOsascript: mailbox passed as argv data after '--'; see builtins_mail_reads_test.go",
+	"read_message":             "osascript via runOsascript: id validated numeric then passed as argv data after '--'; see builtins_mail_reads_test.go",
+	"search_messages":          "sqlite3: term embedded via escapeSQLLiteral (quotes doubled, NUL rejected); see builtins_messages_test.go and builtins_messages_sqlinjection_test.go",
+	"read_conversation":        "sqlite3: email validated then escaped, phone reduced to digits; see builtins_messages_test.go",
+	"list_notes":               "osascript via runOsascript: folder passed as argv data after '--'; see builtins_notes_test.go",
+	"search_notes":             "osascript via runOsascript: query/folder passed as argv data after '--'; see builtins_notes_test.go",
+	"read_note":                "osascript via runOsascript: id passed as argv data after '--'; see builtins_notes_test.go",
+	"find_contact":             "in-process Contacts lookup via osascript argv data after '--'; see builtins_phone_test.go",
+	"get_contact":              "in-process Contacts lookup via osascript argv data after '--'; name query is inert data; see builtins_contacts_test.go",
+	"ping_host":                "validateNetworkHost rejects dash-leading and metacharacters (ping/dig have no usable '--'); see builtins_network_test.go",
+	"dns_lookup":               "validateNetworkHost rejects dash-leading and metacharacters; see builtins_network_test.go",
+	"trace_route":              "validateNetworkHost rejects dash-leading and metacharacters (traceroute has no '--'); max_hops is a clamped int; see builtins_network_test.go",
+	"whois_lookup":             "validateNetworkHost rejects dash-leading and metacharacters (whois has no '--', would read -h as a server redirect); see builtins_network_test.go",
+	"dns_cache_lookup":         "validateNetworkHost rejects dash-leading and metacharacters (dscacheutil has no '--'); see builtins_network_test.go",
+	"list_processes":           "ps with a fixed argv; filter applied in-process as a substring, never passed to the binary; see builtins_process_test.go",
+	"system_log":               "log show: process/subsystem filters validated (no quote/backslash/control/dash) then composed Go-side into a `field == \"value\"` predicate whose quotes the value cannot escape; the raw string never reaches argv as an operand; see builtins_diagnostics_test.go",
+	"list_reminders":           "in-process Reminders read; list name passed as osascript argv data after '--'; see builtins_reminders.go",
+	"search_photos":            "osascript via runOsascript: query passed as argv data after '--' (Photos' own search); see builtins_photos_test.go",
+	"get_photo":                "osascript via runOsascript: id passed as argv data after '--'; see builtins_photos_test.go",
+	"get_album_photos":         "osascript via runOsascript: album name passed as argv data after '--'; see builtins_photos_test.go",
+	"export_photo":             "osascript via runOsascript: id/destination passed as argv data after '--'; dash-leading destination rejected; exports only into a fresh empty dir (never overwrites); see builtins_photos_export_test.go",
+	"verify_signature":         "codesign: path validated by validateExistingOperand (rejects dash-leading, resolves absolute) before argv; codesign has NO '--' terminator, so the absolute-path resolution is the guard; verb pinned to --verify (never sign); see builtins_security_test.go",
+	"gatekeeper_check":         "spctl: path validated by validateExistingOperand (dash-rejected, absolute) before argv; spctl has no '--'; verb pinned to --assess (never --add/--enable/--master-disable); see builtins_security_test.go",
+	"quarantine_info":          "xattr: path via validateExistingOperand (dash-rejected, absolute) AND placed after a '--' terminator (xattr honours it); verb pinned to -p (print, never -w/-d/-c); see builtins_security_test.go",
+	"find_credential":          "security find-generic-password: service/account ride as values of -s/-a (getopt binds them to the flag, so option injection is impossible) and are additionally dash/control-rejected by validateKeychainQuery; verb pinned to never carry -w/-g (secret-print); see builtins_keychain_test.go and security_verbs_test.go",
+	"find_internet_credential": "security find-internet-password: server/account ride as values of -s/-a and are dash/control-rejected by validateKeychainQuery; verb pinned to never carry -w/-g; see builtins_keychain_test.go and security_verbs_test.go",
+	"volume_info":              "diskutil info: volume identifier confined by validateVolumeIdentifier to a disk id (diskN/diskNsM) or a single-component /Volumes path, dash-leading rejected (diskutil has no '--'); verb pinned to info; see builtins_storage_test.go and security_verbs_test.go",
+	"eject_volume":             "advisory only — never runs an eject; the diskutil info existence probe uses validateVolumeIdentifier (same allowlist as volume_info); the returned `diskutil eject` text is inert output, never argv; see builtins_storage_test.go",
 }
 
 // hasFreeTextParam reports whether a capability takes any parameter whose value
@@ -127,6 +139,16 @@ var reviewedFreeTextMutators = map[string]string{
 	"append_to_file": "tee -a with '--' before the path, content via Stdin; dash-leading path rejected; see mutate_filesystem_test.go",
 	"compress":       "tar -c with '--' before member operands; dash-leading archive/source rejected; see mutate_filesystem_test.go",
 	"extract":        "tar -x: archive/dest are -f/-C flag values (no positionals); dash-leading rejected; bsdtar's zip-slip defaults kept; see mutate_filesystem_test.go",
+
+	// Media & document conversion: sips has NO '--' terminator, so every path is
+	// dash-rejected AND resolved absolute (so it starts with '/', never a flag)
+	// before argv; textutil/qlmanage also honour '--' before the source as
+	// defense in depth; the 'format' is a registry-validated enum. Destinations
+	// are proven absent at stage time; inverse mv-to-Trash. See media_filesystem_test.go.
+	"convert_image":       "sips: source via validateExistingOperand + destination via validateNewOutputPath (both dash-rejected, absolute); format is an enum; sips has no '--'; inverse mv to Trash; see media_filesystem_test.go",
+	"resize_image":        "sips: source/destination dash-rejected + absolute; dimension is a bounded int; format-free; sips has no '--'; inverse mv to Trash; see media_filesystem_test.go",
+	"convert_document":    "textutil -convert with '--' before the source; source/destination dash-rejected + absolute; format is an enum; inverse mv to Trash; see media_filesystem_test.go",
+	"quicklook_thumbnail": "qlmanage -t with '--' before the path; path via validateExistingOperand (dash-rejected, absolute); output dir is server-created scratch; size is a clamped int; inverse mv to Trash; see media_filesystem_test.go",
 
 	// Clipboard / speech / notification: payload travels via Stdin or after a
 	// "--" terminator or as osascript argv data — never as a bare operand.
@@ -180,6 +202,34 @@ var reviewedFreeTextMutators = map[string]string{
 	"move_window":     "osascript argv data after '--'; app via validateAppNameValue; coords are ints; see mutate_windowing_test.go",
 	"resize_window":   "osascript argv data after '--'; app via validateAppNameValue; size is ints; see mutate_windowing_test.go",
 	"minimize_window": "osascript argv data after '--'; app via validateAppNameValue; see mutate_windowing_test.go",
+
+	// Storage (V7): diskutil/hdiutil have no '--', so identifiers are confined by
+	// validateVolumeIdentifier (disk id or single-component /Volumes path,
+	// dash-rejected) and the image path by validateExistingOperand (dash-rejected,
+	// resolved absolute). Each forward verb is pinned (diskutil mount, hdiutil
+	// attach/detach) and none carries an inverse. See mutate_storage_test.go.
+	"mount_volume":      "diskutil mount: volume via validateVolumeIdentifier (dash-rejected, disk id or /Volumes path); verb pinned to mount; no inverse; see mutate_storage_test.go and security_verbs_test.go",
+	"attach_disk_image": "hdiutil attach: path via validateExistingOperand (dash-rejected, absolute, must exist); verb pinned to attach; no inverse; see mutate_storage_test.go and security_verbs_test.go",
+	"detach_disk_image": "hdiutil detach: mountpoint via validateVolumeIdentifier (dash-rejected, disk id or /Volumes path); verb pinned to detach; no inverse; see mutate_storage_test.go and security_verbs_test.go",
+
+	// Shortcuts (V8): `shortcuts run` — the name rides AFTER a "--" terminator
+	// (Swift ArgumentParser honours it) so a dash-leading name lands as the
+	// positional shortcut name, and validateShortcutName also rejects dash-leading/
+	// control values up front; the optional input file goes through
+	// validateExistingOperand (dash-rejected, absolute, must exist). Staging also
+	// verifies the name matches an existing shortcut. No inverse. See
+	// mutate_shortcuts_test.go.
+	"run_shortcut": "shortcuts run with '--' before the name (ArgumentParser honours it); name also dash/control-rejected by validateShortcutName; optional input via validateExistingOperand; stage-time existence check; no inverse; see mutate_shortcuts_test.go",
+
+	// SSH (V10): ssh_connect stages an osascript that opens Terminal on an ssh
+	// command string. The string crosses TWO interpreters — osascript (protected
+	// by osascriptCommand's '--' terminator, so the whole string is inert argv
+	// data) and Terminal's `do script` shell (protected by validating every field
+	// with a strict allowlist that excludes spaces and shell metacharacters:
+	// validateNetworkHost for host, validateSSHUser for user, validateSSHKeyPath
+	// for key, an int range for port), with buildSSHCommand re-checking every
+	// assembled token as a final gate. No inverse. See mutate_ssh_test.go.
+	"ssh_connect": "osascript→Terminal do script: host via validateNetworkHost, user via validateSSHUser, key via validateSSHKeyPath (existing file under ~/.ssh, shell-safe path), port a bounded int; every field allowlisted (no space/metachar) then re-checked by buildSSHCommand; command rides osascript argv after '--'; no inverse; see mutate_ssh_test.go",
 }
 
 // TestInjection_BuiltinFreeTextParamsAreReviewed is the coverage gate: it walks
