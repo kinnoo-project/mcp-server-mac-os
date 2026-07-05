@@ -1,0 +1,122 @@
+[
+  {
+    "name": "time_machine_status",
+    "summary": "Report on Time Machine: whether a backup is running right now (and its progress) and when the most recent completed backup was. Use for 'is Time Machine backing up / when did my Mac last back up'. Read-only; runs `tmutil status` and `tmutil latestbackup` and never starts, stops, or deletes a backup.",
+    "category": "storage",
+    "binary": "tmutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "time_machine_status",
+    "params": []
+  },
+  {
+    "name": "list_backups",
+    "summary": "List the Time Machine backups available to restore from — both the full snapshots on the backup disk (`tmutil listbackups`) and the local hourly snapshots kept on the startup disk (`tmutil listlocalsnapshots /`). Use for 'what backups do I have / which restore points exist'. Read-only; never creates, deletes, or restores a backup.",
+    "category": "storage",
+    "binary": "tmutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "list_backups",
+    "params": []
+  },
+  {
+    "name": "list_volumes",
+    "summary": "List every disk and volume attached to this Mac — internal drives, external drives, and mounted disk images — with their identifiers, sizes, and mount points, as `diskutil list` reports them. Use for 'what drives/volumes are connected / what is disk2'. Read-only; runs diskutil only in its listing mode and changes nothing.",
+    "category": "storage",
+    "binary": "diskutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "list_volumes",
+    "params": []
+  },
+  {
+    "name": "volume_info",
+    "summary": "Show detailed information about a single disk or volume — its name, filesystem, size, free space, mount point, and whether it is removable — via `diskutil info`. Use for 'how much space is on my external drive / what filesystem is disk2s1'. Read-only; diskutil is invoked only with its read-only `info` verb.",
+    "category": "storage",
+    "binary": "diskutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "volume_info",
+    "params": [
+      {
+        "name": "volume",
+        "type": "string",
+        "required": true,
+        "description": "A disk identifier (e.g. disk2 or disk2s1) or a mount path (e.g. /Volumes/Backup). Must not begin with '-'.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "mount_volume",
+    "summary": "Mount a disk or volume that is attached but not currently mounted, so its files become accessible under /Volumes, via `diskutil mount`. Use for 'mount disk2s1 / bring my external drive online'. This changes system state (a new volume appears), so it is STAGED for confirmation. It is not auto-undone: to unmount afterwards, the result gives you the exact `diskutil unmount` command to run yourself.",
+    "category": "storage",
+    "binary": "diskutil",
+    "reversibility": "irreversible",
+    "risk": "medium",
+    "builder": "mount_volume",
+    "params": [
+      {
+        "name": "volume",
+        "type": "string",
+        "required": true,
+        "description": "The volume to mount: a disk identifier (e.g. disk2s1) or a mount path (e.g. /Volumes/Backup). A disk identifier is the usual choice for a volume that is attached but not yet mounted. Must not begin with '-'.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "attach_disk_image",
+    "summary": "Attach (open) a disk image file — a .dmg or .iso — so its contents mount as a volume under /Volumes, via `hdiutil attach`. Use for 'open this dmg / mount the installer image'. This changes system state (a new volume appears), so it is STAGED for confirmation. It is not auto-undone: use the separate detach_disk_image operation (or eject the mounted volume) to close it.",
+    "category": "storage",
+    "binary": "hdiutil",
+    "reversibility": "irreversible",
+    "risk": "medium",
+    "builder": "attach_disk_image",
+    "params": [
+      {
+        "name": "path",
+        "type": "path",
+        "required": true,
+        "description": "The disk image file to attach, e.g. ~/Downloads/app.dmg. Must exist and must not begin with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "detach_disk_image",
+    "summary": "Detach (close) a mounted disk image, unmounting the volume it provided, via `hdiutil detach`. Use for 'close the dmg I opened / unmount this disk image'. Detaching a virtual disk image is benign, but it still changes system state (a volume disappears), so it is STAGED for confirmation. It cannot be auto-undone; re-attach with attach_disk_image if needed.",
+    "category": "storage",
+    "binary": "hdiutil",
+    "reversibility": "irreversible",
+    "risk": "medium",
+    "builder": "detach_disk_image",
+    "params": [
+      {
+        "name": "mountpoint",
+        "type": "string",
+        "required": true,
+        "description": "The mount path of the attached image (e.g. /Volumes/Installer) or its disk identifier (e.g. disk4). Must not begin with '-'.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "eject_volume",
+    "summary": "Prepare to safely eject a removable disk or volume. This operation NEVER ejects anything itself: it confirms the volume exists, then returns the exact `diskutil eject` command for YOU to run, along with a warning about the consequences. Use for 'eject my external drive / safely remove this disk' — the model hands you the command rather than pulling the disk out from under any app that may be using it.",
+    "category": "storage",
+    "binary": "diskutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "eject_volume",
+    "params": [
+      {
+        "name": "volume",
+        "type": "string",
+        "required": true,
+        "description": "A disk identifier (e.g. disk2) or a mount path (e.g. /Volumes/Backup) of the volume you want to eject. Must not begin with '-'.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]
