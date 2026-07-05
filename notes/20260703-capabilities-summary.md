@@ -1,10 +1,10 @@
 I've got the full picture — here's the capability breakdown for this MCP server:
 
-**19 domains, 131 operations**, exposed as a small set of fixed MCP tools (e.g. `filesystem`, `application-mail`, `system`, etc.) each fronting a manifest-driven registry of operations:
+**22 domains, 171 operations**, exposed as **25 fixed MCP tools** — one per domain plus three cross-cutting tools (`execute`, `undo`, `pipeline`) — each fronting a manifest-driven registry of operations:
 
 | Category | Tool name | What it covers |
 |---|---|---|
-| 📁 Files & disk | `filesystem` | find, search (Spotlight), list, measure, create/move/copy/delete (trash), append, zip/unzip |
+| 📁 Files & disk | `filesystem` | find, search (Spotlight), list, measure, create/move/copy/delete (trash), append, zip/unzip, image/document conversion & resize, Quick Look thumbnails |
 | ✉️ Mail | `application-mail` | list/read/search inbox, compose & send |
 | 📅 Calendar | `application-calendar` | view/create/move/cancel events |
 | ✅ Reminders | `application-reminders` | list, create, complete |
@@ -19,9 +19,12 @@ I've got the full picture — here's the capability breakdown for this MCP serve
 | 📸 Screenshots | `screenshot` | full screen, region, or specific app window |
 | 📋 Clipboard | `clipboard` | read/write text |
 | 🖨️ Printers | `printer` | list printers/queue, print, test page |
-| ⚙️ System | `system` | Wi-Fi/Bluetooth/battery/hardware info, deep-links into System Settings panes, notifications/TTS, display sleep |
-| 🌐 Network | `network` | IP/DNS/gateway, ping, listening ports, connectivity diagnosis (read-only) |
-| 📊 Process/resources | `process` | CPU/mem/GPU load, per-PID detail, launchd agents, graceful quit/terminate (no force-kill) |
+| ⚙️ System | `system` | Wi-Fi/Bluetooth/battery/hardware info, deep-links into System Settings panes, notifications/TTS, display sleep, keep-awake/allow-sleep + sleep assertions, key remapping & status, sharing status, thermal state, system log |
+| 🌐 Network | `network` | IP/DNS/gateway, ping, traceroute, whois, listening ports, LAN scan, DNS cache lookup/flush, connectivity diagnosis, SSH key/host inventory + staged SSH connect |
+| 📊 Process/resources | `process` | CPU/mem/GPU load, per-PID detail, top-process snapshot, launchd agents, graceful quit/terminate (no force-kill) |
+| 🔐 Security & trust | `security` | code-signature/Gatekeeper/SIP checks, quarantine info, keychain metadata reads (no secrets revealed) |
+| 💽 Storage | `storage` | Time Machine status/backups, volumes, staged disk-image mount/attach/detach, advisory eject |
+| ⚡ Shortcuts | `shortcuts` | list Shortcuts, staged run of a named shortcut |
 | 🎛️ Preferences | `preferences` | curated Finder/Dock/accessibility/appearance toggles |
 
 Plus cross-cutting infrastructure tools: `execute` (commits a staged mutation), `undo` (reverses a completed one), and `pipeline` (composes multiple read-only steps server-side).

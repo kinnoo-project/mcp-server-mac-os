@@ -122,19 +122,34 @@ func TestIntegration_ToolSurface(t *testing.T) {
 			t.Errorf("printer tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"wifi_status", "list_preferred_wifi", "bluetooth_status", "power_status", "open_settings", "remap_key", "key_remap_status", "sharing_status"} {
+	for _, op := range []string{"wifi_status", "list_preferred_wifi", "bluetooth_status", "power_status", "open_settings", "remap_key", "key_remap_status", "sharing_status", "keep_awake", "allow_sleep", "sleep_assertions", "system_log", "thermal_state"} {
 		if !strings.Contains(descs["system"], op) {
 			t.Errorf("system tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"current_network", "dns_servers", "ping_host", "dns_lookup", "listening_ports", "lan_devices", "scan_lan"} {
+	for _, op := range []string{"current_network", "dns_servers", "ping_host", "dns_lookup", "listening_ports", "lan_devices", "scan_lan", "trace_route", "flush_dns_cache", "list_ssh_keys", "list_ssh_hosts", "ssh_connect"} {
 		if !strings.Contains(descs["network"], op) {
 			t.Errorf("network tool description missing operation %q", op)
 		}
 	}
-	for _, op := range []string{"list_processes", "process_info", "cpu_load", "memory_stats", "gpu_stats", "startup_items", "quit_process", "terminate_process"} {
+	for _, op := range []string{"list_processes", "process_info", "cpu_load", "memory_stats", "gpu_stats", "startup_items", "top_processes", "quit_process", "terminate_process"} {
 		if !strings.Contains(descs["process"], op) {
 			t.Errorf("process tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"verify_signature", "gatekeeper_check", "sip_status", "quarantine_info", "find_credential", "find_internet_credential", "list_keychains"} {
+		if !strings.Contains(descs["security"], op) {
+			t.Errorf("security tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"time_machine_status", "list_backups", "list_volumes", "volume_info", "mount_volume", "attach_disk_image", "detach_disk_image", "eject_volume"} {
+		if !strings.Contains(descs["storage"], op) {
+			t.Errorf("storage tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"list_shortcuts", "run_shortcut"} {
+		if !strings.Contains(descs["shortcuts"], op) {
+			t.Errorf("shortcuts tool description missing operation %q", op)
 		}
 	}
 	if !strings.Contains(descs["screenshot"], "capture_screen") {

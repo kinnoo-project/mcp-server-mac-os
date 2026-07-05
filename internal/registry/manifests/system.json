@@ -216,7 +216,7 @@
   },
   {
     "name": "allow_sleep",
-    "summary": "End any keep-awake session so this Mac can sleep normally again. Cancels the keep_awake sessions this user started (by stopping their caffeinate helpers). Runs immediately; cannot be undone (start a new session with keep_awake if needed). If no session is active, it reports that nothing needed changing.",
+    "summary": "Let this Mac sleep normally again by stopping every caffeinate helper this user is running. This ends keep_awake sessions started through this tool, but also stops any other caffeinate processes the same user launched (e.g. one started from a terminal) — it cancels by process, not by session origin. Sends SIGTERM only (never a force-kill). Runs immediately; cannot be undone (start a new session with keep_awake if needed). If no caffeinate session is active, it returns an error saying the Mac is already free to sleep.",
     "category": "system",
     "binary": "kill",
     "reversibility": "irreversible",
