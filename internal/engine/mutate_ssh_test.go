@@ -84,8 +84,27 @@ func TestValidateSSHKeyPath(t *testing.T) {
 		t.Errorf("validateSSHKeyPath(~) = (%q,%v), want the abs path", got, err)
 	}
 
-	// Reject rows.
+	// A symlink PLANTED inside ~/.ssh but pointing OUTSIDE it must be rejected: the
+	// confinement guarantee has to survive symlinks, or `ssh -i` could be aimed at
+	// an arbitrary file (e.g. /etc/shadow) via a link the model names.
 	home := filepath.Dir(ssh)
+	outsideKey := filepath.Join(home, "real_key_outside")
+	mustWrite(t, outsideKey, "PRIV")
+	if err := os.Symlink(outsideKey, filepath.Join(ssh, "linked")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validateSSHKeyPath("~/.ssh/linked"); err == nil {
+		t.Error("validateSSHKeyPath accepted a symlink escaping ~/.ssh")
+	}
+	// A symlink inside ~/.ssh pointing to another file INSIDE ~/.ssh stays allowed.
+	if err := os.Symlink(keyPath, filepath.Join(ssh, "inside_link")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := validateSSHKeyPath("~/.ssh/inside_link"); err != nil {
+		t.Errorf("validateSSHKeyPath rejected an in-tree symlink: %v", err)
+	}
+
+	// Reject rows.
 	outside := filepath.Join(home, "secret.txt")
 	mustWrite(t, outside, "not a key here")
 	bad := []struct{ name, in string }{
@@ -100,6 +119,16 @@ func TestValidateSSHKeyPath(t *testing.T) {
 		if _, err := validateSSHKeyPath(tc.in); err == nil {
 			t.Errorf("validateSSHKeyPath(%s=%q) accepted an invalid key", tc.name, tc.in)
 		}
+	}
+}
+
+// TestStageSSHConnect_IPv6Host proves a valid IPv6 target stages successfully —
+// the ':' in the literal must not trip the final token gate.
+func TestStageSSHConnect_IPv6Host(t *testing.T) {
+	withTempHome(t)
+	plan := mustStageSSH(t, map[string]any{"host": "2606:4700:4700::1111", "user": "jane"})
+	if cmd := stagedSSHCommand(t, plan); cmd != "ssh jane@2606:4700:4700::1111" {
+		t.Errorf("IPv6 connect command = %q, want the bare ssh command", cmd)
 	}
 }
 
@@ -118,6 +147,9 @@ func TestBuildSSHCommand(t *testing.T) {
 		{"with key", "ubuntu", "host.example.com", "/Users/x/.ssh/id_ed25519", 0, false, "ssh -i /Users/x/.ssh/id_ed25519 ubuntu@host.example.com"},
 		{"with port", "jane", "192.0.2.10", "", 2222, true, "ssh -p 2222 jane@192.0.2.10"},
 		{"key and port", "root", "myserver", "/Users/x/.ssh/k", 22, true, "ssh -i /Users/x/.ssh/k -p 22 root@myserver"},
+		// An IPv6 host literal contains ':' — the final token gate must accept it
+		// (validateNetworkHost already vets IPv6), not reject the destination token.
+		{"ipv6 host", "jane", "2606:4700:4700::1111", "", 0, false, "ssh jane@2606:4700:4700::1111"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

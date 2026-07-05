@@ -77,6 +77,15 @@ var sshUserPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9._-]*$`)
 // guarantee that a legitimate key path cannot break out of the ssh command.
 var sshSafePathPattern = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 
+// sshSafeTokenPattern is the final-gate allowlist for a fully-assembled command
+// token. It is sshSafePathPattern widened by ':' and '@' — both of which are
+// inert in a shell word but appear legitimately in the destination token
+// (`user@host`, and IPv6 host literals such as `fe80::1`, which validateNetworkHost
+// already vets). Keeping the key-PATH pattern stricter (no ':'/'@') while allowing
+// them HERE means an IPv6 host is accepted without loosening what a key path may
+// contain.
+var sshSafeTokenPattern = regexp.MustCompile(`^[A-Za-z0-9._:/@-]+$`)
+
 // maxSSHUserLen bounds a username so a pathological value cannot bloat the staged
 // command; 64 is comfortably above any real login name.
 const maxSSHUserLen = 64
@@ -160,6 +169,25 @@ func validateSSHKeyPath(raw string) (string, error) {
 	if info.IsDir() {
 		return "", fmt.Errorf("ssh_connect: key %q is a directory, not a key file", abs)
 	}
+	// Confinement must survive symlinks: a prefix check on the literal path lets a
+	// symlink PLANTED inside ~/.ssh redirect `ssh -i` at an arbitrary file (e.g.
+	// ~/.ssh/link → /etc/shadow), defeating the "confined to ~/.ssh" guarantee. So
+	// resolve symlinks on both the key and the ~/.ssh directory and re-check the
+	// REAL target is still inside. Both paths exist here, so EvalSymlinks succeeds;
+	// the directory falls back to its literal form only if it is somehow
+	// unresolvable.
+	realAbs, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("ssh_connect: cannot resolve key %q: %w", abs, err)
+	}
+	realDir := dir
+	if rd, derr := filepath.EvalSymlinks(dir); derr == nil {
+		realDir = rd
+	}
+	if realAbs != realDir && !strings.HasPrefix(realAbs, realDir+string(os.PathSeparator)) {
+		return "", fmt.Errorf("ssh_connect: key %q resolves to %q, which is outside ~/.ssh", key, realAbs)
+	}
+	// Guard the path we will actually emit (abs), not the resolved target.
 	if !sshSafePathPattern.MatchString(abs) {
 		return "", fmt.Errorf("ssh_connect: key path %q contains characters that cannot be used safely in a Terminal command; move the key to a path without spaces or punctuation", abs)
 	}
@@ -255,7 +283,10 @@ func discoverPrivateKeys(sshDirPath string) (names, paths []string) {
 		}
 		base := strings.TrimSuffix(e.Name(), ".pub")
 		privPath := filepath.Join(sshDirPath, base)
-		if fileExists(privPath) {
+		// Require a REGULAR file: a directory (or other non-file entry) named like a
+		// key must not be offered as `ssh -i <dir>`, which would fail confusingly in
+		// Terminal. regularFileExists follows a symlink but rejects a directory.
+		if regularFileExists(privPath) {
 			names = append(names, base)
 			paths = append(paths, privPath)
 		}
@@ -280,11 +311,12 @@ func buildSSHCommand(user, host, keyPath string, port int, hasPort bool) (string
 	tokens = append(tokens, user+"@"+host)
 
 	// Final belt-and-suspenders: no assembled token may contain whitespace or a
-	// character outside the shell-safe set. (The '@' in the destination is added
-	// here, so allow it in this check.) A failure indicates a guard gap upstream.
+	// character outside the shell-safe set. sshSafeTokenPattern permits ':' and '@'
+	// so the destination token (user@host, incl. an IPv6 host) passes, while a
+	// space or shell metacharacter still fails. A failure indicates a guard gap
+	// upstream.
 	for _, tok := range tokens {
-		check := strings.ReplaceAll(tok, "@", "")
-		if check != "" && !sshSafePathPattern.MatchString(check) {
+		if tok != "" && !sshSafeTokenPattern.MatchString(tok) {
 			return "", fmt.Errorf("ssh_connect: refusing to build a command with unsafe token %q", tok)
 		}
 	}

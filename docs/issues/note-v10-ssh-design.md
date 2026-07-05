@@ -54,9 +54,16 @@ defense:
      `^[A-Za-z_][A-Za-z0-9._-]*$`. Crucially excludes `@` (so a value cannot
      append a second `user@otherhost`), spaces, and every shell metacharacter.
    - `key` → an existing regular file **inside `~/.ssh`** whose absolute path
-     matches a shell-safe allowlist (`^[A-Za-z0-9._/-]+$`). Confining to `~/.ssh`
-     stops the model aiming `ssh -i` at an arbitrary file; the safe-path check
-     stops a path with a space/metacharacter reaching the shell string.
+     matches a shell-safe allowlist (`^[A-Za-z0-9._/-]+$`). Confinement is
+     **symlink-safe**: the path is resolved with `filepath.EvalSymlinks` and the
+     REAL target must still sit under `~/.ssh`, so a symlink planted in `~/.ssh`
+     cannot redirect `ssh -i` at an arbitrary file (an in-tree symlink stays
+     allowed). The safe-path check stops a path with a space/metacharacter
+     reaching the shell string.
+   - The **destination** token (`user@host`) is re-checked by a slightly wider
+     final gate (`sshSafeTokenPattern`, which adds `:` and `@`) so an IPv6 host
+     literal like `fe80::1` — already vetted by `validateNetworkHost` — is not
+     rejected, without loosening what a key PATH may contain.
    - `port` → an integer in 1–65535.
    `buildSSHCommand` then re-checks every assembled token against the same
    safe-character set as a final gate, so a field added later without its own

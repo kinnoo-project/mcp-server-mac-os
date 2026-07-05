@@ -109,8 +109,8 @@ func runListSSHKeys(ctx context.Context, _ registry.Capability, _ map[string]any
 			fingerprint: fingerprint,
 			comment:     comment,
 			// The private key is the same file without ".pub"; test only for its
-			// EXISTENCE — never open it.
-			hasPrivate: fileExists(filepath.Join(dir, base)),
+			// EXISTENCE as a regular file — never open it.
+			hasPrivate: regularFileExists(filepath.Join(dir, base)),
 		}
 		keys = append(keys, key)
 	}
@@ -302,13 +302,23 @@ func splitConfigLine(line string) (keyword, value string) {
 	}
 	keyword = line[:idx]
 	value = strings.TrimLeft(line[idx:], " \t=")
+	// Strip an inline comment. A stray "# prod" after a value (a common ssh_config
+	// style) would otherwise leak into HostName/User/IdentityFile and break
+	// matching and the listing. None of the values we parse — hostnames, POSIX
+	// usernames, key paths, ports — legitimately contains '#', so cutting at the
+	// first '#' is safe.
+	if i := strings.IndexByte(value, '#'); i >= 0 {
+		value = value[:i]
+	}
 	return keyword, strings.TrimSpace(value)
 }
 
-// fileExists reports whether path names an existing entry, without opening it or
-// following it as anything other than a stat. It is used to test for a private
-// key's presence purely from the filesystem, never by reading its contents.
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+// regularFileExists reports whether path names an existing REGULAR file
+// (following symlinks), never a directory or other special entry. It is used to
+// test for a private key's presence purely from the filesystem — the file's
+// contents are never read — while excluding a directory that happens to be named
+// like a key (which must not be reported as, or offered as, a usable key).
+func regularFileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.Mode().IsRegular()
 }

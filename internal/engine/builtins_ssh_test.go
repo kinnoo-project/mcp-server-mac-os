@@ -94,7 +94,7 @@ Host web prod
 	Port 2222
 
 Host db
-	HostName=db.example.com
+	HostName=db.example.com # production database
 	User=admin
 `
 	if err := os.WriteFile(cfg, []byte(content), 0o600); err != nil {
@@ -123,8 +123,10 @@ Host db
 		t.Errorf("prod alias should share the block's settings, got %+v", prod)
 	}
 	db := byAlias["db"]
+	// The inline "# production database" comment must be stripped, not leaked into
+	// the HostName value.
 	if db.hostName != "db.example.com" || db.user != "admin" {
-		t.Errorf("db block = %+v, want hostname/user from '=' lines", db)
+		t.Errorf("db block = %+v, want hostname/user from '=' lines with the inline comment stripped", db)
 	}
 	if _, isWildcard := byAlias["*"]; isWildcard {
 		t.Error("wildcard '*' stanza must not appear as a concrete host")
@@ -143,6 +145,12 @@ func TestDiscoverPrivateKeys(t *testing.T) {
 	mustWrite(t, filepath.Join(dir, "orphan.pub"), "ssh-rsa AAAA... orphan")
 	// A non-key file.
 	mustWrite(t, filepath.Join(dir, "known_hosts"), "example.com ssh-rsa AAAA...")
+	// A .pub whose "private" counterpart is a DIRECTORY — must NOT be offered as a
+	// key (ssh -i <dir> would fail confusingly).
+	mustWrite(t, filepath.Join(dir, "weird.pub"), "ssh-rsa AAAA... weird")
+	if err := os.Mkdir(filepath.Join(dir, "weird"), 0o700); err != nil {
+		t.Fatal(err)
+	}
 
 	names, paths := discoverPrivateKeys(dir)
 	if len(paths) != 1 || len(names) != 1 {
