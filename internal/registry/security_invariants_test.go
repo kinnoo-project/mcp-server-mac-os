@@ -59,6 +59,11 @@ var dangerousOps = []string{
 	"send_mail", "send_message", "call",
 	"print_file", "print_test_page",
 	"quit_process", "terminate_process",
+	// run_shortcut (V8) runs arbitrary user-authored automation: unbounded blast
+	// radius, no meaningful inverse. Its high/irreversible/staged classification
+	// must never be softened, so it is pinned here alongside the other
+	// irrecoverable operations.
+	"run_shortcut",
 }
 
 func loadRegistry(t *testing.T) *Registry {

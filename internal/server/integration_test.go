@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "clipboard", "security", "storage", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "application-photos", "application-safari", "application-contacts", "application-music", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "clipboard", "security", "storage", "shortcuts", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "application-photos", "application-safari", "application-contacts", "application-music", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 24 {
-		t.Errorf("expected exactly 24 tools (filesystem, preferences, application, printer, system, network, process, screenshot, clipboard, security, storage, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, application-safari, application-contacts, application-music, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 25 {
+		t.Errorf("expected exactly 25 tools (filesystem, preferences, application, printer, system, network, process, screenshot, clipboard, security, storage, shortcuts, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, application-safari, application-contacts, application-music, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head", "compress", "extract"} {
