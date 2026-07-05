@@ -33,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **21 domains, 163 operations**, each invokable in plain
+the Mac you already use. **22 domains, 165 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -356,6 +356,24 @@ with the risky part (ejecting a disk) deliberately handed back to you.
 > mount/attach operations are staged for your approval and are **not** auto-undone;
 > the result tells you the exact command to reverse them.
 
+### ⚡ Shortcuts
+
+Trigger the automations you've built in the Shortcuts app — the sanctioned path
+to everything that has no clean command of its own: Focus / Do-Not-Disturb modes,
+HomeKit scenes, and any flow you've authored yourself.
+
+- *"What Shortcuts do I have set up?"* *(lists your shortcuts with their
+  identifiers — `shortcuts list`)*
+- **"Run my Morning Routine shortcut."** *(runs it — but first confirms the
+  shortcut really exists and names it back to you, then waits for your approval)*
+
+> 🔒 Running a shortcut is the single most powerful thing this server can do — a
+> shortcut is automation *you* authored, so its effect is unbounded and there's no
+> way to undo it. It is therefore treated as the highest risk tier: always staged
+> for explicit confirmation, never auto-run, and pinned as irreversible by the
+> security test gate so that classification can't be quietly softened. Listing is
+> read-only and can never trigger a shortcut.
+
 ---
 
 ## 🔒 Safe by design
@@ -454,9 +472,9 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 21 domain tools (`filesystem`, `preferences`, `application`,
+You'll now have the 22 domain tools (`filesystem`, `preferences`, `application`,
 `application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`,
-`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`, `security`, `storage`) plus the shared
+`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`, `security`, `storage`, `shortcuts`) plus the shared
 `execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 

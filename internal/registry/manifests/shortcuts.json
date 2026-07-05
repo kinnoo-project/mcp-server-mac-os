@@ -1,0 +1,37 @@
+[
+  {
+    "name": "list_shortcuts",
+    "summary": "List the Shortcuts the user has on this Mac, with each shortcut's name and unique identifier, as `shortcuts list --show-identifiers` reports them. Use for 'what shortcuts do I have / show my shortcuts' and to find the exact name before running one. Read-only; only enumerates shortcuts and runs none of them.",
+    "category": "shortcuts",
+    "binary": "shortcuts",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "list_shortcuts",
+    "params": []
+  },
+  {
+    "name": "run_shortcut",
+    "summary": "Run one of the user's Shortcuts by name (via `shortcuts run`). This is the sanctioned way to trigger automations that have no dedicated CLI — Focus/Do-Not-Disturb modes, HomeKit scenes, and any user-authored flow. A shortcut is arbitrary automation authored outside this server, so its effect is unbounded and there is NO undo: the operation is HIGH risk and always STAGED for explicit human confirmation. Staging first checks the named shortcut actually exists and names it verbatim in the preview.",
+    "category": "shortcuts",
+    "binary": "shortcuts",
+    "reversibility": "irreversible",
+    "risk": "high",
+    "builder": "run_shortcut",
+    "params": [
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "description": "The exact name of the shortcut to run (as shown by list_shortcuts). Must not begin with '-'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "input",
+        "type": "path",
+        "required": false,
+        "description": "Optional path to an existing file to pass to the shortcut as its input. Must exist and must not begin with '-' (use ./).",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]

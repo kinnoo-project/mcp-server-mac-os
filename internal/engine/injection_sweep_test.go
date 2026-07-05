@@ -211,6 +211,15 @@ var reviewedFreeTextMutators = map[string]string{
 	"mount_volume":      "diskutil mount: volume via validateVolumeIdentifier (dash-rejected, disk id or /Volumes path); verb pinned to mount; no inverse; see mutate_storage_test.go and security_verbs_test.go",
 	"attach_disk_image": "hdiutil attach: path via validateExistingOperand (dash-rejected, absolute, must exist); verb pinned to attach; no inverse; see mutate_storage_test.go and security_verbs_test.go",
 	"detach_disk_image": "hdiutil detach: mountpoint via validateVolumeIdentifier (dash-rejected, disk id or /Volumes path); verb pinned to detach; no inverse; see mutate_storage_test.go and security_verbs_test.go",
+
+	// Shortcuts (V8): `shortcuts run` — the name rides AFTER a "--" terminator
+	// (Swift ArgumentParser honours it) so a dash-leading name lands as the
+	// positional shortcut name, and validateShortcutName also rejects dash-leading/
+	// control values up front; the optional input file goes through
+	// validateExistingOperand (dash-rejected, absolute, must exist). Staging also
+	// verifies the name matches an existing shortcut. No inverse. See
+	// mutate_shortcuts_test.go.
+	"run_shortcut": "shortcuts run with '--' before the name (ArgumentParser honours it); name also dash/control-rejected by validateShortcutName; optional input via validateExistingOperand; stage-time existence check; no inverse; see mutate_shortcuts_test.go",
 }
 
 // TestInjection_BuiltinFreeTextParamsAreReviewed is the coverage gate: it walks
