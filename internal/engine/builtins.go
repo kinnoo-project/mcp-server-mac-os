@@ -134,6 +134,9 @@ var builtins = map[string]BuiltinFunc{
 
 	"key_remap_status": runKeyRemapStatus,
 	"sharing_status":   runSharingStatus,
+
+	"list_ssh_keys":  runListSSHKeys,
+	"list_ssh_hosts": runListSSHHosts,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.

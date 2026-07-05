@@ -33,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **22 domains, 165 operations**, each invokable in plain
+the Mac you already use. **22 domains, 171 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -260,9 +260,21 @@ by composing these probes. Read-only except for one benign, self-healing action
   itself — a full mDNSResponder reset still needs admin rights)*
 - *"I can't reach the internet — can you diagnose it?"* *(checks the gateway, then a
   public IP, then DNS — and tells you where it breaks)*
+- *"What SSH keys do I have?"* · *"Which servers can I SSH to?"* *(a private-key-**safe**
+  inventory: only the public `.pub` side of each key is ever read/fingerprinted, and
+  the `~/.ssh/config` hosts are parsed in-process — no private key bytes are opened)*
+- *"SSH into 192.0.2.10 as jane"* — opens a **new Terminal window** on the constructed
+  `ssh` command (it picks the right key from `~/.ssh/config`, your sole key, or one you
+  name). **Staged for your confirmation**, and the interactive part — host-key prompt,
+  password/passphrase — happens in that Terminal under your control; the server never
+  sees your password.
 
 > ℹ️ Turning Bluetooth on/off has no command line on macOS, so the model hands you
 > off to System Settings for that — it can still tell you what's connected and paired.
+
+> ℹ️ Starting an SSH session opens Terminal.app, so the first use asks macOS to grant
+> the host app **Automation** access to Terminal (System Settings → Privacy & Security
+> → Automation). Approve it once and future connects go straight through.
 
 ### 📊 Processes & resources
 

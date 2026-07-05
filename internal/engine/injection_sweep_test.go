@@ -220,6 +220,16 @@ var reviewedFreeTextMutators = map[string]string{
 	// verifies the name matches an existing shortcut. No inverse. See
 	// mutate_shortcuts_test.go.
 	"run_shortcut": "shortcuts run with '--' before the name (ArgumentParser honours it); name also dash/control-rejected by validateShortcutName; optional input via validateExistingOperand; stage-time existence check; no inverse; see mutate_shortcuts_test.go",
+
+	// SSH (V10): ssh_connect stages an osascript that opens Terminal on an ssh
+	// command string. The string crosses TWO interpreters — osascript (protected
+	// by osascriptCommand's '--' terminator, so the whole string is inert argv
+	// data) and Terminal's `do script` shell (protected by validating every field
+	// with a strict allowlist that excludes spaces and shell metacharacters:
+	// validateNetworkHost for host, validateSSHUser for user, validateSSHKeyPath
+	// for key, an int range for port), with buildSSHCommand re-checking every
+	// assembled token as a final gate. No inverse. See mutate_ssh_test.go.
+	"ssh_connect": "osascript→Terminal do script: host via validateNetworkHost, user via validateSSHUser, key via validateSSHKeyPath (existing file under ~/.ssh, shell-safe path), port a bounded int; every field allowlisted (no space/metachar) then re-checked by buildSSHCommand; command rides osascript argv after '--'; no inverse; see mutate_ssh_test.go",
 }
 
 // TestInjection_BuiltinFreeTextParamsAreReviewed is the coverage gate: it walks

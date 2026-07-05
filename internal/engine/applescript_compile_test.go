@@ -111,6 +111,7 @@ var allEmbeddedAppleScripts = map[string]string{
 	"setWindowMinimizedScript":    setWindowMinimizedScript,
 	"probeWindowGeometryScript":   probeWindowGeometryScript,
 	"probeWindowMinimizedScript":  probeWindowMinimizedScript,
+	"sshTerminalScript":           sshTerminalScript,
 }
 
 // TestAllEmbeddedAppleScriptsCompile proves every script in allEmbeddedAppleScripts
