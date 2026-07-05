@@ -96,6 +96,8 @@ var reviewedFreeTextBuiltins = map[string]string{
 	"quarantine_info":          "xattr: path via validateExistingOperand (dash-rejected, absolute) AND placed after a '--' terminator (xattr honours it); verb pinned to -p (print, never -w/-d/-c); see builtins_security_test.go",
 	"find_credential":          "security find-generic-password: service/account ride as values of -s/-a (getopt binds them to the flag, so option injection is impossible) and are additionally dash/control-rejected by validateKeychainQuery; verb pinned to never carry -w/-g (secret-print); see builtins_keychain_test.go and security_verbs_test.go",
 	"find_internet_credential": "security find-internet-password: server/account ride as values of -s/-a and are dash/control-rejected by validateKeychainQuery; verb pinned to never carry -w/-g; see builtins_keychain_test.go and security_verbs_test.go",
+	"volume_info":              "diskutil info: volume identifier confined by validateVolumeIdentifier to a disk id (diskN/diskNsM) or a single-component /Volumes path, dash-leading rejected (diskutil has no '--'); verb pinned to info; see builtins_storage_test.go and security_verbs_test.go",
+	"eject_volume":             "advisory only — never runs an eject; the diskutil info existence probe uses validateVolumeIdentifier (same allowlist as volume_info); the returned `diskutil eject` text is inert output, never argv; see builtins_storage_test.go",
 }
 
 // hasFreeTextParam reports whether a capability takes any parameter whose value
@@ -200,6 +202,15 @@ var reviewedFreeTextMutators = map[string]string{
 	"move_window":     "osascript argv data after '--'; app via validateAppNameValue; coords are ints; see mutate_windowing_test.go",
 	"resize_window":   "osascript argv data after '--'; app via validateAppNameValue; size is ints; see mutate_windowing_test.go",
 	"minimize_window": "osascript argv data after '--'; app via validateAppNameValue; see mutate_windowing_test.go",
+
+	// Storage (V7): diskutil/hdiutil have no '--', so identifiers are confined by
+	// validateVolumeIdentifier (disk id or single-component /Volumes path,
+	// dash-rejected) and the image path by validateExistingOperand (dash-rejected,
+	// resolved absolute). Each forward verb is pinned (diskutil mount, hdiutil
+	// attach/detach) and none carries an inverse. See mutate_storage_test.go.
+	"mount_volume":      "diskutil mount: volume via validateVolumeIdentifier (dash-rejected, disk id or /Volumes path); verb pinned to mount; no inverse; see mutate_storage_test.go and security_verbs_test.go",
+	"attach_disk_image": "hdiutil attach: path via validateExistingOperand (dash-rejected, absolute, must exist); verb pinned to attach; no inverse; see mutate_storage_test.go and security_verbs_test.go",
+	"detach_disk_image": "hdiutil detach: mountpoint via validateVolumeIdentifier (dash-rejected, disk id or /Volumes path); verb pinned to detach; no inverse; see mutate_storage_test.go and security_verbs_test.go",
 }
 
 // TestInjection_BuiltinFreeTextParamsAreReviewed is the coverage gate: it walks

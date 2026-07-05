@@ -178,6 +178,9 @@ var mutators = map[string]Mutator{
 	"quit_process":        stageQuitProcess,
 	"terminate_process":   stageTerminateProcess,
 	"flush_dns_cache":     stageFlushDNSCache,
+	"mount_volume":        stageMountVolume,
+	"attach_disk_image":   stageAttachDiskImage,
+	"detach_disk_image":   stageDetachDiskImage,
 }
 
 // lookupMutator returns the mutator for a builder name and whether one exists.

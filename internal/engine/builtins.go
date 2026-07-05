@@ -123,6 +123,12 @@ var builtins = map[string]BuiltinFunc{
 	"find_credential":          runFindCredential,
 	"find_internet_credential": runFindInternetCredential,
 	"list_keychains":           runListKeychains,
+
+	"time_machine_status": runTimeMachineStatus,
+	"list_backups":        runListBackups,
+	"list_volumes":        runListVolumes,
+	"volume_info":         runVolumeInfo,
+	"eject_volume":        runEjectVolume,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.

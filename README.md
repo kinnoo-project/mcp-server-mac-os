@@ -33,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **20 domains, 155 operations**, each invokable in plain
+the Mac you already use. **21 domains, 163 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -327,6 +327,37 @@ read-only checks that inspect trust state and never change a security setting.
 
 ---
 
+### 💽 Backups & disks
+
+Check on Time Machine, see what drives are attached, and open or mount volumes —
+with the risky part (ejecting a disk) deliberately handed back to you.
+
+- *"Is Time Machine backing up right now, and when did my Mac last back up?"*
+  *(live backup progress plus the newest completed snapshot — `tmutil status` +
+  `latestbackup`)*
+- *"What Time Machine restore points do I have?"* *(the backups on the backup disk
+  and the local hourly snapshots — `tmutil listbackups` / `listlocalsnapshots`)*
+- *"What disks and volumes are connected?"* *(every drive and mounted image with
+  its identifier and size — `diskutil list`)*
+- *"How much free space is on my external drive?"* *(filesystem, size, and mount
+  point of one volume — `diskutil info`)*
+- **"Mount the volume disk4s2."** *(brings an attached-but-unmounted volume online
+  — staged for confirmation)*
+- **"Open this .dmg."** *(attaches a disk image so it mounts under /Volumes —
+  staged; close it again with detach)*
+- *"Eject my external drive."* *(does **not** eject it — instead it confirms the
+  disk and hands you the exact `diskutil eject` command to run, with a warning, so
+  a disk is never pulled out from under an app that's using it)*
+
+> 🔒 `tmutil`, `diskutil`, and `hdiutil` can erase disks and delete backups, so
+> each is pinned to a closed set of read-only or benign verbs (list / info / mount
+> / status / attach / detach) and can never reach a destructive one — enforced by
+> the same build-time invariant test that guards the app-trust binaries. The
+> mount/attach operations are staged for your approval and are **not** auto-undone;
+> the result tells you the exact command to reverse them.
+
+---
+
 ## 🔒 Safe by design
 
 Giving an AI control of your Mac should make you cautious. This server is built so
@@ -423,9 +454,9 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 20 domain tools (`filesystem`, `preferences`, `application`,
+You'll now have the 21 domain tools (`filesystem`, `preferences`, `application`,
 `application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`,
-`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`, `security`) plus the shared
+`clipboard`, `printer`, `system`, `network`, `process`, `screenshot`, `security`, `storage`) plus the shared
 `execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
 

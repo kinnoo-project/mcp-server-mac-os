@@ -1,18 +1,22 @@
 // security_verbs_test.go is a production security gate: it pins the exact verb
 // each constrained system binary may be invoked with.
 //
-// Four binaries the registry deny list would otherwise block — codesign, spctl,
-// csrutil, xattr — are reachable through the security domain (V5). That is only
-// safe because each is used in a single, read-only mode and can never reach its
-// state-changing sub-commands (spctl --add, csrutil disable, xattr -w, a codesign
-// signing verb). This file makes that promise an ENFORCED invariant rather than a
-// code-review nicety: it asserts, against the actual argv-builder functions in
-// builtins_security.go, that every constrained binary's command starts with an
-// allowed verb and contains none of the forbidden ones.
+// Binaries the registry deny list would otherwise block — codesign, spctl,
+// csrutil, xattr, and the keychain side of security (V5/V6), plus tmutil,
+// diskutil, and hdiutil (V7) — are reachable through the security and storage
+// domains. That is only safe because each is used in a closed set of read-only or
+// benign modes and can never reach its state-changing sub-commands (spctl --add,
+// csrutil disable, xattr -w, a codesign signing verb, diskutil erase, tmutil
+// delete, hdiutil create). This file makes that promise an ENFORCED invariant
+// rather than a code-review nicety: it asserts, against the actual argv-builder
+// functions in builtins_security.go / builtins_storage.go / mutate_storage.go,
+// that every constrained binary's command starts with an allowed verb and
+// contains none of the forbidden ones.
 //
-// It is the reusable frame the storage domain (V7) extends when it un-denies
-// tmutil, diskutil, and hdiutil: add a row to constrainedBinaryVerbs and a probe
-// to the argv table below.
+// It is the reusable frame the storage domain (V7) extended when it un-denied
+// tmutil, diskutil, and hdiutil: each got a row in constrainedBinaryVerbs and a
+// probe in the argv table below. Extending it the same way is the required step
+// whenever a future unit takes another binary off the deny list.
 package engine
 
 import (
@@ -64,6 +68,42 @@ var constrainedBinaryVerbs = map[string]struct {
 		allowedFirstArgs: []string{"find-generic-password", "find-internet-password", "list-keychains"},
 		forbiddenTokens:  []string{"-w", "-g", "-d", "dump-keychain"},
 	},
+	// tmutil (storage, V7): Time Machine READS only. status/latestbackup/
+	// listbackups/listlocalsnapshots report state; the verbs that CHANGE it —
+	// delete a backup, delete local snapshots, restore, start/stop a run,
+	// re-point or remove the destination, adopt an inherited backup — must never
+	// appear. This pin keeps the Time Machine domain to "what backups exist and is
+	// one running", never "delete/restore a backup".
+	"tmutil": {
+		allowedFirstArgs: []string{"status", "latestbackup", "listbackups", "listlocalsnapshots"},
+		forbiddenTokens: []string{
+			"delete", "deletelocalsnapshots", "restore", "startbackup", "stopbackup",
+			"setdestination", "removedestination", "inheritbackup", "associatedisk", "disable", "enable",
+		},
+	},
+	// diskutil (storage, V7): list/info/mount only. list and info are read-only;
+	// mount brings an existing volume online (benign, and staged for confirmation).
+	// Every destructive or reformatting verb — erase*, partition*, reformat,
+	// repair*, resize, rename, apfs operations, and the unmount/eject verbs
+	// (eject_volume only ADVISES, it never runs one) — is forbidden anywhere in
+	// argv. ("mount" is allowed; the distinct tokens "unmount"/"unmountDisk"/
+	// "mountDisk" are forbidden — exact-token matching keeps them separate.)
+	"diskutil": {
+		allowedFirstArgs: []string{"list", "info", "mount"},
+		forbiddenTokens: []string{
+			"erase", "eraseDisk", "eraseVolume", "secureErase", "zeroDisk", "randomDisk",
+			"partitionDisk", "reformat", "repairDisk", "verifyDisk", "repairVolume",
+			"resizeVolume", "rename", "apfs", "eject", "unmount", "unmountDisk", "mountDisk",
+		},
+	},
+	// hdiutil (storage, V7): attach/detach/imageinfo only. Attaching and detaching
+	// a disk image are benign and reversible-by-hand; the verbs that CREATE or
+	// rewrite images — create, convert, resize, burn, makehybrid, compact,
+	// erasekeys, chpass — must never appear.
+	"hdiutil": {
+		allowedFirstArgs: []string{"attach", "detach", "imageinfo"},
+		forbiddenTokens:  []string{"create", "convert", "resize", "burn", "makehybrid", "compact", "erasekeys", "chpass"},
+	},
 }
 
 // TestSecurity_ConstrainedBinaryVerbs asserts every constrained binary's real
@@ -92,6 +132,19 @@ func TestSecurity_ConstrainedBinaryVerbs(t *testing.T) {
 		{"find_credential", "security", findGenericPasswordArgs("SampleService", "sample@example.com")},
 		{"find_internet_credential", "security", findInternetPasswordArgs("example.com", "sample")},
 		{"list_keychains", "security", listKeychainsArgs()},
+		// Storage domain (V7). tmutil reads take no input; diskutil/hdiutil
+		// argv builders take a benign sample identifier/path — the verb pin is
+		// about argv[0] and the forbidden tokens, so the operand value is
+		// irrelevant to what this proves.
+		{"time_machine_status", "tmutil", tmutilStatusArgs()},
+		{"time_machine_status/latest", "tmutil", tmutilLatestBackupArgs()},
+		{"list_backups", "tmutil", tmutilListBackupsArgs()},
+		{"list_backups/snapshots", "tmutil", tmutilListSnapshotsArgs()},
+		{"list_volumes", "diskutil", diskutilListArgs()},
+		{"volume_info", "diskutil", diskutilInfoArgs("disk2s1")},
+		{"mount_volume", "diskutil", diskutilMountArgs("disk2s1")},
+		{"attach_disk_image", "hdiutil", hdiutilAttachArgs("/tmp/image.dmg")},
+		{"detach_disk_image", "hdiutil", hdiutilDetachArgs("/Volumes/Installer")},
 	}
 
 	covered := map[string]bool{}
