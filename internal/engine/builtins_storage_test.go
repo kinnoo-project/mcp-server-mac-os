@@ -62,6 +62,8 @@ func TestValidateVolumeIdentifier(t *testing.T) {
 		"disk",                   // no number
 		"disk2s",                 // trailing slice with no number
 		"/Volumes/../etc/passwd", // traversal via slash
+		"/Volumes/..",            // single-component parent-dir traversal (normalizes to /)
+		"/Volumes/.",             // single-component current-dir (normalizes to /Volumes)
 		"/Volumes/a/b",           // extra path component
 		"/etc/passwd",            // outside /Volumes
 		"disk2; rm -rf /",        // metacharacters

@@ -60,7 +60,7 @@
         "name": "volume",
         "type": "string",
         "required": true,
-        "description": "The disk identifier of the volume to mount (e.g. disk2s1). Must not begin with '-'.",
+        "description": "The volume to mount: a disk identifier (e.g. disk2s1) or a mount path (e.g. /Volumes/Backup). A disk identifier is the usual choice for a volume that is attached but not yet mounted. Must not begin with '-'.",
         "arg": { "kind": "none" }
       }
     ]

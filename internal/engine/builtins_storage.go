@@ -79,6 +79,15 @@ func validateVolumeIdentifier(op, field, raw string) (string, error) {
 	if strings.HasPrefix(raw, "-") {
 		return "", fmt.Errorf("%s: %s %q begins with '-' and is not allowed (it would be read as a command-line option)", op, field, raw)
 	}
+	// Reject the special path components "." and ".." as the /Volumes name.
+	// volumeMountPattern's charset includes '.', so "/Volumes/.." (which
+	// normalizes to "/") and "/Volumes/." (to "/Volumes") would otherwise slip
+	// through and defeat the single-component traversal defense. A literal name
+	// that merely CONTAINS dots (e.g. "/Volumes/My.Disk") is fine — only the two
+	// pure dot-components traverse.
+	if raw == "/Volumes/." || raw == "/Volumes/.." {
+		return "", fmt.Errorf("%s: %s %q is not a specific volume; give a disk identifier like disk2 or a named mount path like /Volumes/Backup", op, field, raw)
+	}
 	if diskIdentifierPattern.MatchString(raw) || volumeMountPattern.MatchString(raw) {
 		return raw, nil
 	}
