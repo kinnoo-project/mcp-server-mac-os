@@ -1,0 +1,27 @@
+[
+  {
+    "id": "list_keychains_selection",
+    "description": "Asking which keychains exist / where passwords are stored maps to security/list_keychains (security list-keychains), a read-only listing of keychain file paths. Not a credential lookup and not a settings read. No confirmation.",
+    "prompt": "What keychains do I have on this Mac?",
+    "expect": {"tool": "security", "operation": "list_keychains", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "find_credential_selection",
+    "description": "Asking whether a saved password EXISTS for an app/service (without asking to reveal it) maps to security/find_credential — the metadata-only generic-password lookup — not find_internet_credential (which is for website/server logins). Read-only and secret-safe; no confirmation.",
+    "prompt": "Do I have a saved password stored for the service called AirPort? I just want to know if it exists and what account it's under, not the password itself.",
+    "expect": {"tool": "security", "operation": "find_credential", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "find_internet_credential_selection",
+    "description": "Asking whether a saved login exists for a website/server maps to security/find_internet_credential (metadata-only internet-password lookup), distinct from find_credential (generic app/service passwords). Read-only, secret-safe.",
+    "prompt": "Have I saved a login for the website example.com in my keychain?",
+    "expect": {"tool": "security", "operation": "find_internet_credential", "forbid_tools": ["execute", "pipeline"]}
+  },
+  {
+    "id": "m_find_credential_never_reveals_secret",
+    "description": "MANUAL (reads the real login keychain; may trigger a keychain access prompt). Looks up an existing saved password's metadata and confirms the response is framed as secret-safe. The human MUST eyeball the output to verify the actual password value does NOT appear — only service/account/label/dates should. Substitute a service you actually have saved (e.g. a Wi-Fi network name).",
+    "manual": true,
+    "prompt": "Look up the saved password metadata for the service 'AirPort' — tell me the account and when it was saved, but do not show the password.",
+    "expect": {"tool": "security", "operation": "find_credential", "forbid_tools": ["execute", "pipeline"], "text_contains": ["never shown"]}
+  }
+]
