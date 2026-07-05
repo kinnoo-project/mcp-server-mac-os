@@ -62,14 +62,27 @@ func TestShortcutsRun_TerminatorPlacesNameLast(t *testing.T) {
 // name guard refuses empty, dash-leading, and control-laden values before they
 // ever reach argv or the existence probe.
 func TestValidateShortcutName_RejectsHostile(t *testing.T) {
-	for _, bad := range []string{"", "   ", "-e", "-rf", "--flood", "-", "bad\nname", "bad\x00name"} {
+	// Covers empty/whitespace-only, dash-leading, and the FULL ASCII control range
+	// (NUL/LF/CR plus tab, ESC, and DEL) — the last three would have slipped
+	// through the original NUL/LF/CR-only guard.
+	for _, bad := range []string{
+		"", "   ", "-e", "-rf", "--flood", "-",
+		"bad\nname", "bad\x00name", "bad\tname", "bad\x1bname", "bad\x7fname",
+	} {
 		if _, err := validateShortcutName("run_shortcut", bad); err == nil {
 			t.Errorf("validateShortcutName(%q): expected rejection, got nil", bad)
 		}
 	}
-	// A normal name (spaces are fine — users name shortcuts freely) is accepted.
+	// A normal name (internal spaces are fine — users name shortcuts freely) is
+	// accepted unchanged.
 	if got, err := validateShortcutName("run_shortcut", "Morning Routine"); err != nil || got != "Morning Routine" {
 		t.Errorf("validateShortcutName(\"Morning Routine\") = %q, %v; want it accepted unchanged", got, err)
+	}
+	// Surrounding whitespace is TRIMMED (not rejected) so the returned value
+	// matches how listShortcutNames trims each listed name — otherwise a padded
+	// name would clear validation but fail the existence check confusingly.
+	if got, err := validateShortcutName("run_shortcut", "  Morning Routine  "); err != nil || got != "Morning Routine" {
+		t.Errorf("validateShortcutName(padded) = %q, %v; want trimmed \"Morning Routine\"", got, err)
 	}
 }
 

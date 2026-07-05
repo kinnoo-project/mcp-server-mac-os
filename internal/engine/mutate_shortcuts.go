@@ -50,24 +50,32 @@ func shortcutsRunArgs(name, inputPath string) []string {
 }
 
 // validateShortcutName guards the model-controlled shortcut name. The forward
-// argv already terminates options with "--", so this dash rejection is a
+// argv already terminates options with "--", so the dash rejection is a
 // conservative second layer (consistent with the other mutators) that also turns a
-// confusing "-foo" into a clear error. It rejects empty and control-laden values;
-// a shortcut name is otherwise free-form (users name shortcuts anything), and the
-// "--" terminator plus the stage-time existence check are what make it safe.
+// confusing "-foo" into a clear error. It TRIMS surrounding whitespace and returns
+// the trimmed value — this matters because the stage-time existence check compares
+// against listShortcutNames, which also trims each listed name; without trimming
+// here, a name with stray leading/trailing whitespace would clear validation but
+// then fail the existence check with a confusing "no such shortcut". It rejects
+// empty and any ASCII control character (r < 0x20 or DEL), matching
+// validateKeychainQuery / rejectControlChars — so tab/ESC and the like can never
+// reach the argv, the existence probe, or the human-facing preview. A shortcut
+// name is otherwise free-form (users name shortcuts anything); the "--" terminator
+// plus the existence check are what make it safe.
 func validateShortcutName(op, raw string) (string, error) {
-	if strings.TrimSpace(raw) == "" {
+	name := strings.TrimSpace(raw)
+	if name == "" {
 		return "", fmt.Errorf("%s: 'name' is required (the exact shortcut name from list_shortcuts)", op)
 	}
-	if strings.HasPrefix(raw, "-") {
-		return "", fmt.Errorf("%s: name %q begins with '-' and is not allowed (it would look like a command-line option)", op, raw)
+	if strings.HasPrefix(name, "-") {
+		return "", fmt.Errorf("%s: name %q begins with '-' and is not allowed (it would look like a command-line option)", op, name)
 	}
-	for _, r := range raw {
-		if r == '\x00' || r == '\n' || r == '\r' {
-			return "", fmt.Errorf("%s: name %q contains a control character and is not allowed", op, raw)
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f {
+			return "", fmt.Errorf("%s: name %q contains a control character and is not allowed", op, name)
 		}
 	}
-	return raw, nil
+	return name, nil
 }
 
 // stageRunShortcut stages running a shortcut by name. It validates the name,

@@ -36,9 +36,14 @@ terminator (verified on-device: `shortcuts run --help` shows the positional name
    always rides after `--`, so even a dash-leading name (`-e`, `--output-path`)
    lands as the positional shortcut name, never as one of `shortcuts`' own flags.
    Pinned by `TestShortcutsRun_TerminatorPlacesNameLast`.
-2. **Up-front `validateShortcutName`.** Belt-and-braces: empty, dash-leading, and
-   control-laden names are rejected before argv is built (consistent with the
-   other mutators). Spaces are allowed — users name shortcuts freely.
+2. **Up-front `validateShortcutName`.** Belt-and-braces: the name is trimmed once
+   and then rejected if empty, dash-leading, or containing any ASCII control
+   character (`r < 0x20` or DEL — tab/ESC included), matching
+   `validateKeychainQuery`/`rejectControlChars`. The trim is deliberate: the
+   existence check compares against `listShortcutNames`, which also trims each
+   listed name, so returning the trimmed value keeps the two consistent (a padded
+   name would otherwise clear validation but fail the existence check
+   confusingly). Internal spaces are allowed — users name shortcuts freely.
 3. **Stage-time existence check.** Staging runs `shortcuts list` and refuses to
    stage a run whose name is not in the returned set, so a human is never asked to
    confirm a no-op or a near-miss name, and the preview can only ever name a real
