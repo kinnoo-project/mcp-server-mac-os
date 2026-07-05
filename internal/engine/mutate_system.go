@@ -62,6 +62,11 @@ var settingsPaneURLs = map[string]string{
 	"focus":    "x-apple.systempreferences:com.apple.Focus-Settings.extension",
 	"keyboard": "x-apple.systempreferences:com.apple.Keyboard-Settings.extension",
 	"apple_id": "x-apple.systempreferences:com.apple.systempreferences.AppleIDSettings",
+	// The Sharing pane is the toggle hand-off for the services sharing_status
+	// reports on (Remote Login/SSH, Screen Sharing, File Sharing): each requires
+	// administrator rights to enable, which this server's non-interactive
+	// transport cannot obtain, so the user finishes the toggle here with a click.
+	"sharing": "x-apple.systempreferences:com.apple.Sharing-Settings.extension",
 }
 
 // stageOpenSettings stages (for immediate auto-commit) opening a System Settings

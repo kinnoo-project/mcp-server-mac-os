@@ -131,6 +131,9 @@ var builtins = map[string]BuiltinFunc{
 	"eject_volume":        runEjectVolume,
 
 	"list_shortcuts": runListShortcuts,
+
+	"key_remap_status": runKeyRemapStatus,
+	"sharing_status":   runSharingStatus,
 }
 
 // lookupBuiltin returns the builtin for a builder name and whether one exists.

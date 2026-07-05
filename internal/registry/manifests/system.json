@@ -101,7 +101,7 @@
   },
   {
     "name": "open_settings",
-    "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly — because they need admin rights (connecting/re-enabling a printer, joining a Wi-Fi network, battery/Low-Power settings) or have no command line at all (pairing a Bluetooth device, signing into iCloud, toggling a Focus, adding a keyboard language, starting screen mirroring). ALWAYS tell the user the exact click-path to finish in the opened pane — e.g. bluetooth: 'put the device in pairing mode, then click Connect next to it under Nearby Devices'; apple_id: 'sign in or manage iCloud here'; focus: 'turn a Focus like Do Not Disturb on or off here'; keyboard: 'Text Input > Input Sources > Edit, then + to add a language'; displays: 'the AirPlay/mirroring control is the + dropdown here'. Runs immediately; cannot be undone (it just opens a window).",
+    "summary": "Open a specific pane of System Settings. Use to hand off actions this server can't do directly — because they need admin rights (connecting/re-enabling a printer, joining a Wi-Fi network, battery/Low-Power settings, turning a sharing service on or off) or have no command line at all (pairing a Bluetooth device, signing into iCloud, toggling a Focus, adding a keyboard language, starting screen mirroring). ALWAYS tell the user the exact click-path to finish in the opened pane — e.g. bluetooth: 'put the device in pairing mode, then click Connect next to it under Nearby Devices'; apple_id: 'sign in or manage iCloud here'; focus: 'turn a Focus like Do Not Disturb on or off here'; keyboard: 'Text Input > Input Sources > Edit, then + to add a language'; displays: 'the AirPlay/mirroring control is the + dropdown here'; sharing: 'toggle Remote Login, Screen Sharing, or File Sharing here'. Runs immediately; cannot be undone (it just opens a window).",
     "category": "system",
     "binary": "open",
     "reversibility": "irreversible",
@@ -113,8 +113,8 @@
         "name": "pane",
         "type": "enum",
         "required": true,
-        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network", "focus", "keyboard", "apple_id"],
-        "description": "Which System Settings pane to open. 'focus' = Focus/Do Not Disturb; 'keyboard' = keyboard and input sources (add/change a typing language); 'apple_id' = Apple Account / iCloud; 'displays' = display arrangement and AirPlay screen mirroring.",
+        "enum": ["printers", "wifi", "bluetooth", "battery", "accessibility", "displays", "sound", "network", "focus", "keyboard", "apple_id", "sharing"],
+        "description": "Which System Settings pane to open. 'focus' = Focus/Do Not Disturb; 'keyboard' = keyboard and input sources (add/change a typing language); 'apple_id' = Apple Account / iCloud; 'displays' = display arrangement and AirPlay screen mirroring; 'sharing' = Sharing (Remote Login/SSH, Screen Sharing, File Sharing toggles).",
         "arg": { "kind": "none" }
       }
     ]
@@ -276,6 +276,45 @@
     "reversibility": "read_only",
     "risk": "none",
     "builder": "thermal_state",
+    "params": []
+  },
+  {
+    "name": "remap_key",
+    "summary": "Remap a keyboard modifier key to a common alternative — e.g. make Caps Lock act as Escape or Control, swap the Command and Option keys, or disable Caps Lock entirely. Only a fixed menu of vetted remaps is offered (you cannot supply an arbitrary mapping). Staged for confirmation because it changes how the keyboard behaves. Reversible: undo restores whatever mapping was in effect before. NOTE: hidutil remaps do NOT survive a reboot (macOS clears UserKeyMapping on restart) — to make one permanent the user must set it up as a login item themselves. Use key_remap_status to see the current mapping.",
+    "category": "system",
+    "binary": "hidutil",
+    "reversibility": "reversible",
+    "risk": "medium",
+    "builder": "remap_key",
+    "params": [
+      {
+        "name": "remap",
+        "type": "enum",
+        "required": true,
+        "enum": ["caps_lock_to_escape", "caps_lock_to_control", "swap_command_option", "swap_control_command", "disable_caps_lock"],
+        "description": "Which vetted remap to apply. 'caps_lock_to_escape' = Caps Lock types Escape; 'caps_lock_to_control' = Caps Lock acts as Control; 'swap_command_option' = swap the Command and Option keys (both sides); 'swap_control_command' = swap the Control and Command keys (both sides); 'disable_caps_lock' = Caps Lock does nothing.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "key_remap_status",
+    "summary": "Report the keyboard key remapping currently in effect (macOS's hidutil UserKeyMapping) — answers 'is Caps Lock remapped right now?'. Read-only. Names the remap when it matches a known one (e.g. Caps Lock → Escape), otherwise lists the raw source→destination key pairs. Reports 'no custom remapping' when the keyboard is at its defaults. Remaps set via remap_key are cleared by a reboot.",
+    "category": "system",
+    "binary": "hidutil",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "key_remap_status",
+    "params": []
+  },
+  {
+    "name": "sharing_status",
+    "summary": "Report whether this Mac's main sharing services are turned on: Remote Login (SSH), Screen Sharing, and File Sharing. Answers 'is screen sharing on?' / 'can someone SSH into my Mac?'. Read-only — it detects each service by checking whether the Mac is listening on that service's port (22, 5900, 445) on its own loopback interface. To turn any of them on or off, use open_settings (pane 'sharing').",
+    "category": "system",
+    "binary": "",
+    "reversibility": "read_only",
+    "risk": "none",
+    "builder": "sharing_status",
     "params": []
   }
 ]
