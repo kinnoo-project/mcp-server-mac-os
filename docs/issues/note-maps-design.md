@@ -101,6 +101,22 @@ case that re-checks this per release.
   become the `sll`/`ll` coordinates the scheme expects, so an area is folded into
   the search text instead (`"Philz Coffee near Pleasanton, CA"`).
 
+## Live verification status
+
+The installed MCP server binary predates this capability, so an in-session
+`/runevals` pass **cannot** route `application-maps` yet — and the always-on case
+`web_map_stays_in_browser` specifically tests discrimination *against* a tool
+that is not in the running server's menu, so a green there would not mean what it
+claims. Wiring was verified instead by the unit tests, by the engine's
+`ValidateBuilders` check (a manifest builder with no Go implementation fails the
+boot), and by `TestIntegration_ToolSurface`, which connects a real client to a
+freshly built server and confirms `application-maps` appears among 26 tools with
+all three operations in its menu.
+
+The live path — a real Maps window showing a real route — is on the manual smoke
+checklist and has **not** been run yet. `m_maps_cycling_mode` is the one to run
+first, since it is the only case that can invalidate a shipped manifest value.
+
 ## Composition that already works
 
 `application-contacts/get_contact` returns a contact's postal address, which
