@@ -621,14 +621,15 @@ is privilege: capabilities that **strictly require admin or root** are out of sc
 (see [Contributing](#-contributing)). The server widens toward everything a normal
 user can do, and stops there.
 
-The read-only foundation, the 15-domain tool surface, the
+The read-only foundation, the **23-domain / 174-operation** tool surface, the
 stage → execute → undo mutation gate, and read-only composition (`pipeline`) are
 all in place, with mutation proved across every undo shape the design anticipated
 (fixed inverse, prior-state-dependent inverse, and genuinely irreversible).
 What's next:
 
 - **Eval breadth** — widen model coverage and add cases as new domains ship (the
-  harness runs 18 cases against `claude-sonnet-4-6` today).
+  corpus is 167 cases today — 114 automated, 53 manual — run against
+  `claude-sonnet-4-6`).
 - **More capabilities** — more curated `preferences` settings, more `application-*`
   depth, and mutating capabilities in new domains (e.g. networking).
 - **More file operations** — `move`, `copy`, and `remove` now ship (deletes recycle
