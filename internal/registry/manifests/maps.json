@@ -1,0 +1,82 @@
+[
+  {
+    "name": "directions",
+    "summary": "Open Apple Maps with a route to a destination, by car, on foot, by public transit, or by bike. GUI HANDOFF: the route, its distance, and the ETA appear in the Maps window — they are NOT returned here, so report what was opened rather than stating a distance or travel time. This is also the answer to 'how far is it?' and 'how long does it take?' questions. Omit 'origin' to route from where this Mac is. Runs immediately; it only opens a window.",
+    "category": "application-maps",
+    "binary": "open",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "directions",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "destination",
+        "type": "string",
+        "required": true,
+        "description": "Where to go — a place name, business, or street address, e.g. 'Apple Park', 'SFO', '1 Infinite Loop, Cupertino, CA'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "origin",
+        "type": "string",
+        "required": false,
+        "description": "Where to start from. Omit for the Mac's current location (which is what 'from my location' means).",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "mode",
+        "type": "enum",
+        "required": false,
+        "default": "driving",
+        "enum": ["driving", "walking", "transit", "cycling"],
+        "description": "How to travel. Default driving. Use 'cycling' for bike questions and 'transit' for bus/train/subway.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "search_locations",
+    "summary": "Open Apple Maps on a search for places or businesses — 'Mexican restaurants', 'Philz Coffee', 'Tesla Supercharger'. GUI HANDOFF: the matching places appear in the Maps window and are NOT returned here, so no list, address, rating, or distance can be quoted back. Maps orders results by distance, which is how 'what's the closest X?' is answered; a specific radius such as 'within 5 miles' cannot be enforced. Omit 'near' to search around this Mac's current location. Runs immediately; it only opens a window.",
+    "category": "application-maps",
+    "binary": "open",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "search_locations",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "description": "What to look for — a category or a business name, e.g. 'coffee shops', 'Philz Coffee', 'EV charging'.",
+        "arg": { "kind": "none" }
+      },
+      {
+        "name": "near",
+        "type": "string",
+        "required": false,
+        "description": "Area to search in, e.g. 'Pleasanton, CA' or 'downtown San Francisco'. Omit for near the current location.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  },
+  {
+    "name": "show_location",
+    "summary": "Open Apple Maps pinned to one specific address or landmark, for 'show me where X is'. GUI HANDOFF: the map appears in the Maps window and nothing is returned here. Use search_locations to find businesses by category, and directions to get a route. Pairs well with the contacts capability: look up a contact's address, then show it. Runs immediately; it only opens a window.",
+    "category": "application-maps",
+    "binary": "open",
+    "reversibility": "irreversible",
+    "risk": "low",
+    "builder": "show_location",
+    "auto_commit": true,
+    "params": [
+      {
+        "name": "address",
+        "type": "string",
+        "required": true,
+        "description": "The address or unambiguous place name to show, e.g. '1 Infinite Loop, Cupertino, CA' or 'Golden Gate Bridge'.",
+        "arg": { "kind": "none" }
+      }
+    ]
+  }
+]
