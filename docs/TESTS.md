@@ -247,7 +247,10 @@ the current location), origin and per-mode variants, `foldNear`'s merging of an
 area into the single `q` value (there is no geocoder here, so an area can never
 become coordinates), `show_location`'s address-only key set, and
 `validateMapsText`'s rejections (empty, control characters, NUL, DEL, over the
-256-character cap) alongside its deliberate *acceptance* of dash-leading text —
+256-character cap — with `TestValidateMapsText_CapsCharactersNotBytes` pinning
+that the cap counts characters rather than bytes, since a byte cap would reject
+an ordinary non-ASCII address such as `東京駅` at roughly a third of the
+advertised limit) alongside its deliberate *acceptance* of dash-leading text —
 unlike an app name or a path, the value is percent-encoded inside a token that
 always begins `maps://` and never reaches argv on its own.
 `TestStageMaps_PreviewsStateTheHandoff` is the honesty guard: every preview must

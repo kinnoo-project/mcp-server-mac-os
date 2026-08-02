@@ -250,6 +250,34 @@ func TestValidateMapsText_Rejections(t *testing.T) {
 	}
 }
 
+// TestValidateMapsText_CapsCharactersNotBytes pins the cap to characters. Place
+// names are routinely non-ASCII ("東京駅", "Cafè Müller"), and counting bytes
+// would reject an ordinary address at roughly a third of the advertised limit —
+// a three-byte-per-rune name would fail at ~85 characters against a stated 256.
+func TestValidateMapsText_CapsCharactersNotBytes(t *testing.T) {
+	// Exactly at the cap in characters, but well over it in bytes.
+	atCap := strings.Repeat("東", maxMapsTextLen)
+	if len(atCap) <= maxMapsTextLen {
+		t.Fatalf("test premise broken: %d bytes should exceed the %d cap", len(atCap), maxMapsTextLen)
+	}
+	if got, err := validateMapsText("show_location", "address", atCap); err != nil {
+		t.Errorf("a %d-character non-ASCII address must be accepted: %v", maxMapsTextLen, err)
+	} else if got != atCap {
+		t.Errorf("value should round-trip unchanged")
+	}
+
+	// One character over the cap still fails, and reports the character count
+	// (not the byte count) so the message matches the documented limit.
+	over := strings.Repeat("東", maxMapsTextLen+1)
+	_, err := validateMapsText("show_location", "address", over)
+	if err == nil {
+		t.Fatal("expected a rejection one character over the cap")
+	}
+	if !strings.Contains(err.Error(), "257 characters") {
+		t.Errorf("error should report the character count, got %v", err)
+	}
+}
+
 func TestStageMaps_MissingRequiredParamFails(t *testing.T) {
 	if _, err := stageDirections(nil, mapsCap, map[string]any{}); err == nil {
 		t.Error("directions without a destination should fail")

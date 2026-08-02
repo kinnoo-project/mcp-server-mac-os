@@ -52,6 +52,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 
 	"mcp-server-mac-os/internal/registry"
 )
@@ -60,10 +61,11 @@ import (
 // precisely so no code path can derive it from model input.
 const mapsURLScheme = "maps://"
 
-// maxMapsTextLen caps a single free-text Maps field. Real destinations, search
-// phrases, and addresses are far shorter; the cap keeps an absurd payload out of
-// the URL (and out of the preview shown to the user) without constraining any
-// legitimate input.
+// maxMapsTextLen caps a single free-text Maps field, measured in characters
+// (runes) rather than bytes so a non-ASCII address is not cut short. Real
+// destinations, search phrases, and addresses are far shorter; the cap keeps an
+// absurd payload out of the URL (and out of the preview shown to the user)
+// without constraining any legitimate input.
 const maxMapsTextLen = 256
 
 // mapsDirFlags maps the registry's travel-mode enum onto the `dirflg` values the
@@ -114,8 +116,11 @@ func validateMapsText(op, field, raw string) (string, error) {
 			return "", fmt.Errorf("%s: '%s' must not contain control characters", op, field)
 		}
 	}
-	if len(v) > maxMapsTextLen {
-		return "", fmt.Errorf("%s: '%s' is too long (%d characters, maximum %d)", op, field, len(v), maxMapsTextLen)
+	// Counted in characters, not bytes: real place names carry accents and
+	// non-Latin scripts ("Cafè Müller", "東京駅"), and a byte cap would reject a
+	// perfectly ordinary address at roughly a third of the advertised limit.
+	if n := utf8.RuneCountInString(v); n > maxMapsTextLen {
+		return "", fmt.Errorf("%s: '%s' is too long (%d characters, maximum %d)", op, field, n, maxMapsTextLen)
 	}
 	return v, nil
 }
