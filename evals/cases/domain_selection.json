@@ -58,5 +58,11 @@
     "description": "Asking whether an app is on the Mac App Store (and its price) should select application/search_app_store, not search_applications (that only checks what is ALREADY installed locally) or open_website. Selection-only: the operation makes a live outbound request to Apple's search API, so real result assertions live in the manual smoke list; in CI only the selection is checked (it holds even offline, since the expectation asserts tool+operation, not success).",
     "prompt": "Is Slack on the Mac App Store, and what does it cost?",
     "expect": { "tool": "application", "operation": "search_app_store" }
+  },
+  {
+    "id": "web_map_stays_in_browser",
+    "description": "Boundary guard for the auto-commit Maps tool. An explicit request to open a map WEBSITE in the browser must stage application/open_website behind the execute gate, NOT fire application-maps, which runs immediately and would pop a native Maps window the user never asked for. This is the CI-safe half of the Maps coverage: every positive Maps case commits a visible side effect the moment it is invoked, so those live in manual_smoke.json.",
+    "prompt": "Open google.com/maps in my browser.",
+    "expect": { "tool": "application", "operation": "open_website", "forbid_tools": ["execute", "application-maps"] }
   }
 ]

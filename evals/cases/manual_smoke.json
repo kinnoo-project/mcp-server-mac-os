@@ -365,5 +365,47 @@
         "expect": {"tool": "system", "operation": "allow_sleep", "tool_succeeds": true}
       }
     ]
+  },
+  {
+    "id": "m_maps_distance_question_opens_route",
+    "description": "MANUAL (opens a real Maps window; may prompt for Location Services). 'How far is the drive' is a GUI handoff: application-maps/directions is auto_commit, so it fires immediately and shows the route. Confirm Maps opens a Cupertino -> San Francisco DRIVING route, and that the assistant tells you to read the distance and ETA in the window rather than stating a number of its own -- it never receives one. Nothing to undo; close the window.",
+    "manual": true,
+    "prompt": "How far is the drive from Cupertino to downtown San Francisco?",
+    "expect": {"tool": "application-maps", "operation": "directions", "tool_succeeds": true}
+  },
+  {
+    "id": "m_maps_search_nearby",
+    "description": "MANUAL (opens a real Maps window; needs Location Services for 'near me' to resolve). 'Closest X' maps to application-maps/search_locations with no 'near', so Maps searches around this Mac and orders results by distance. Confirm coffee shops appear near your actual location, and that the assistant does NOT name a specific nearest shop or quote a distance -- no results come back to it.",
+    "manual": true,
+    "prompt": "What's the closest coffee shop to me?",
+    "expect": {"tool": "application-maps", "operation": "search_locations", "tool_succeeds": true}
+  },
+  {
+    "id": "m_maps_search_in_named_area",
+    "description": "MANUAL (opens a real Maps window). Named-area search: the area must be folded into the search text, since there is no geocoder here to turn it into coordinates. Confirm Maps searches 'Philz Coffee near Pleasanton, CA' and shows Pleasanton-area results rather than results near this Mac.",
+    "manual": true,
+    "prompt": "Are there any Philz Coffee in Pleasanton, CA?",
+    "expect": {"tool": "application-maps", "operation": "search_locations", "tool_succeeds": true}
+  },
+  {
+    "id": "m_maps_cycling_mode",
+    "description": "MANUAL (opens a real Maps window) and the one case to re-check on each target macOS: cycling is the single dirflg value Apple's published URL-scheme reference does not document. Confirm Maps actually opens a CYCLING route, not a driving one. If it silently shows driving, drop 'cycling' from the mode enum in maps.json -- never substitute another mode Go-side (see docs/issues/note-maps-design.md).",
+    "manual": true,
+    "prompt": "How far is the bike ride from my location to Apple Park?",
+    "expect": {"tool": "application-maps", "operation": "directions", "tool_succeeds": true}
+  },
+  {
+    "id": "m_maps_transit_directions",
+    "description": "MANUAL (opens a real Maps window). Transit mode must reach Maps as dirflg=r; confirm the window opens on public-transit directions rather than driving.",
+    "manual": true,
+    "prompt": "How do I get to SFO by public transit?",
+    "expect": {"tool": "application-maps", "operation": "directions", "tool_succeeds": true}
+  },
+  {
+    "id": "m_maps_contact_address_composition",
+    "description": "MANUAL (reads real Contacts, so it needs a contact WITH a street address, and opens a real Maps window). Cross-domain composition: the assistant should first read the address via application-contacts/get_contact, then pass it to application-maps/directions as the destination. Substitute a contact you actually have locally for the placeholder name. Confirm the route destination matches that contact's address.",
+    "manual": true,
+    "prompt": "Look up Jane Doe's address in my contacts and give me driving directions there.",
+    "expect": {"tool": "application-maps", "operation": "directions", "tool_succeeds": true}
   }
 ]
