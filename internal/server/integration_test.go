@@ -50,13 +50,13 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, tool := range lt.Tools {
 		descs[tool.Name] = tool.Description
 	}
-	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "clipboard", "security", "storage", "shortcuts", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "application-photos", "application-safari", "application-contacts", "application-music", "execute", "undo", "pipeline"} {
+	for _, want := range []string{"filesystem", "preferences", "application", "printer", "system", "network", "process", "screenshot", "clipboard", "security", "storage", "shortcuts", "application-mail", "application-calendar", "application-reminders", "application-phone", "application-messages", "application-notes", "application-photos", "application-safari", "application-contacts", "application-music", "application-maps", "execute", "undo", "pipeline"} {
 		if _, ok := descs[want]; !ok {
 			t.Errorf("expected tool %q in surface, got %v", want, toolNames(lt))
 		}
 	}
-	if len(lt.Tools) != 25 {
-		t.Errorf("expected exactly 25 tools (filesystem, preferences, application, printer, system, network, process, screenshot, clipboard, security, storage, shortcuts, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, application-safari, application-contacts, application-music, execute, undo, pipeline), got %v", toolNames(lt))
+	if len(lt.Tools) != 26 {
+		t.Errorf("expected exactly 26 tools (filesystem, preferences, application, printer, system, network, process, screenshot, clipboard, security, storage, shortcuts, application-mail, application-calendar, application-reminders, application-phone, application-messages, application-notes, application-photos, application-safari, application-contacts, application-music, application-maps, execute, undo, pipeline), got %v", toolNames(lt))
 	}
 
 	for _, op := range []string{"ls", "pwd", "file", "stat", "wc", "du", "find", "grep", "largest_files", "mkdir", "sort", "head", "compress", "extract"} {
@@ -110,6 +110,11 @@ func TestIntegration_ToolSurface(t *testing.T) {
 	for _, op := range []string{"now_playing", "play_pause", "next_track", "previous_track"} {
 		if !strings.Contains(descs["application-music"], op) {
 			t.Errorf("application-music tool description missing operation %q", op)
+		}
+	}
+	for _, op := range []string{"directions", "search_locations", "show_location"} {
+		if !strings.Contains(descs["application-maps"], op) {
+			t.Errorf("application-maps tool description missing operation %q", op)
 		}
 	}
 	for _, op := range []string{"list_applications", "search_applications", "search_app_store", "open_app_store_page", "list_running_applications", "open_application", "focus_application", "quit_application"} {

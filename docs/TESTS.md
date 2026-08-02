@@ -232,6 +232,49 @@ first), and `m_music_play_pause`/`m_music_next_track`/`m_music_previous_track`
 (each actually changes the transport, and with Music closed each fails cleanly
 without launching it). See `docs/issues/note-music-design.md`.
 
+### Safety note: Maps tests never open a Maps window
+
+The `application-maps` capabilities (`directions`, `search_locations`,
+`show_location`) all reduce to "run `open` with a `maps://` URL", and all three
+are **auto_commit** — invoking one fires immediately and puts a window on the
+user's screen — so **no test executes the forward command**; tests stage plans
+and inspect the URL that *would* be opened. `mutate_maps_test.go` covers the
+pure builders: `mapsDirFlag`'s four travel modes plus its refusal to fall back
+to driving for an unknown mode (silently answering a bike question with a car
+route would be a wrong answer, not a graceful degradation), the default shape
+(destination only → `daddr` + `dirflg=d` and **no** `saddr`, so Maps routes from
+the current location), origin and per-mode variants, `foldNear`'s merging of an
+area into the single `q` value (there is no geocoder here, so an area can never
+become coordinates), `show_location`'s address-only key set, and
+`validateMapsText`'s rejections (empty, control characters, NUL, DEL, over the
+256-character cap — with `TestValidateMapsText_CapsCharactersNotBytes` pinning
+that the cap counts characters rather than bytes, since a byte cap would reject
+an ordinary non-ASCII address such as `東京駅` at roughly a third of the
+advertised limit) alongside its deliberate *acceptance* of dash-leading text —
+unlike an app name or a path, the value is percent-encoded inside a token that
+always begins `maps://` and never reaches argv on its own.
+`TestStageMaps_PreviewsStateTheHandoff` is the honesty guard: every preview must
+say the answer appears in the Maps window, because the operation genuinely
+cannot return a distance, an ETA, or a result list, and the model must not imply
+otherwise. `TestStageDirections_CyclingCarriesCaveat` pins the extra warning on
+the one `dirflg` value Apple's published URL-scheme reference does not document.
+The injection posture is that **the model never supplies a URL** — only a
+destination, search phrase, or address — with the scheme and every query key as
+Go constants and the free text percent-encoded by `url.Values`; the three
+`reviewedFreeTextMutators` entries point at
+`TestMaps_HostileValuesLandAsData`, which drives the shared hostile battery
+through all four free-text fields and asserts each value either fails validation
+(the control-character payloads) or round-trips as a decoded query value with
+argv still exactly `[--, <maps:// URL>]`. Explicit non-goal: reading anything
+back out of Maps (see `docs/ideas/maps-data-tier-deferred.md`). The always-on
+eval case is `web_map_stays_in_browser`, the boundary that guards against firing
+the immediate Maps tool when the user asked for a map *website*; every positive
+case commits a visible side effect, so they are manual smoke-tests:
+`m_maps_distance_question_opens_route`, `m_maps_search_nearby`,
+`m_maps_search_in_named_area`, `m_maps_cycling_mode` (re-check per macOS
+release), `m_maps_transit_directions`, and
+`m_maps_contact_address_composition`. See `docs/issues/note-maps-design.md`.
+
 ### Safety note: App Store search hits the network only in hermetic tests
 
 The `application` domain's `search_app_store` is the project's first

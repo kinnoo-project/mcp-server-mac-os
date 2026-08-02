@@ -230,6 +230,19 @@ var reviewedFreeTextMutators = map[string]string{
 	// for key, an int range for port), with buildSSHCommand re-checking every
 	// assembled token as a final gate. No inverse. See mutate_ssh_test.go.
 	"ssh_connect": "osascript→Terminal do script: host via validateNetworkHost, user via validateSSHUser, key via validateSSHKeyPath (existing file under ~/.ssh, shell-safe path), port a bounded int; every field allowlisted (no space/metachar) then re-checked by buildSSHCommand; command rides osascript argv after '--'; no inverse; see mutate_ssh_test.go",
+
+	// Maps: the model never supplies a URL, only a destination/search phrase/
+	// address. The scheme and every query key are Go constants, the travel mode
+	// goes through a fixed dirflg table, and the free text is percent-encoded by
+	// url.Values before it joins the URL — so a hostile value becomes an inert
+	// encoded query VALUE that cannot split into a second argument, become a flag,
+	// or change the scheme `open` dispatches. (This is the structural difference
+	// from open_website, whose whole URL is model-controlled and which therefore
+	// stays behind the execute gate.) The finished URL still rides after a '--'
+	// terminator. See mutate_maps_test.go.
+	"directions":       "URL built Go-side: constant maps:// scheme and daddr/saddr/dirflg keys; destination/origin percent-encoded via url.Values (control chars rejected, 256-char cap); mode is a registry enum mapped through a fixed table; single URL token after 'open --'; no inverse; see mutate_maps_test.go (TestMaps_HostileValuesLandAsData)",
+	"search_locations": "URL built Go-side: constant maps://?q= ; query and near percent-encoded via url.Values (control chars rejected, 256-char cap) and folded into one q value, never a separate key; single URL token after 'open --'; no inverse; see mutate_maps_test.go (TestMaps_HostileValuesLandAsData)",
+	"show_location":    "URL built Go-side: constant maps://?address= ; address percent-encoded via url.Values (control chars rejected, 256-char cap); single URL token after 'open --'; no inverse; see mutate_maps_test.go (TestMaps_HostileValuesLandAsData)",
 }
 
 // TestInjection_BuiltinFreeTextParamsAreReviewed is the coverage gate: it walks

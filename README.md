@@ -33,7 +33,7 @@ With a client like **Claude Desktop** or **Claude Code** that allows secure remo
 ## ✨ What you can do
 
 This isn't a sandbox of toy commands — it's a practical, everyday assistant for
-the Mac you already use. **22 domains, 171 operations**, each invokable in plain
+the Mac you already use. **23 domains, 174 operations**, each invokable in plain
 language. Read operations return immediately; **bold** ones change system state
 and always ask first (see [Safe by design](#-safe-by-design)).
 
@@ -165,6 +165,31 @@ pause without leaving what you're doing.
   says so.
 - The first time it controls Music, macOS may ask you to grant **Automation**
   access to Music.
+
+### 🗺️ Maps
+
+Put a route, a search, or an address on screen in Apple Maps — say where you're
+going in plain language instead of typing it into the app.
+
+- **"Give me driving directions to Apple Park."** / **"What's the fastest way to
+  drive to LA?"** *(opens the route; leave the starting point out and it routes
+  from where your Mac is)*
+- **"How far is the bike ride from here to Apple Park?"** / **"How do I get to
+  SFO by public transit?"** *(walking, cycling, and transit routes too)*
+- **"Are there any Mexican restaurants near me?"** / **"What's the closest coffee
+  shop?"** / **"Any Philz Coffee in Pleasanton, CA?"** *(Maps orders results by
+  distance, so "closest" comes out on top)*
+- **"Show me where 1 Infinite Loop is."** *(pins one address — pairs with
+  Contacts: look up someone's address, then get directions there)*
+- **The answer is in the Maps window, not in the conversation.** Maps has no
+  scripting interface, so the assistant can open the route or the search but
+  **cannot read back the distance, the ETA, or the list of places** — it will
+  tell you to look at the window rather than quote a number it never received.
+  If you want spoken distances and ETAs in chat, that needs a different
+  mechanism; see `docs/ideas/maps-data-tier-deferred.md`.
+- These run immediately (they only open a window) and there's nothing to undo —
+  close the window. A radius like *"within 5 miles"* can't be enforced; it only
+  shapes the words Maps searches for.
 
 ### 📸 Screenshots
 
@@ -491,8 +516,8 @@ Then **restart your client** (Claude Code session, or quit & relaunch Claude
 Desktop) — MCP clients load the tool list once at startup and don't hot-reload, so
 always restart after (re)building.
 
-You'll now have the 22 domain tools (`filesystem`, `preferences`, `application`,
-`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`,
+You'll now have the 23 domain tools (`filesystem`, `preferences`, `application`,
+`application-mail`/`-calendar`/`-reminders`/`-phone`/`-messages`/`-notes`/`-photos`/`-safari`/`-contacts`/`-music`/`-maps`,
 `clipboard`, `printer`, `system`, `network`, `process`, `screenshot`, `security`, `storage`, `shortcuts`) plus the shared
 `execute`, `undo`, and `pipeline` tools. Try one of the prompts from
 [What you can do](#-what-you-can-do) and watch the model pick the right tool.
