@@ -693,6 +693,31 @@ func writeTarGz(t *testing.T, path string, members map[string]string) {
 	}
 }
 
+// writePlainTar writes an UNCOMPRESSED tar at path containing the given members
+// (name -> contents). It is the fixture for the plain-".tar" extraction test:
+// byte-for-byte the same container writeTarGz produces, just without the gzip
+// wrapper, which is exactly the difference extract has to tolerate.
+func writePlainTar(t *testing.T, path string, members map[string]string) {
+	t.Helper()
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("creating archive %q: %v", path, err)
+	}
+	defer f.Close()
+	tw := tar.NewWriter(f)
+	for name, body := range members {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(body))}); err != nil {
+			t.Fatalf("tar header %q: %v", name, err)
+		}
+		if _, err := tw.Write([]byte(body)); err != nil {
+			t.Fatalf("tar body %q: %v", name, err)
+		}
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("closing tar: %v", err)
+	}
+}
+
 // TestStageCompress_PlanAndRoundTrip pins compress's argv shape and proves the
 // archive is created by the forward command and recycled to the Trash by undo.
 func TestStageCompress_PlanAndRoundTrip(t *testing.T) {
@@ -788,9 +813,11 @@ func TestStageCompress_Rejects(t *testing.T) {
 		t.Fatal(err)
 	}
 	cases := map[string]map[string]any{
-		"missing archive":        {"sources": []string{src}},
-		"dash archive":           {"archive": "-out.zip", "sources": []string{src}},
-		"bad extension":          {"archive": filepath.Join(dir, "out.rar"), "sources": []string{src}},
+		"missing archive": {"sources": []string{src}},
+		"dash archive":    {"archive": "-out.zip", "sources": []string{src}},
+		"bad extension":   {"archive": filepath.Join(dir, "out.rar"), "sources": []string{src}},
+		// A plain .tar is extractable but NOT creatable: compress always compresses.
+		"uncompressed tar":       {"archive": filepath.Join(dir, "out.tar"), "sources": []string{src}},
 		"archive exists":         {"archive": occupied, "sources": []string{src}},
 		"archive parent missing": {"archive": filepath.Join(dir, "no", "out.zip"), "sources": []string{src}},
 		"missing sources":        {"archive": filepath.Join(dir, "out.zip")},
@@ -853,6 +880,57 @@ func TestStageExtract_PlanAndRoundTrip(t *testing.T) {
 	}
 }
 
+// TestStageExtract_PlainTarRoundTrip is the regression for the reported bug: an
+// uncompressed ".tar" (e.g. a downloaded "condvar.tar") was refused outright,
+// forcing the user out to a raw shell. It must now stage like any other archive
+// and really unpack, with the SAME argv as the gzip case — bsdtar autodetects
+// the container, so no format flag is added or needed.
+func TestStageExtract_PlainTarRoundTrip(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "condvar.tar")
+	writePlainTar(t, archive, map[string]string{"src/main.c": "int main(void){}\n"})
+	dest := filepath.Join(dir, "out")
+	if err := os.Mkdir(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	plan, err := stageExtract(context.Background(), registry.Capability{}, map[string]any{
+		"archive":     archive,
+		"destination": dest,
+	})
+	if err != nil {
+		t.Fatalf("stageExtract on a plain .tar: %v", err)
+	}
+	wantFwd := Command{Binary: "tar", Args: []string{"-x", "-f", archive, "-C", dest}}
+	if !reflect.DeepEqual(plan.Forward, wantFwd) {
+		t.Errorf("Forward = %+v, want %+v (identical to the .tar.gz case)", plan.Forward, wantFwd)
+	}
+	runPlanCommand(t, plan.Forward)
+	got, err := os.ReadFile(filepath.Join(dest, "src", "main.c"))
+	if err != nil || string(got) != "int main(void){}\n" {
+		t.Fatalf("extracted content = %q (err %v), want the member body", got, err)
+	}
+}
+
+// TestStageExtract_UppercaseTar proves the plain-tar suffix is matched
+// case-insensitively, like every other supported extension.
+func TestStageExtract_UppercaseTar(t *testing.T) {
+	redirectHomeWithTrash(t)
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "ARCHIVE.TAR")
+	writePlainTar(t, archive, map[string]string{"f.txt": "x"})
+	dest := filepath.Join(dir, "out")
+	if err := os.Mkdir(dest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stageExtract(context.Background(), registry.Capability{}, map[string]any{
+		"archive": archive, "destination": dest,
+	}); err != nil {
+		t.Fatalf("stageExtract on %q: %v", archive, err)
+	}
+}
+
 // TestStageExtract_Rejects covers the guardrail table for extraction.
 func TestStageExtract_Rejects(t *testing.T) {
 	redirectHomeWithTrash(t)
@@ -878,18 +956,26 @@ func TestStageExtract_Rejects(t *testing.T) {
 	if err := os.WriteFile(fileAsDest, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A real file whose suffix sits just outside the allowlist: it exists and is a
+	// regular file, so only the extension check can be what rejects it.
+	bz2Archive := filepath.Join(dir, "ok.tar.bz2")
+	if err := os.WriteFile(bz2Archive, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	cases := map[string]map[string]any{
 		"missing archive":       {"destination": emptyDest},
 		"dash archive":          {"archive": "-a.zip", "destination": emptyDest},
 		"nonexistent archive":   {"archive": filepath.Join(dir, "ghost.zip"), "destination": emptyDest},
 		"bad extension archive": {"archive": notArchive, "destination": emptyDest},
-		"archive is a dir":      {"archive": emptyDest, "destination": emptyDest},
-		"missing destination":   {"archive": archive},
-		"dash destination":      {"archive": archive, "destination": "-d"},
-		"nonexistent dest":      {"archive": archive, "destination": filepath.Join(dir, "ghost_dir")},
-		"dest is a file":        {"archive": archive, "destination": fileAsDest},
-		"dest not empty":        {"archive": archive, "destination": fullDest},
+		// The widening is exactly one format: .tar.bz2 and friends stay refused.
+		"unsupported bz2":     {"archive": bz2Archive, "destination": emptyDest},
+		"archive is a dir":    {"archive": emptyDest, "destination": emptyDest},
+		"missing destination": {"archive": archive},
+		"dash destination":    {"archive": archive, "destination": "-d"},
+		"nonexistent dest":    {"archive": archive, "destination": filepath.Join(dir, "ghost_dir")},
+		"dest is a file":      {"archive": archive, "destination": fileAsDest},
+		"dest not empty":      {"archive": archive, "destination": fullDest},
 	}
 	for name, in := range cases {
 		if _, err := stageExtract(context.Background(), registry.Capability{}, in); err == nil {
@@ -950,19 +1036,61 @@ func TestStageExtract_RefusesZipSlip(t *testing.T) {
 	}
 }
 
-// TestArchiveExtension pins the closed format allowlist: exactly the three
-// supported suffixes match (case-insensitively) and nothing else does.
+// TestArchiveExtension pins BOTH closed format allowlists and the asymmetry
+// between them: extract reads an uncompressed ".tar" that compress will not
+// create, and neither direction accepts anything outside its own list.
+//
+// It also pins the reported suffix, not just the yes/no: "backup.tar.gz" must
+// report ".tar.gz" and never be misread as a plain ".tar" — the ordering
+// invariant that keeps a gzip tarball out of the plain-tar branch.
 func TestArchiveExtension(t *testing.T) {
-	ok := []string{"a.zip", "A.ZIP", "b.tar.gz", "b.TAR.GZ", "c.tgz", "/x/y/report.zip"}
-	for _, p := range ok {
-		if _, matched := archiveExtension(p); !matched {
-			t.Errorf("archiveExtension(%q) = false, want true", p)
-		}
+	cases := []struct {
+		path    string
+		allowed []string
+		want    string // "" means the path must be rejected
+	}{
+		// Creating: the three compressed formats, case-insensitively.
+		{"a.zip", creatableArchiveExtensions, ".zip"},
+		{"A.ZIP", creatableArchiveExtensions, ".zip"},
+		{"b.tar.gz", creatableArchiveExtensions, ".tar.gz"},
+		{"b.TAR.GZ", creatableArchiveExtensions, ".tar.gz"},
+		{"c.tgz", creatableArchiveExtensions, ".tgz"},
+		{"/x/y/report.zip", creatableArchiveExtensions, ".zip"},
+		// Creating: a plain tar is deliberately NOT creatable.
+		{"a.tar", creatableArchiveExtensions, ""},
+		{"a.rar", creatableArchiveExtensions, ""},
+		{"a.7z", creatableArchiveExtensions, ""},
+		{"a.gz", creatableArchiveExtensions, ""},
+		{"a.zipx", creatableArchiveExtensions, ""},
+		{"noext", creatableArchiveExtensions, ""},
+		{"a.tar.bz2", creatableArchiveExtensions, ""},
+		// Extracting: everything creatable, plus the plain tar.
+		{"a.zip", extractableArchiveExtensions, ".zip"},
+		{"b.tar.gz", extractableArchiveExtensions, ".tar.gz"},
+		{"b.TAR.GZ", extractableArchiveExtensions, ".tar.gz"},
+		{"c.tgz", extractableArchiveExtensions, ".tgz"},
+		{"a.tar", extractableArchiveExtensions, ".tar"},
+		{"A.TAR", extractableArchiveExtensions, ".tar"},
+		{"/x/y/condvar.tar", extractableArchiveExtensions, ".tar"},
+		// Extracting: still a closed set — the widening is exactly one format.
+		{"a.rar", extractableArchiveExtensions, ""},
+		{"a.7z", extractableArchiveExtensions, ""},
+		{"a.gz", extractableArchiveExtensions, ""},
+		{"a.zipx", extractableArchiveExtensions, ""},
+		{"noext", extractableArchiveExtensions, ""},
+		{"a.tar.bz2", extractableArchiveExtensions, ""},
+		{"a.tarball", extractableArchiveExtensions, ""},
 	}
-	bad := []string{"a.rar", "a.7z", "a.gz", "a.tar", "a.zipx", "noext", "a.tar.bz2"}
-	for _, p := range bad {
-		if _, matched := archiveExtension(p); matched {
-			t.Errorf("archiveExtension(%q) = true, want false", p)
+	for _, c := range cases {
+		got, matched := archiveExtension(c.path, c.allowed)
+		if c.want == "" {
+			if matched {
+				t.Errorf("archiveExtension(%q, %v) = %q, true; want no match", c.path, c.allowed, got)
+			}
+			continue
+		}
+		if !matched || got != c.want {
+			t.Errorf("archiveExtension(%q, %v) = %q, %v; want %q, true", c.path, c.allowed, got, matched, c.want)
 		}
 	}
 }

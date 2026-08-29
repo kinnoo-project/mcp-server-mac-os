@@ -439,24 +439,46 @@ func stageAppendToFile(_ context.Context, _ registry.Capability, in map[string]a
 	}, nil
 }
 
-// allowedArchiveExtensions is the closed set of archive formats compress may
-// create and extract may read, matched case-insensitively against the archive
-// filename's suffix. bsdtar (the /usr/bin/tar the policy layer resolves) infers
-// the format from this suffix — explicitly via -a on create, automatically on
-// extract — so constraining the suffix constrains the format: ".zip" is a Zip
-// archive; ".tar.gz"/".tgz" are gzip-compressed tarballs. The two-part
-// ".tar.gz" is listed before ".tgz" and ".zip" only for readability; the suffix
-// match is exact per entry. Anything outside this list is rejected up front,
-// which also keeps the model from smuggling a surprising binary format past the
-// no-clobber and empty-dir guards.
-var allowedArchiveExtensions = []string{".tar.gz", ".tgz", ".zip"}
+// creatableArchiveExtensions is the closed set of archive formats compress may
+// create, matched case-insensitively against the archive filename's suffix.
+// bsdtar (the /usr/bin/tar the policy layer resolves) picks the output format
+// from this suffix when told to via -a, so constraining the suffix constrains
+// the format: ".zip" is a Zip archive; ".tar.gz"/".tgz" are gzip-compressed
+// tarballs. The two-part ".tar.gz" is listed before ".tgz" and ".zip" only for
+// readability; the suffix match is exact per entry. Anything outside this list
+// is rejected up front, which also keeps the model from smuggling a surprising
+// binary format past the no-clobber guard.
+//
+// Compression is deliberately always on for archives this server CREATES: an
+// uncompressed ".tar" is not offered here, so a user never ends up with the
+// bulkier variant by accident.
+var creatableArchiveExtensions = []string{".tar.gz", ".tgz", ".zip"}
 
-// archiveExtension reports the allowed archive suffix a path carries (and true),
-// or "" and false when the path does not end in a supported archive extension.
-// The comparison is case-insensitive so "Report.ZIP" is accepted as a zip.
-func archiveExtension(path string) (string, bool) {
+// extractableArchiveExtensions is the closed set extract may unpack. It is a
+// deliberate SUPERSET of what compress can create, because archives already on
+// disk were not necessarily produced by this server: an uncompressed ".tar" is
+// an everyday artifact (source tarballs, a colleague's `tar -cf` output), and
+// refusing it forced users out to a raw shell to unpack a file bsdtar reads
+// natively. bsdtar autodetects the container on extraction, so a plain tar needs
+// no extra flag — only permission to be named.
+//
+// Widening the READ set does not widen the blast radius: the zip-slip
+// protections extract relies on are bsdtar's own format-independent secure
+// default (see stageExtract), and the destination guardrails are unchanged.
+var extractableArchiveExtensions = []string{".tar.gz", ".tgz", ".zip", ".tar"}
+
+// archiveExtension reports which of the allowed suffixes a path carries (and
+// true), or "" and false when the path ends in none of them. Callers pass the
+// set that matches their direction: creatableArchiveExtensions when writing an
+// archive, extractableArchiveExtensions when reading one. The comparison is
+// case-insensitive so "Report.ZIP" is accepted as a zip.
+//
+// Ordering within a set decides only WHICH suffix string is reported, never
+// whether a path matches: the two-part ".tar.gz" is listed ahead of ".tar" so
+// "backup.tar.gz" reports ".tar.gz" and is never misread as a plain tar.
+func archiveExtension(path string, allowed []string) (string, bool) {
 	lower := strings.ToLower(path)
-	for _, ext := range allowedArchiveExtensions {
+	for _, ext := range allowed {
 		if strings.HasSuffix(lower, ext) {
 			return ext, true
 		}
@@ -501,7 +523,7 @@ func stageCompress(_ context.Context, _ registry.Capability, in map[string]any) 
 	if strings.HasPrefix(archiveRaw, "-") {
 		return nil, fmt.Errorf("compress: archive %q begins with '-' and is not allowed; prefix it with ./", archiveRaw)
 	}
-	if _, ok := archiveExtension(archiveRaw); !ok {
+	if _, ok := archiveExtension(archiveRaw, creatableArchiveExtensions); !ok {
 		return nil, fmt.Errorf("compress: archive %q must end in one of .zip, .tar.gz, .tgz (the extension selects the format)", archiveRaw)
 	}
 	archive, err := filepath.Abs(archiveRaw)
@@ -640,8 +662,8 @@ func stageExtract(_ context.Context, _ registry.Capability, in map[string]any) (
 	} else if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("extract: archive %q is not a regular file", archive)
 	}
-	if _, ok := archiveExtension(archive); !ok {
-		return nil, fmt.Errorf("extract: archive %q must end in one of .zip, .tar.gz, .tgz", archive)
+	if _, ok := archiveExtension(archive, extractableArchiveExtensions); !ok {
+		return nil, fmt.Errorf("extract: archive %q must end in one of .zip, .tar.gz, .tgz, .tar", archive)
 	}
 
 	destRaw, _ := getString(in, "destination")
