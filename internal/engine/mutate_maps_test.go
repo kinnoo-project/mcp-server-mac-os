@@ -251,7 +251,7 @@ func TestValidateMapsText_Rejections(t *testing.T) {
 }
 
 // TestValidateMapsText_CapsCharactersNotBytes pins the cap to characters. Place
-// names are routinely non-ASCII ("東京駅", "Cafè Müller"), and counting bytes
+// names are routinely non-ASCII ("東京駅", "Café Müller"), and counting bytes
 // would reject an ordinary address at roughly a third of the advertised limit —
 // a three-byte-per-rune name would fail at ~85 characters against a stated 256.
 func TestValidateMapsText_CapsCharactersNotBytes(t *testing.T) {
