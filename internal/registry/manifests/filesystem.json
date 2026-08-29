@@ -771,7 +771,7 @@
   },
   {
     "name": "extract",
-    "summary": "Extract a .zip, .tar.gz, or .tgz archive into an existing EMPTY directory. Nothing can be written outside the destination (no zip-slip): a member with a '..' path is refused, and an absolute member has its leading '/' stripped so it lands inside. Staged for confirmation; reversible: undo moves the destination — with everything unpacked into it — to the Trash.",
+    "summary": "Extract a .zip, .tar.gz, .tgz, or plain .tar archive into an existing EMPTY directory. Nothing can be written outside the destination (no zip-slip): a member with a '..' path is refused, and an absolute member has its leading '/' stripped so it lands inside. Staged for confirmation; reversible: undo moves the destination — with everything unpacked into it — to the Trash.",
     "category": "filesystem",
     "binary": "tar",
     "reversibility": "compensatable",
@@ -782,7 +782,7 @@
         "name": "archive",
         "type": "path",
         "required": true,
-        "description": "Existing .zip, .tar.gz, or .tgz archive to unpack. Leading ~ ok; must not start with '-' (use ./).",
+        "description": "Existing .zip, .tar.gz, .tgz, or plain (uncompressed) .tar archive to unpack. Leading ~ ok; must not start with '-' (use ./).",
         "arg": { "kind": "none" }
       },
       {
