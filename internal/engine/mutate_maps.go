@@ -117,7 +117,7 @@ func validateMapsText(op, field, raw string) (string, error) {
 		}
 	}
 	// Counted in characters, not bytes: real place names carry accents and
-	// non-Latin scripts ("Cafè Müller", "東京駅"), and a byte cap would reject a
+	// non-Latin scripts ("Café Müller", "東京駅"), and a byte cap would reject a
 	// perfectly ordinary address at roughly a third of the advertised limit.
 	if n := utf8.RuneCountInString(v); n > maxMapsTextLen {
 		return "", fmt.Errorf("%s: '%s' is too long (%d characters, maximum %d)", op, field, n, maxMapsTextLen)
