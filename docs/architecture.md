@@ -42,11 +42,16 @@ been rebuilt around two ideas:
 
 The net effect: the registry is the single source of truth, the engine enforces
 every safety rule in one place, and the tool surface stays small and stable no
-matter how many operations exist. Today the server exposes **10 domain tools**
-(`filesystem`, `preferences`, `application`, `application-mail`,
-`application-calendar`, `application-reminders`, `application-phone`,
-`application-messages`, `printer`, `system`) plus three shared tools
-(`execute`, `undo`, `pipeline`) — fronting **~47 operations** in total.
+matter how many operations exist. Today the server exposes **23 domain tools**
+plus three shared tools (`execute`, `undo`, `pipeline`) — **26 tools fronting 174
+operations**. Adding the 174th operation cost the model exactly as much tool
+surface as the 47th did: none.
+
+> **Vocabulary.** A **capability** and an **operation** are the same object named
+> from two sides: "capability" is what the registry calls one manifest entry,
+> "operation" is what the model passes to a domain tool to invoke it. A **domain**
+> is a capability *category* projected as one MCP tool. The
+> [capability catalog](#capabilities) below is indexed by domain.
 
 ---
 
@@ -58,15 +63,15 @@ flowchart TD
 
     subgraph proc["Server process (stdio)"]
         Main["cmd/macos-darwin-mcp<br/><i>wiring: load → build → serve</i>"]
-        ServerPkg["internal/server<br/><b>MCP adapter</b><br/>10 domain tools (operation, params)<br/>execute(token) · undo(undo_token) · pipeline(stages)"]
+        ServerPkg["internal/server<br/><b>MCP adapter</b><br/>23 domain tools (operation, params)<br/>execute(token) · undo(undo_token) · pipeline(stages)"]
         Engine["internal/engine<br/><b>execution</b><br/>Run (read) · Stage / RunCommand (mutate)"]
         Policy["internal/policy<br/><b>trust boundary</b><br/>binaries under /bin /sbin /usr/bin /usr/sbin"]
         Registry["internal/registry<br/><b>capability catalog</b><br/>embedded JSON manifests<br/>+ fail-fast validation"]
         Txn["internal/transaction<br/><b>staging substrate</b><br/>req_ store · undo_ store<br/>(TTL, one-shot tokens)"]
     end
 
-    Native["native macOS utilities<br/>ls · file · stat · wc · du · find · grep · sort · head · mkdir · rmdir<br/>defaults · osascript · open · mdfind · lpstat · lp<br/>networksetup · system_profiler · pmset · sqlite3 · lsappinfo · plutil · mdimport"]
-    Builtin["purpose-written Go builders<br/>pwd · largest_files (pure Go)<br/>search_mail · find_contact · calendar/reminders/messages reads<br/>app/printer/system reads (compose a trusted binary in-process)"]
+    Native["65 native macOS utilities<br/>ls · file · stat · wc · du · find · grep · sort · head · mkdir · mv · cp · tar · tee<br/>defaults · osascript · open · mdfind · lpstat · lp · sips · textutil · qlmanage<br/>networksetup · system_profiler · pmset · sqlite3 · ps · top · kill · launchctl<br/>dig · ping · traceroute · netstat · lsof · arp · whois · screencapture<br/>codesign · spctl · csrutil · xattr · security · tmutil · diskutil · hdiutil · shortcuts"]
+    Builtin["94 purpose-written Go builtins<br/>pwd · largest_files (pure Go)<br/>Mail/Contacts/Calendar/Reminders/Messages/Notes/Photos/Safari reads<br/>app · printer · system · network · process · storage reads<br/>(compose a trusted binary or a fixed AppleScript in-process)"]
 
     Client -- "JSON-RPC over stdio" --> ServerPkg
     Main -. loads .-> Registry
@@ -111,7 +116,7 @@ sequenceDiagram
         E->>X: exec with tokenized argv (no shell)
     end
     X-->>E: output
-    E-->>S: rendered text (compacted if > 8 KB)
+    E-->>S: rendered text (compacted if > 32 KB)
     S-->>C: result
     C-->>U: answer
 ```
@@ -162,28 +167,93 @@ tool as `<domain>(operation: <name>, params: {…})`. Most operations are
 read-only and run immediately; mutating ones go through the
 [stage → execute → undo](#mutating-operations-stage--execute--undo) gate instead.
 
+**174 operations across 23 domains.** 104 are read-only; the other 70 mutate and
+route through the mutation gate (21 of those take the
+[auto-commit lane](#mutating-operations-stage--execute--undo)).
+
+| Domain | Ops | Read / mutate | What it covers |
+| --- | ---: | --- | --- |
+| [`filesystem`](#filesystem) | 25 | 13 / 12 | List, search, measure, convert, and safely modify files |
+| [`system`](#system) | 23 | 15 / 8 | Wi-Fi, Bluetooth, power, hardware, logs, notifications, Settings hand-off |
+| [`application-photos`](#application-photos) | 20 | 11 / 9 | Search, read, export, and organize the Photos library |
+| [`network`](#network) | 16 | 14 / 2 | Connectivity diagnostics, LAN discovery, DNS, SSH inventory |
+| [`application`](#application) | 14 | 5 / 9 | Installed/running apps, launching, windows, App Store |
+| [`process`](#process) | 9 | 7 / 2 | What's running, what it costs, graceful stop |
+| [`storage`](#storage) | 8 | 5 / 3 | Time Machine, disks, volumes, disk images |
+| [`security`](#security) | 7 | 7 / 0 | Code signing, Gatekeeper, SIP, quarantine, keychain metadata |
+| [`application-notes`](#application-notes) | 6 | 4 / 2 | Read and write Notes |
+| [`application-calendar`](#application-calendar) | 5 | 2 / 3 | Read and change calendar events |
+| [`application-reminders`](#application-reminders) | 5 | 1 / 4 | Read and change reminders |
+| [`application-messages`](#application-messages) | 5 | 4 / 1 | Read message history, send iMessage |
+| [`application-mail`](#application-mail) | 4 | 3 / 1 | Inbox, search, read, send |
+| [`application-music`](#application-music) | 4 | 1 / 3 | Now playing + transport control |
+| [`printer`](#printer) | 4 | 2 / 2 | Printers, queue, printing |
+| [`preferences`](#preferences) | 3 | 1 / 2 | Curated setting toggles + appearance |
+| [`screenshot`](#screenshot) | 3 | 3 / 0 | Capture screen, region, or window |
+| [`application-maps`](#application-maps) | 3 | 0 / 3 | Directions, place search, address — GUI hand-off |
+| [`application-phone`](#application-phone) | 2 | 1 / 1 | Contact lookup + placing calls |
+| [`application-contacts`](#application-contacts) | 2 | 1 / 1 | Full contact card, create contact |
+| [`application-safari`](#application-safari) | 2 | 2 / 0 | Open tabs, current tab |
+| [`clipboard`](#clipboard) | 2 | 1 / 1 | Read/replace clipboard text |
+| [`shortcuts`](#shortcuts) | 2 | 1 / 1 | List and run the user's Shortcuts |
+
+Each domain tool's description embeds this same information for its own
+operations, generated from the manifests at boot (`internal/server/menu.go`), so
+the menu the model reads can never drift from what the engine validates. The
+sections below add the *why* — the guardrails and design decisions behind the
+riskier corners — rather than restating every parameter.
+
 ### `filesystem`
 
-| Operation       | Runs            | Reversibility | Use it for                                        |
-| --------------- | --------------- | -------------- | -------------------------------------------------- |
-| `ls`            | `/bin/ls`       | read-only       | "What's in my Downloads folder?"                  |
-| `pwd`           | *(builtin)*     | read-only       | "Where is the server running from?"               |
-| `file`          | `/usr/bin/file` | read-only       | "What kind of file is this?"                      |
-| `stat`          | `/usr/bin/stat` | read-only       | "When was this file last modified?"                |
-| `wc`            | `/usr/bin/wc`   | read-only       | "How many lines are in this log?"                  |
-| `du`            | `/usr/bin/du`   | read-only       | "How big is this folder?"                          |
-| `find`          | `/usr/bin/find` | read-only       | "List all PNG and JPG files under `~/Pictures`."    |
-| `grep`          | `/usr/bin/grep` | read-only       | "Which files mention `TODO`?"                       |
-| `largest_files` | *(builtin)*     | read-only       | "What are the 10 biggest files under `~`?"          |
-| `sort`          | `/usr/bin/sort` | read-only       | Rarely standalone — a [`pipeline`](#pipeline-composing-capabilities) stage that ranks another stage's output. |
-| `head`          | `/usr/bin/head` | read-only       | Rarely standalone — a [`pipeline`](#pipeline-composing-capabilities) stage that trims a ranked/filtered result to a top-N answer. |
-| `mkdir`         | `/bin/mkdir`    | **reversible**  | "Create a folder `~/scratch/demo`."                 |
+| Operation             | Runs                | Reversibility     | Use it for                                        |
+| --------------------- | ------------------- | ----------------- | -------------------------------------------------- |
+| `ls`                  | `/bin/ls`           | read-only         | "What's in my Downloads folder?"                  |
+| `pwd`                 | *(builtin)*         | read-only         | "Where is the server running from?"               |
+| `file`                | `/usr/bin/file`     | read-only         | "What kind of file is this?"                      |
+| `stat`                | `/usr/bin/stat`     | read-only         | "When was this file last modified?"                |
+| `wc`                  | `/usr/bin/wc`       | read-only         | "How many lines are in this log?"                  |
+| `du`                  | `/usr/bin/du`       | read-only         | "How big is this folder?"                          |
+| `find`                | `/usr/bin/find`     | read-only         | "List all PNG and JPG files under `~/Pictures`."    |
+| `grep`                | `/usr/bin/grep`     | read-only         | "Which files mention `TODO`?"                       |
+| `largest_files`       | *(builtin)*         | read-only         | "What are the 10 biggest files under `~`?"          |
+| `spotlight_search`    | *(builtin)*         | read-only         | "Find that presentation about Q3." (content + metadata, not just names) |
+| `image_info`          | `/usr/bin/sips`     | read-only         | "What are this photo's dimensions and format?"      |
+| `sort`                | `/usr/bin/sort`     | read-only         | Rarely standalone — a [`pipeline`](#pipeline-composing-capabilities) stage that ranks another stage's output. |
+| `head`                | `/usr/bin/head`     | read-only         | Rarely standalone — a [`pipeline`](#pipeline-composing-capabilities) stage that trims a ranked/filtered result to a top-N answer. |
+| `mkdir`               | `/bin/mkdir`        | **reversible**    | "Create a folder `~/scratch/demo`."                 |
+| `move`                | `/bin/mv`           | **reversible**    | "Move test.txt to the Desktop." (`source_glob` moves a batch as one step) |
+| `copy`                | `/bin/cp`           | **reversible**    | "Copy this report into `~/Backups`." (undo trashes the copy) |
+| `remove`              | `/bin/mv`           | **reversible**    | "Delete old-draft.txt." — moved to the Trash, never hard-deleted |
+| `write_file`          | `/usr/bin/tee`      | **compensatable** | "Create notes.txt with these lines." — create-only, never overwrites |
+| `append_to_file`      | `/usr/bin/tee`      | **reversible**    | "Add a line to todo.txt." — undo restores the file byte-for-byte |
+| `compress`            | `/usr/bin/tar`      | **compensatable** | "Zip up my project folder." (`.zip` / `.tar.gz` / `.tgz`) |
+| `extract`             | `/usr/bin/tar`      | **compensatable** | "Extract backup.tar.gz." — into an empty dir, zip-slip-proof |
+| `convert_image`       | `/usr/bin/sips`     | **compensatable** | "Convert this HEIC to JPEG." — writes a new file |
+| `resize_image`        | `/usr/bin/sips`     | **compensatable** | "Resize this to 800px wide."                        |
+| `convert_document`    | `/usr/bin/textutil` | **compensatable** | "Turn notes.rtf into a Word document."              |
+| `quicklook_thumbnail` | `/usr/bin/qlmanage` | **reversible**    | "Make a preview image of this PDF." (auto-commit; undo trashes it) |
+
+The write side is built around one rule: **nothing is ever destroyed or
+overwritten in place.** `remove` moves to `~/.Trash` rather than unlinking;
+`write_file` refuses an occupied target instead of overwriting; the
+image/document converters always write a *new* file; and every
+compensatable operation's undo recycles what it created into the Trash rather
+than deleting it. `append_to_file` is the one operation that changes an existing
+file's bytes, so its inverse bakes in the file's complete prior contents at stage
+time and restores them exactly.
+
+`extract` runs bsdtar in its secure default (no `-P`), and a regression test
+feeds it a crafted archive whose members escape via `..` and via an absolute
+path, asserting on the resulting on-disk state that nothing lands outside the
+destination.
 
 ### `preferences`
 
-| Operation       | Runs              | Reversibility | Use it for                                        |
-| --------------- | ----------------- | -------------- | -------------------------------------------------- |
-| `write_setting` | `/usr/bin/defaults` | **reversible** | "Show hidden files in Finder." / "Auto-hide the Dock." |
+| Operation        | Runs                 | Reversibility  | Use it for                                        |
+| ---------------- | -------------------- | -------------- | -------------------------------------------------- |
+| `read_setting`   | `/usr/bin/defaults`  | read-only      | "Is the Dock set to auto-hide right now?"          |
+| `write_setting`  | `/usr/bin/defaults`  | **reversible** | "Show hidden files in Finder." / "Auto-hide the Dock." |
+| `set_appearance` | `/usr/bin/osascript` | **reversible** | "Switch to Dark mode." (auto-commit; undo restores the prior appearance) |
 
 `write_setting` does **not** take an arbitrary preference domain/key — it takes
 a closed `setting` enum naming one of **19** curated, well-known,
@@ -193,10 +263,18 @@ the reasoning).
 
 ### `application-mail`
 
-| Operation     | Runs                        | Reversibility    | Use it for                                  |
-| ------------- | --------------------------- | ----------------- | -------------------------------------------- |
-| `search_mail` | *(builtin: mdfind + mdls)*  | read-only          | "Find emails mentioning the invoice number." |
-| `send_mail`   | `/usr/bin/osascript`        | **irreversible**   | "Email Alice to confirm tomorrow's meeting."  |
+| Operation       | Runs                        | Reversibility    | Use it for                                  |
+| --------------- | --------------------------- | ---------------- | -------------------------------------------- |
+| `list_inbox`    | *(builtin: osascript)*      | read-only        | "Show me my most recent emails."             |
+| `read_message`  | *(builtin: osascript)*      | read-only        | "Open the one from billing and read it."     |
+| `search_mail`   | *(builtin: mdfind + mdls)*  | read-only        | "Find emails mentioning the invoice number." |
+| `send_mail`     | `/usr/bin/osascript`        | **irreversible** | "Email Alice to confirm tomorrow's meeting."  |
+
+`list_inbox` returns each message's id, which `read_message` takes to fetch one
+full plain-text body. Both drive Mail.app over AppleScript (so they need the
+one-time Automation grant) and both return real personal mail content, so their
+descriptions flag them as privacy-sensitive reads the model should reach for
+deliberately rather than speculatively.
 
 `search_mail` is Spotlight-backed (no Mail.app automation permission needed)
 and has known precision gaps — see
@@ -317,6 +395,108 @@ the preview lists the attachments by filename. See
 version-sensitive) and `docs/issues/note-messages-read-fda.md` (the Full-Disk-
 Access requirement and the read-only, injection-safe query posture).
 
+### `application-contacts`
+
+| Operation        | Runs                    | Reversibility     | Use it for                        |
+| ---------------- | ----------------------- | ----------------- | ---------------------------------- |
+| `get_contact`    | *(builtin: osascript)*  | read-only         | "Show me Jane's full contact card." |
+| `create_contact` | *(builtin: osascript)*  | **compensatable** | "Add a contact for Jane Doe."      |
+
+`get_contact` returns the *whole* card (every phone, email, postal address,
+birthday, organization) where `application-phone`'s `find_contact` returns just
+numbers. `create_contact`'s undo is precise rather than best-effort: the new card
+is tagged with a hidden unique marker at creation, and undo deletes the card
+bearing exactly that marker, so a same-named contact can never be caught in the
+reversal.
+
+### `application-notes`
+
+| Operation        | Runs                 | Reversibility     | Use it for                                |
+| ---------------- | -------------------- | ----------------- | ------------------------------------------ |
+| `list_folders`   | `/usr/bin/osascript` | read-only         | "What folders do I have in Notes?"        |
+| `list_notes`     | `/usr/bin/osascript` | read-only         | "Show my most recent notes."              |
+| `search_notes`   | `/usr/bin/osascript` | read-only         | "Find my note about the wifi password."   |
+| `read_note`      | `/usr/bin/osascript` | read-only         | "Read the note titled 'Packing list'."    |
+| `create_note`    | `/usr/bin/osascript` | **compensatable** | "Make a note titled 'Trip ideas'."        |
+| `append_to_note` | `/usr/bin/osascript` | **reversible**    | "Add 'buy sunscreen' to my packing list." |
+
+The reads return each note's id, which the writes take. `append_to_note` captures
+the note's prior contents at stage time so undo restores them; a locked
+(password-protected) note can't be appended to and reads back as a placeholder.
+
+### `application-photos`
+
+20 operations — 11 reads (`search_photos`, `list_photos`, `get_photo`,
+`export_photo`, `list_albums`, `list_photo_folders`, `get_album_photos`,
+`list_favorites`, `list_recently_deleted`, `get_selection`, `library_stats`) and
+9 mutations, all via `osascript` against Photos.app.
+
+The mutations split cleanly by undo shape. Five **reversible** per-item edits
+(`set_favorite`, `set_title`, `set_description`, `set_date`, `set_keywords`)
+capture the prior value at stage time and restore it exactly — `set_keywords`
+replaces the entire keyword list, so its inverse carries the full prior list, and
+`set_date` refuses an item that has no date to begin with, since there would be
+nothing to restore. Four **irreversible** structural changes (`create_album`,
+`create_folder`, `add_to_album`, `import_photos`) have no automatic undo; each
+preview instead states exactly how to reverse it by hand in Photos.
+
+Two properties worth stating plainly:
+
+- **This domain cannot delete.** Photos' AppleScript dictionary exposes no
+  deletion verb, so no operation here can remove a photo, video, album, or
+  folder. That is a property of the platform, not a policy we could relax.
+- **GPS coordinates are single-item only.** `get_photo` returns precise
+  location/altitude for one item you asked about; the bulk listings deliberately
+  omit it, so a broad "list my photos" can never dump a location history.
+
+`export_photo` is classified read-only despite writing a file: it copies *out* of
+the library into a fresh directory (never overwriting), leaving the library
+untouched. It exists so the model can actually look at a picture.
+
+### `application-safari`
+
+| Operation     | Runs                   | Reversibility | Use it for                          |
+| ------------- | ---------------------- | ------------- | ------------------------------------ |
+| `list_tabs`   | *(builtin: osascript)* | read-only     | "What tabs do I have open?"         |
+| `current_tab` | *(builtin: osascript)* | read-only     | "What page am I looking at?"        |
+
+Reads only — tab titles and URLs, grouped by window. Nothing here runs JavaScript
+on a page or reads page contents. Open URLs reveal browsing activity, so both
+operations are marked privacy-sensitive in their descriptions.
+
+### `application-music`
+
+| Operation       | Runs                   | Reversibility  | Use it for                |
+| --------------- | ---------------------- | -------------- | -------------------------- |
+| `now_playing`   | *(builtin: osascript)* | read-only      | "What song is this?"      |
+| `play_pause`    | `/usr/bin/osascript`   | irreversible   | "Pause my music."         |
+| `next_track`    | `/usr/bin/osascript`   | irreversible   | "Skip this song."         |
+| `previous_track`| `/usr/bin/osascript`   | irreversible   | "Go back a track."        |
+
+The three transport controls take the auto-commit lane (waiting for a
+confirmation token to skip a song would be absurd) and are classified
+irreversible for an honest reason: pausing or skipping *is* its own reversal, so
+there is no inverse to hand back — press play or skip again. None of them will
+launch Music just to answer; if it isn't running, they say so.
+
+### `application-maps`
+
+| Operation          | Runs            | Reversibility | Use it for                              |
+| ------------------ | --------------- | ------------- | ---------------------------------------- |
+| `directions`       | `/usr/bin/open` | irreversible  | "Driving directions to Apple Park."     |
+| `search_locations` | `/usr/bin/open` | irreversible  | "Mexican restaurants near me."          |
+| `show_location`    | `/usr/bin/open` | irreversible  | "Show me where 1 Infinite Loop is."     |
+
+**This domain is a pure GUI hand-off, and that shapes everything about it.** Maps
+has no AppleScript dictionary, so the server can open a `maps://` URL but
+**cannot read back the distance, the ETA, or the list of results**. The
+operations therefore promise only that a window opens; the descriptions tell the
+model to send the user to the window rather than quote a number it never
+received. All three take the auto-commit lane (opening a window is benign) and
+offer no undo — closing the window is the user's business. A radius constraint
+("within 5 miles") can't be enforced; it only shapes the search words. See
+`docs/ideas/maps-data-tier-deferred.md` for the deferred data tier.
+
 ### `application`
 
 | Operation                   | Runs                 | Reversibility    | Use it for                                       |
@@ -324,11 +504,33 @@ Access requirement and the read-only, injection-safe query posture).
 | `list_applications`         | `/usr/bin/mdfind`    | read-only        | "What apps are installed?"                        |
 | `search_applications`       | `/usr/bin/mdfind`    | read-only        | "Find the app with 'note' in its name."          |
 | `list_running_applications` | `/usr/bin/osascript` | read-only        | "What's open right now?"                          |
+| `list_windows`              | `/usr/bin/osascript` | read-only        | "What windows are open, and where?"               |
+| `search_app_store`          | *(builtin)*          | read-only        | "Is Slack on the App Store, and what does it cost?" |
 | `open_application`          | `/usr/bin/open`      | reversible *     | "Open Notes." (runs immediately)                 |
 | `open_file`                 | `/usr/bin/open`      | reversible       | "Open Leah.png in Preview." / "Open this PDF." (staged) |
 | `open_website`              | `/usr/bin/open`      | irreversible     | "Open YouTube." / "Open CNN.com on Chrome." (staged) |
+| `open_app_store_page`       | `/usr/bin/open`      | irreversible     | "Download Slack." (opens the page; installing stays your click) |
 | `focus_application`         | `/usr/bin/osascript` | irreversible     | "Bring Safari to the front." (runs immediately)  |
 | `quit_application`          | `/usr/bin/osascript` | irreversible     | "Quit Mail." (staged — confirm first)            |
+| `move_window`               | `/usr/bin/osascript` | reversible       | "Move the Safari window to the top-left." (runs immediately) |
+| `resize_window`             | `/usr/bin/osascript` | reversible       | "Make it 1200 × 800." (runs immediately)         |
+| `minimize_window`           | `/usr/bin/osascript` | reversible       | "Minimize the TextEdit window." (runs immediately) |
+
+**Window control** (`list_windows`, `move_window`, `resize_window`,
+`minimize_window`) drives System Events' accessibility interface, so it needs the
+**Accessibility** permission — a different grant from the Automation one the rest
+of the app domains use, and the error says so plainly when it's missing. The
+three mutations are reversible via the auto-commit lane: each captures the
+window's prior position/size/minimized state at stage time and hands back an undo
+token. `minimize_window` offers no undo if the window was already minimized,
+mirroring `open_application`'s "was it already running?" logic.
+
+**The App Store pair** answers "download X" without ever installing anything.
+`search_app_store` queries Apple's public iTunes Search API for matches (name,
+seller, price, numeric id); `open_app_store_page` opens one of those ids in the
+App Store app. Clicking **Get** stays the user's decision — this server never
+installs software. An app that isn't on the store falls back to a staged
+`open_website` pointing at the vendor's download page.
 
 `list_applications`/`search_applications` enumerate `.app` bundles via Spotlight
 and filter by name **in Go** (so no untrusted text reaches `mdfind`, which has no
@@ -397,13 +599,52 @@ you at `system`'s `open_settings` (pane `printers`) to finish in System Settings
 
 ### `system`
 
-| Operation             | Runs                      | Reversibility | Use it for                                    |
-| --------------------- | ------------------------- | ------------- | --------------------------------------------- |
-| `wifi_status`         | `/usr/sbin/networksetup`  | read-only     | "Is Wi-Fi on, and what am I joined to?"       |
-| `list_preferred_wifi` | `/usr/sbin/networksetup`  | read-only     | "What networks does this Mac remember?"       |
-| `bluetooth_status`    | `/usr/sbin/system_profiler` | read-only   | "Is Bluetooth on? What's connected?"          |
-| `power_status`        | `/usr/bin/pmset`          | read-only     | "Battery level? Is Low Power Mode on?"        |
-| `open_settings`       | `/usr/bin/open`           | irreversible  | Hand off to a System Settings pane.           |
+23 operations — the Mac's own state and controls, plus the Settings hand-off.
+
+| Operation               | Runs                        | Reversibility  | Use it for                                    |
+| ----------------------- | --------------------------- | -------------- | --------------------------------------------- |
+| `about_this_mac`        | `/usr/bin/sw_vers`          | read-only      | "What Mac do I have — chip, memory, macOS?"   |
+| `uptime`                | `/usr/bin/uptime`           | read-only      | "How long since my last reboot?"              |
+| `disk_usage`            | `/bin/df`                   | read-only      | "How much free disk space do I have?"         |
+| `wifi_status`           | `/usr/sbin/networksetup`    | read-only      | "Is Wi-Fi on, and what am I joined to?"       |
+| `list_preferred_wifi`   | `/usr/sbin/networksetup`    | read-only      | "What networks does this Mac remember?"       |
+| `bluetooth_status`      | `/usr/sbin/system_profiler` | read-only      | "Is Bluetooth on? What's connected?"          |
+| `power_status`          | `/usr/bin/pmset`            | read-only      | "Battery level? Is Low Power Mode on?"        |
+| `sleep_assertions`      | `/usr/bin/pmset`            | read-only      | "What's keeping my Mac awake?"                |
+| `thermal_state`         | `/usr/bin/pmset`            | read-only      | "Is my CPU being throttled because it's hot?" |
+| `software_update_check` | `/usr/sbin/softwareupdate`  | read-only      | "Am I up to date on macOS?" (never installs)  |
+| `system_log`            | `/usr/bin/log`              | read-only      | "What has bluetoothd been logging?"           |
+| `list_airplay_devices`  | `/usr/bin/dns-sd`           | read-only      | "What can I mirror my screen to?"             |
+| `list_input_sources`    | `/usr/bin/defaults`         | read-only      | "What keyboard languages do I have?"          |
+| `key_remap_status`      | `/usr/bin/hidutil`          | read-only      | "Is Caps Lock remapped right now?"            |
+| `sharing_status`        | *(builtin)*                 | read-only      | "Is Screen Sharing on? Can anyone SSH in?"    |
+| `open_settings`         | `/usr/bin/open`             | irreversible   | Hand off to a System Settings pane.           |
+| `notify`                | `/usr/bin/osascript`        | irreversible   | "Tell me when the export is done."            |
+| `speak`                 | `/usr/bin/say`              | irreversible   | "Say out loud that the backup finished."      |
+| `display_sleep`         | `/usr/bin/pmset`            | irreversible   | "Turn off my display but keep everything running." |
+| `keep_awake`            | `/usr/bin/caffeinate`       | irreversible   | "Keep my Mac awake for the next hour." (staged) |
+| `allow_sleep`           | `/bin/kill`                 | irreversible   | "Let it sleep normally again."                |
+| `wifi_set_power`        | `/usr/sbin/networksetup`    | **reversible** | "Turn my Wi-Fi off." (staged; undo restores)  |
+| `remap_key`             | `/usr/bin/hidutil`          | **reversible** | "Make Caps Lock act as Escape." (staged; undo restores) |
+
+Most mutations here take the auto-commit lane, because their effect is either
+trivially self-reversing or purely attention-getting (`notify`, `speak`,
+`display_sleep`, `allow_sleep`). Two stay **staged**: `wifi_set_power`, because
+turning the radio off drops the connection the user may be reaching the Mac
+through, and `keep_awake`, because it starts a process that outlives the call.
+
+`keep_awake` is the one capability that deliberately escapes the request
+lifecycle. Every other subprocess is bound to the request context and dies with
+it; a keep-awake session must not. So it runs `caffeinate` **detached** — its own
+process group, released rather than waited on, with its lifetime bounded by
+`caffeinate`'s own `-t <seconds>` argument (1 minute to 4 hours) instead of by the
+context. `allow_sleep` is its paired canceller. A goroutine reaps the child when
+it eventually exits so a long-running server never accumulates zombies.
+
+`remap_key` writes a `hidutil` modifier mapping from a closed menu of vetted
+remaps (Caps Lock → Escape/Control, swap Command/Option, disable Caps Lock) and
+bakes the prior mapping into its inverse. Note macOS clears key remaps on reboot,
+which the preview says.
 
 The reads parse machine-readable output where it exists (`system_profiler -json`
 for Bluetooth) and tolerant text parsing otherwise. `open_settings` is the guided
@@ -412,6 +653,147 @@ battery/Low-Power changes, connecting a printer): it uses the **auto-commit lane
 to open the requested pane immediately. The model picks a pane from a closed enum;
 the engine maps that to a vetted **Ventura+** `x-apple.systempreferences:` URL
 (macOS 13 is the minimum supported OS, so no per-version handling is needed).
+
+### `network`
+
+16 operations: 14 read-only probes plus `flush_dns_cache` (auto-commit, benign
+and self-healing) and `ssh_connect` (staged). The reads cover this Mac's own
+place on the network (`current_network`, `dns_servers`, `route_table`,
+`interface_stats`, `listening_ports`), reachability and path
+(`ping_host`, `dns_lookup`, `dns_cache_lookup`, `trace_route`, `whois_lookup`),
+LAN discovery (`lan_devices` from the ARP cache, `scan_lan` by active sweep), and
+the SSH inventory (`list_ssh_keys`, `list_ssh_hosts`).
+
+Two guardrails matter more here than anywhere else:
+
+- **Host validation is the *only* defense.** `dig`, `traceroute`, `whois`, and
+  `dscacheutil` have no usable `--` end-of-options terminator, so a
+  dash-leading value cannot be neutralized structurally the way it is elsewhere.
+  Every model-supplied host therefore passes `validateNetworkHost` first, which
+  accepts hostnames/IPv4/IPv6 and rejects empty, over-long, flag-like (`-e`,
+  `--flood`), `@server`, `+queryopt`, whitespace, slash, and newline-bearing
+  values *before* any binary is resolved. This is enforced by a dedicated
+  regression battery — see [Evals](#evals) and `docs/TESTS.md`.
+- **`scan_lan` is bounded by construction.** It refuses any subnet wider than
+  /24, so an active sweep can never turn into an unbounded scan.
+
+`list_ssh_keys` is **private-key-safe**: only the public `.pub` side of each key
+is ever opened and fingerprinted, and `~/.ssh/config` is parsed in-process. No
+private key bytes are read. `ssh_connect` does not run `ssh` itself — it opens
+Terminal.app on the constructed command, so the host-key prompt and any
+password/passphrase happen under the user's control and the server never sees
+them.
+
+### `process`
+
+| Operation           | Runs                 | Reversibility    | Use it for                                |
+| ------------------- | -------------------- | ---------------- | ------------------------------------------ |
+| `list_processes`    | `/bin/ps`            | read-only        | "What's eating my CPU / memory?"          |
+| `top_processes`     | `/usr/bin/top`       | read-only        | "What's busy this very second?"           |
+| `process_info`      | `/bin/ps`            | read-only        | "Tell me everything about PID 1234."      |
+| `cpu_load`          | `/usr/sbin/sysctl`   | read-only        | "How loaded is my Mac overall?"           |
+| `memory_stats`      | `/usr/bin/vm_stat`   | read-only        | "How much RAM is free?"                   |
+| `gpu_stats`         | `/usr/sbin/ioreg`    | read-only        | "How busy is the GPU?"                    |
+| `startup_items`     | `/bin/launchctl`     | read-only        | "What starts automatically?"              |
+| `quit_process`      | `/usr/bin/osascript` | **irreversible** | "Quit Safari." (staged — the normal Quit) |
+| `terminate_process` | `/bin/kill`          | **irreversible** | "Stop that stuck daemon." (staged; SIGTERM only) |
+
+**There is deliberately no force-kill.** A GUI app gets the normal **Quit**
+command so it can prompt to save; a background process gets a polite **SIGTERM**
+so it can clean up. `terminate_process` accepts only a PID — never a signal
+selector — so SIGTERM cannot be escalated to SIGKILL by parameter, and a security
+invariant test pins that. Both are staged; neither is undoable.
+
+`list_processes` returns an averaged snapshot while `top_processes` returns an
+instantaneous sample; they answer subtly different questions ("what has been
+expensive?" vs "what is spiking right now?") and the descriptions say which to
+reach for.
+
+### `storage`
+
+| Operation             | Runs                | Reversibility    | Use it for                              |
+| --------------------- | ------------------- | ---------------- | ---------------------------------------- |
+| `time_machine_status` | `/usr/bin/tmutil`   | read-only        | "Is Time Machine backing up right now?" |
+| `list_backups`        | `/usr/bin/tmutil`   | read-only        | "What restore points do I have?"        |
+| `list_volumes`        | `/usr/sbin/diskutil`| read-only        | "What disks are connected?"             |
+| `volume_info`         | `/usr/sbin/diskutil`| read-only        | "How much space is on my external?"     |
+| `eject_volume`        | `/usr/sbin/diskutil`| read-only        | "Eject my external drive." — see below  |
+| `mount_volume`        | `/usr/sbin/diskutil`| **irreversible** | "Mount disk4s2." (staged)               |
+| `attach_disk_image`   | `/usr/bin/hdiutil`  | **irreversible** | "Open this .dmg." (staged)              |
+| `detach_disk_image`   | `/usr/bin/hdiutil`  | **irreversible** | "Close the dmg I opened." (staged)      |
+
+`tmutil`, `diskutil`, and `hdiutil` can erase disks and delete backups, so each is
+**pinned to a closed set of verbs** (list / info / status / mount / attach /
+detach) enforced by a build-time invariant test — the destructive verbs are
+unreachable, not merely unused.
+
+`eject_volume` is the interesting one: **it is read-only and never ejects
+anything.** It confirms the volume exists and hands back the exact `diskutil
+eject` command for the user to run, with a warning. Pulling a disk out from under
+an app that is writing to it is the kind of damage an undo token cannot fix, so
+that final step stays a human action.
+
+### `security`
+
+Seven strictly read-only checks answering "can I trust this app, and is my Mac's
+own protection on?": `verify_signature` (`codesign`), `gatekeeper_check`
+(`spctl`), `sip_status` (`csrutil`), `quarantine_info` (`xattr`),
+`find_credential` / `find_internet_credential` / `list_keychains` (`security`).
+
+Every binary here has a destructive mode — `spctl` can disable Gatekeeper,
+`csrutil` can disable SIP, `xattr` can strip quarantine flags — so each is
+**pinned to a single read-only sub-command** by the same build-time invariant
+test that guards the storage binaries. There is no code path from this domain to
+a state change.
+
+The keychain lookups run `security` **without the `-w`/`-g` flags that print a
+password**, so a stored secret's *value* is never requested. The output is
+additionally filtered through an allowlist, so only reviewed, non-secret fields
+(service, account, label, dates) can ever appear — a defense in depth in case a
+future `security` version widens its default output.
+
+### `screenshot`
+
+`capture_screen` (whole desktop), `capture_region` (a rectangle you specify), and
+`capture_window` (one app's window). Each writes an image file and returns its
+path, dimensions, and byte size, so the model can then actually look at it.
+
+All three are classified read-only despite writing a file, on the same reasoning
+as `export_photo`: they create a new file in a scratch location
+(`~/Pictures/Screenshots` by default) and **refuse to overwrite an existing
+file**, so they change no state a user could miss. All need **Screen Recording**;
+`capture_window` additionally needs **Accessibility** + **Automation** to read the
+window's bounds, and its path validation runs *before* that permission-gated probe
+so an invalid request never provokes a spurious permission prompt.
+
+### `clipboard`
+
+`read_clipboard` (builtin) and `write_clipboard` (`pbcopy`, auto-commit,
+reversible). The write captures whatever text was on the clipboard beforehand and
+restores it on undo — unless the prior contents were an image or too large to
+hold, in which case the result says plainly that there is nothing to restore
+rather than silently clearing it. The read warns that the clipboard often holds
+sensitive data (a just-copied password).
+
+The write is also the clearest example of the **stdin-as-data** channel: the text
+travels to `pbcopy` on standard input, never as an argv token, so its content
+cannot be parsed as a flag or a path no matter what it contains.
+
+### `shortcuts`
+
+`list_shortcuts` (read-only) and `run_shortcut` (staged, irreversible, high risk).
+
+Running a shortcut is **the single most powerful thing this server can do**: a
+shortcut is automation the user authored, so its effect is unbounded and there is
+no way to model, preview, or undo it. It is therefore pinned to the highest risk
+tier — always staged, never auto-commit, never reversible — and the security test
+gate asserts that classification so it cannot be quietly softened later. Staging
+first confirms the named shortcut actually exists and names it back to the user.
+Listing can never trigger anything.
+
+This domain exists as the sanctioned escape hatch for everything with no clean
+CLI of its own: Focus/Do-Not-Disturb modes, HomeKit scenes, and user-authored
+flows.
 
 ### Accessibility & preference toggles
 
@@ -424,20 +806,25 @@ includes accessibility toggles (`accessibility_reduce_motion`,
 ### Three ways a read-only capability is fulfilled
 
 The engine resolves each read-only capability through one of three builders,
-chosen by the manifest's `builder` field:
+chosen by the manifest's `builder` field. The three registries are disjoint, and
+a startup check (`Engine.ValidateBuilders`) fails the process if a manifest names
+a builder that exists in none of them:
 
-- **Generic builder** (most operations) — a fully declarative mapping. Each
-  parameter's rule says how it becomes an argument (e.g. `{all: true}` → `-A`),
-  flags first, then a `--` terminator, then positional operands.
-- **Named builder** (`find`, `grep`) — small purpose-written Go for grammars the
-  generic mapping can't express (e.g. `find` needs its search root *first* and its
-  name filters combined into one parenthesized OR group).
-- **Builtin** (`pwd`, `largest_files`, and the app/mail/calendar/reminders/phone/
-  messages/printer/system reads) — answered by purpose-written Go for questions a
-  single declarative command can't express in one call. Some are pure Go with no
-  subprocess (`pwd`, `largest_files`); others compose a trusted binary in-process
-  (e.g. `search_mail` runs `mdfind` then `mdls`; the Messages reads run
-  `sqlite3 -readonly -json`). `largest_files` is the clearest pure example:
+- **Generic builder** (the `builder: "generic"` default) — a fully declarative
+  mapping. Each parameter's rule says how it becomes an argument (e.g.
+  `{all: true}` → `-A`), flags first, then a `--` terminator, then positional
+  operands. Used by the classic argument-driven utilities (`ls`, `stat`, `du`,
+  `wc`, `file`, `sort`, `head`, `uptime`).
+- **Named builder** (2: `find`, `grep`) — small purpose-written Go for grammars
+  the generic mapping can't express (e.g. `find` needs its search root *first* and
+  its name filters combined into one parenthesized OR group).
+- **Builtin** (94, the bulk of the read surface) — answered by purpose-written Go
+  for questions a single declarative command can't express in one call. Some are
+  pure Go with no subprocess (`pwd`, `largest_files`, `list_ssh_hosts`); others
+  compose a trusted binary in-process (`search_mail` runs `mdfind` then `mdls`;
+  the Messages reads run `sqlite3 -readonly -json`; the Photos/Notes/Safari reads
+  run a fixed AppleScript and parse its delimited output).
+  `largest_files` is the clearest pure example:
   "biggest files" is a `du -a | sort -rn | head` *pipeline* idiom — a literal
   shell pipe is forbidden, and even the server-side `pipeline` tool below would
   need the model to assemble three stages for something this common — so the
@@ -492,7 +879,7 @@ stdin in a real shell pipe when given no file argument.
 - **Limits**: at most 5 stages; each intermediate stage's raw output is capped
   at 1 MiB (generous on purpose — that data never reaches the model, it only
   has to fit in the server's own memory; the *final* stage's output still goes
-  through the normal 8 KB model-facing compaction). A failing stage (non-zero
+  through the normal 32 KB model-facing compaction). A failing stage (non-zero
   exit, or — for a non-final stage — exceeding that cap) aborts the whole
   pipeline immediately, naming which stage and why.
 - **Sequential, not concurrently streamed.** Each stage runs to completion and
@@ -555,13 +942,27 @@ change is reversible, returns an `undo_…` token in the same response — no se
 `execute` call. The registry confines this to low-stakes mutations: `auto_commit`
 is rejected on a read-only capability and on anything risk `medium`/`high`, so
 paper-consuming prints and lossy quits stay behind the confirmation gate.
-Today's auto-commit operations are `open_application`, `focus_application`, and
-`open_settings`. Each operation line in a domain tool's menu states its lane —
+**21 of the 70 mutating operations** take this lane today: launching, focusing,
+moving, resizing, and minimizing app windows; opening a Settings pane, an App
+Store page, or a Maps window; music transport; clipboard writes; notifications
+and speech; display sleep and `allow_sleep`; the appearance switch; Quick Look
+thumbnails; and the DNS-cache flush. Each operation line in a domain
+tool's menu states its lane —
 "runs immediately", "runs immediately; may return an undo token", or "STAGED —
 confirm with the user, then execute" — so the model knows what a call will do up
 front.
 
-The mutators in the registry today span every undo shape the design anticipated:
+**70 mutators across 21 domains** now sit behind this machinery, and the
+`Reversibility` label on each says which undo shape it uses:
+
+| Shape | Count | Means | Examples |
+| --- | ---: | --- | --- |
+| `reversible` | 25 | A true inverse restores the prior state exactly | `mkdir`, `move`, `append_to_file`, `write_setting`, `set_title`, `move_window`, `remap_key` |
+| `compensatable` | 12 | A compensating action, not a true inverse | `write_file`/`compress` (undo trashes the new file), `add_event`, `create_note`, `create_contact` |
+| `irreversible` | 33 | No inverse exists; `execute` says so | `send_mail`, `call`, `print_file`, `run_shortcut`, `quit_process`, the Maps hand-offs |
+
+The examples below walk one of each shape in full:
+
 - **`mkdir`** — forward is `mkdir -- <path>`, inverse is `rmdir -- <path>` (which
   refuses a non-empty directory, so undo can never destroy files added after the
   create). Staging refuses a path that already exists or begins with `-`.
@@ -669,12 +1070,19 @@ reviewing it knows what an arbitrary key actually does.
   `find`'s `extensions` filter rejects anything but `[A-Za-z0-9_-]+`; its `type`
   is restricted to `f`, `d`, or `l`; dash-leading search roots are rejected so
   they can't be reinterpreted as flags.
-- **Output budget.** Subprocess output larger than 8 KB is compacted to a
-  head + tail window with a notice, so a verbose utility can't saturate the
-  model's context. A `pipeline` call's intermediate stages are capped more
-  generously (1 MiB — that data never reaches the model, only the server's own
-  memory), but the *final* stage a pipeline returns still goes through the
-  same 8 KB model-facing compaction as any other result.
+- **Output budget.** Subprocess output larger than **32 KB** is compacted to a
+  head + tail window (16 KB each) with a notice stating how many bytes were
+  dropped, so a verbose utility can't saturate the model's context. A `pipeline`
+  call's intermediate stages are capped more generously (1 MiB — that data never
+  reaches the model, only the server's own memory), but the *final* stage a
+  pipeline returns still goes through the same 32 KB model-facing compaction as
+  any other result. A staged mutation's stdin payload has its own engine-wide
+  ceiling (16 MiB) so a plan sitting in the token store can't become a
+  memory-pressure vector.
+- **Every subprocess is time-bounded.** Beyond the request context, each command
+  carries an independent two-minute wall-clock timeout, so a runaway scan
+  (`find`/`du`/`grep` rooted at `/`) is killed rather than tying up the server
+  until the client happens to disconnect.
 - **Stdout discipline.** All logs go to `os.Stderr`; `os.Stdout` is reserved
   exclusively for JSON-RPC framing.
 - **macOS permission model.** The server runs as the user that started it and
@@ -733,52 +1141,46 @@ internal/
   registry/                    # the capability catalog (pure data; no exec, no MCP)
     types.go                   #   Capability / ParamSpec / ArgRule + closed enums
     registry.go                #   embed + load + fail-fast structural validation
-    manifests/
-      filesystem.json          #   12 filesystem capabilities (incl. sort/head + mkdir) as JSON data
-      preferences.json         #   write_setting (the curated 19-entry "setting" enum) as JSON data
-      mail.json                #   search_mail + send_mail (irreversible, optional attachments)
-      calendar.json            #   list_calendars/query_events/add/modify/delete_event
-      reminders.json           #   list/add/modify/complete/delete_reminder
-      phone.json               #   find_contact (read) + call (irreversible)
-      messages.json            #   check/search/read_conversation/list_conversations + send_message (irreversible)
-      application.json          #   list/search/list_running + open/focus/quit_application
-      printer.json             #   list_printers/list_print_jobs + print_file/print_test_page (irreversible)
-      system.json              #   wifi/list_preferred_wifi/bluetooth/power status + open_settings
+    manifests/                 #   23 JSON files, one per domain — 174 capabilities as DATA
+      filesystem.json          #     25 ops: reads, media conversion, and the reversible write set
+      system.json              #     23 ops: hardware/power/network state, notifications, Settings hand-off
+      photos.json              #     20 ops: Photos search/read/export + reversible & no-undo organizing
+      network.json             #     16 ops: connectivity diagnostics, LAN discovery, SSH inventory
+      application.json         #     14 ops: installed/running apps, launching, windows, App Store
+      process.json             #      9 ops: process/resource reads + graceful quit/terminate
+      storage.json             #      8 ops: Time Machine, disks, volumes, disk images
+      security.json            #      7 ops: signing, Gatekeeper, SIP, quarantine, keychain metadata
+      notes.json · calendar.json · reminders.json · messages.json · mail.json
+      music.json · printer.json · preferences.json · screenshot.json · maps.json
+      phone.json · contacts.json · safari.json · clipboard.json · shortcuts.json
   engine/                      # execution: turn a capability + params into output
     engine.go                  #   Run pipeline (read): normalize → builder/builtin → policy → exec
     validate.go                #   parameter normalization & type coercion (input guardrail)
     argbuild.go                #   generic declarative argv builder + typed accessors
-    applescript.go             #   shared hardened osascript seam: the "--" terminator + AppleScript date helpers
-    builders_filesystem.go     #   named builders for irregular grammars (find, grep)
-    builtins.go                #   builtin registry (pwd)
-    builtins_filesystem.go     #   largest_files in-process tree walk + ranking
-    builtins_mail.go           #   search_mail: composes mdfind + mdls
-    builtins_calendar.go       #   list_calendars + query_events reads (osascript → parse)
-    builtins_reminders.go      #   list_reminders read (osascript → parse)
-    builtins_phone.go          #   find_contact read + resolveContactNumbers (shared with call)
-    builtins_messages.go       #   Messages reads via sqlite3 -readonly -json on chat.db; SQL-injection guards
-    builtins_apps.go           #   list/search/list_running applications reads (mdfind + osascript)
-    builtins_printers.go       #   list_printers + list_print_jobs reads (lpstat parsing)
-    builtins_system.go         #   wifi/bluetooth/power status reads (networksetup/system_profiler/pmset)
-    executor.go                #   subprocess runner, ~ expansion, 8 KB output compaction; runCommandWithStdin
+    builders_filesystem.go     #   named argv builders for irregular grammars (find, grep)
+    applescript.go             #   shared hardened osascript seam: the "--" terminator + AppleScript helpers
+    executor.go                #   subprocess runner, ~ expansion, 32 KB output compaction, 2-min timeout,
+                               #   runCommandWithStdin + execDetached (keep_awake)
+    pipeline.go                #   RunPipeline: chains read-only, binary-backed stages
+    builtins.go                #   the builtin registry: 94 in-process reads → their Go funcs
+    builtins_*.go              #   one file per domain's reads (filesystem, mail, calendar, reminders,
+                               #   contacts, phone, messages, notes, photos, safari, music, apps,
+                               #   appstore, printers, system, sysinfo, network, process, security,
+                               #   keychain, storage, screenshot, spotlight, clipboard, diagnostics,
+                               #   devices, ssh, shortcuts, windowing, preferences)
     mutate.go                  #   generic mutation machinery: Mutator/Command/StagedPlan, Stage/RunCommand
-    mutate_filesystem.go       #   mkdir mutator
-    mutate_preferences.go      #   write_setting mutator + the defaultsAllowlist curated settings map
-    mutate_mail.go             #   send_mail mutator (irreversible)
-    mutate_calendar.go         #   add/modify/delete_event mutators (reversible; probe-then-stage)
-    mutate_reminders.go        #   add/modify/complete/delete_reminder mutators (reversible)
-    mutate_phone.go            #   call mutator: validates number, builds tel:/facetime: URL, open (irreversible)
-    mutate_messages.go         #   send_message mutator (irreversible, optional file attachments)
-    mutate_apps.go             #   open/focus/quit_application mutators (auto-commit lane; lsappinfo running-check)
-    mutate_printers.go         #   print_file/print_test_page mutators (irreversible; embedded test page)
-    mutate_system.go           #   open_settings mutator (auto-commit; vetted x-apple.systempreferences URLs)
-    pipeline.go                #   RunPipeline: chains read-only, binary-backed stages (see "pipeline" above)
+    mutate_*.go                #   one file per domain's 70 mutators, each returning a StagedPlan with
+                               #   a forward command and (where one exists) its inverse
+    media_filesystem.go        #   sips/textutil/qlmanage conversions (create-only, never overwrite)
+    messages_sandbox.go        #   copies an attachment into Messages' sandbox before sending
+    appdocs.go                 #   plutil/mdimport document-type check behind open_file's preview
   policy/
     binaries.go                # the trust boundary: which binaries may run, and from where
   transaction/                 # the stage↔execute/undo bridge (no deps on engine/registry/MCP)
     store.go                   #   generic, thread-safe, TTL one-shot token store
   server/                      # the MCP adapter (depends on engine + registry + transaction)
-    tools.go                   #   domain tools + execute/undo; the request handlers
+    tools.go                   #   23 domain tools + execute/undo; the request handlers and the
+                               #   read / auto-commit / staged dispatch
     menu.go                    #   render each domain tool's embedded operation/param menu
     pipeline.go                #   the pipeline tool: resolves stage names + renders its description
     inprocess.go               #   Connect(): wires a real Server to an in-memory MCP client,
@@ -788,14 +1190,13 @@ internal/
     anthropic.go               #   minimal net/http Messages API client
     runner.go                  #   the agent loop: real model ↔ real server, capped at 6 rounds/turn
     expectation.go             #   pure CheckExpectation logic (unit tested with no network)
+    state.go                   #   declarative filesystem post-conditions for mutating cases
 
 evals/
-  cases/                       # the actual eval fixtures (dev-only data, never embedded in the binary)
-    domain_selection.json
-    filesystem_reads.json
-    mail.json
-    mutation_confirmation.json
+  cases/                       # 167 eval cases (dev-only data, never embedded in the binary):
+                               # 114 automated + 53 permission-/account-/hardware-gated "manual" ones
 ```
+
 
 The architectural ground rules behind these choices live in `CLAUDE.md` and
 `.claude/rules/*.md`; the design rationale is recorded in `docs/ideas/` and
@@ -851,10 +1252,26 @@ go run ./cmd/runevals -include-manual        # add the manual smoke set to the r
 go run ./cmd/runevals -only m_calendar_query_tomorrow   # or drive one manual case
 ```
 
-How it works: for each case in `evals/cases/*.json` (an everyday-Mac corpus
-spanning all 15 domains, split into CI-safe **automated** cases and permission-/
-account-/hardware-gated **manual** ones tagged `"manual": true` and skipped
-unless `-include-manual` is passed), the harness sends the prompt to
+For day-to-day development there is also `/runevals`, a Claude Code skill that
+runs the same case files **in-session** — Claude reads each prompt, calls the MCP
+tools directly, and checks the expectations. No API key, no billed calls. It is
+softer on *routing* (an in-session model has conversation context a fresh one
+wouldn't), so it tests execution correctness; the binary above is what tests
+cold-start tool selection.
+
+The corpus spans four kinds of case: everyday-Mac **routing and execution** per
+domain (`filesystem_reads`, `network_diagnostics`, `process_reads`, …),
+**mutation confirmation** (does the model stop at the staged preview instead of
+chaining into `execute`), **adversarial safety** (`security_destructive`,
+`security_injection`, `security_exfiltration`, `security_dos`, `security_trust` —
+refusing to wipe the disk, ignoring instructions injected into a file it reads),
+and **manual smoke tests** that need a real signed-in Mac.
+
+How it works: for each of the **167 cases** in `evals/cases/*.json` (an
+everyday-Mac corpus spanning all 23 domains, split into **114 CI-safe automated**
+cases and **53 permission-/account-/hardware-gated manual** ones tagged
+`"manual": true` and skipped unless `-include-manual` is passed), the harness
+sends the prompt to
 `claude-sonnet-4-6` with the *real* domain tool schemas attached (read straight
 off the live in-process server via `server.Connect` — the same helper the
 integration tests use, no hand-duplicated schemas). Any tool the model calls is
